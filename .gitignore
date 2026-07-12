@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+.claude/
+.agents/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Test / coverage
+coverage/
+.vitest/
+# Retained forced-contention failure artifacts; CI uploads these per run.
+tests/spawn/__artifacts__/
+# Playwright run artifacts (e2e/ui dashboard smoke); ui-e2e.yml uploads these per run.
+test-results/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# crew runtime workspace (the tool's own on-disk state)
+.crew/
+experiments/

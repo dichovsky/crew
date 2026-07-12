@@ -1,0 +1,61 @@
+name: Launch e2e (full fake-Participant real-tmux launch)
+
+# Release-gate tier (testing-strategy "Real tmux e2e"): the
+# full fake-Participant launch path (build session → two-stage readiness → per-pane
+# `crew join` → Manager brief paste → Relay nudge → receive-once → teardown stops
+# the Relay) against REAL tmux. It is heavy and flaky-prone, so it is OFF the PR
+# critical path: ci.yml's per-PR gate keeps the deterministic recording-adapter
+# launch tests and the lighter adapter/Relay real-tmux e2e (which self-run there).
+# This tier runs nightly on main, on manual dispatch (release prep), and on a PR
+# only when explicitly opted in with the `launch-e2e` label. It is DECOUPLED from
+# stress.yml so this label never triggers the 500-iteration SQLite stress suite.
+# A flaky failure here is a release failure, not a candidate for a blind retry.
+on:
+  schedule:
+    - cron: '30 6 * * *'
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+jobs:
+  launch-e2e:
+    name: launch-e2e
+    # Scheduled/dispatch always run; on a PR only when the launch-e2e label is
+    # present — checked against the PR's current labels (not the triggering event)
+    # so a push after the label was added still re-runs this gate.
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'launch-e2e')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          # Node floor: the lowest supported runtime (bundled node:sqlite governs
+          # locking) and the interpreter name the fake participant presents for readiness.
+          node-version: '24.18.0'
+          cache: npm
+      - run: npm ci
+      # CREW_REQUIRE_TMUX below turns a missing tmux binary into a hard failure so
+      # this gate can never silently false-green.
+      - run: sudo apt-get update && sudo apt-get install -y tmux
+      - run: tmux -V
+      - run: npm run build
+      - name: Full fake-Participant launch e2e
+        run: npx vitest run tests/spawn/launch-e2e.test.ts
+        env:
+          # CREW_LAUNCH_E2E=1 hard-runs the env-gated e2e (per-PR CI leaves it a
+          # visible skip); CREW_REQUIRE_TMUX=1 turns a missing tmux into a hard
+          # failure so this gate can never silently false-green.
+          CREW_LAUNCH_E2E: '1'
+          CREW_REQUIRE_TMUX: '1'
+      # Retain whatever the e2e records on failure (per-pane captures, tmux server
+      # log). Harmless until that recording lands; wired now so the gate keeps
+      # evidence the moment it does.
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: launch-e2e-artifacts
+          path: |
+            tests/spawn/**/__artifacts__/**
+          if-no-files-found: ignore
+          retention-days: 14

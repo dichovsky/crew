@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#181a1f" />
+    <title>crew Console</title>
+    <!-- Design fonts; the console degrades to system fonts when offline. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="app"></div>
+    <!-- The bundle request must carry the per-run token, which rides in the
+         page URL query (FR-U04 covers assets too) — a static src cannot. -->
+    <script type="module">
+      import(`./main.js${location.search}`);
+    </script>
+  </body>
+</html>

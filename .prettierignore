@@ -1,0 +1,11 @@
+dist
+coverage
+node_modules
+package-lock.json
+
+# Prettier governs code; prose docs are authored by hand.
+**/*.md
+
+# Stable launch-plan fixture: byte-identical to the canonical JSON serializer
+# (JSON.stringify, 2-space indent), which prettier would reformat.
+tests/fixtures/launch-plan.dev.json

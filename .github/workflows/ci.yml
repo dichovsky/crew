@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    name: ubuntu / node 24.18.0
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.18.0'
+          cache: npm
+      - run: npm ci
+      # CREW_REQUIRE_TMUX below turns a missing tmux binary into a hard failure so
+      # this gate can never silently skip into a false green.
+      - run: sudo apt-get update && sudo apt-get install -y tmux
+      - run: tmux -V
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run build
+      # Fast tier: a small fixed forced-contention count on every push/PR for quick
+      # signal and to block merge. The full hundreds-of-iterations matrix runs in
+      # stress.yml (nightly + release + concurrency-critical paths).
+      # Coverage-gated: `test:coverage` runs the same suite and enforces the
+      # documented 95% thresholds from vitest.config.ts.
+      - run: npm run test:coverage
+        env:
+          CREW_REQUIRE_TMUX: '1'
+          CREW_STRESS_ITERS: '25'
+
+  # Fast, deterministic proof that the package is publishable: `npm publish --dry-run`
+  # packs and validates the tarball WITHOUT publishing and WITHOUT any npm token. The
+  # pack-smoke test guards the exact file allowlist; this job guards that the manifest
+  # itself is publishable (not private, valid version). The maintainer runs the real
+  # publish by hand.
+  publish-dry-run:
+    name: publish dry-run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.18.0'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm publish --dry-run

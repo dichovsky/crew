@@ -1,0 +1,44 @@
+name: UI e2e (Console dashboard browser smoke)
+
+# The real-browser dashboard smoke — build the real bundle,
+# seed a temp Workspace through the built CLI, start `crew ui`, and assert the
+# board renders the seeded data in Chromium. Browser downloads and real-server
+# startup make it heavy, so it is OFF the PR critical path (ci.yml keeps the
+# jsdom component/wiring tests): it runs nightly on main, on manual dispatch,
+# and on a PR only when explicitly opted in with the `ui-e2e` label. A flaky
+# failure here is a release failure, not a candidate for a blind retry.
+on:
+  schedule:
+    - cron: '45 6 * * *'
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+jobs:
+  ui-e2e:
+    name: ui-e2e
+    # Scheduled/dispatch always run; on a PR only when the ui-e2e label is
+    # present — checked against the PR's current labels (not the triggering
+    # event) so a push after the label was added still re-runs this gate.
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ui-e2e')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          # Node floor: the lowest supported runtime (node:sqlite ships in 24+).
+          node-version: '24.18.0'
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium and system deps for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Console dashboard browser smoke
+        run: npm run e2e:ui
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-e2e-artifacts
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 14

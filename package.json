@@ -1,0 +1,77 @@
+{
+  "name": "@dichovsky/crew",
+  "version": "0.1.0",
+  "description": "Local coordination for terminal coding agents (Claude Code, Codex, Gemini, Copilot) via a workspace-local SQLite inbox and reviewed task workflow \u2014 no daemon, no model provider.",
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "cli",
+    "coding-agents",
+    "coordination",
+    "tmux",
+    "sqlite",
+    "claude-code",
+    "codex",
+    "gemini-cli",
+    "copilot-cli",
+    "inbox",
+    "agents"
+  ],
+  "homepage": "https://github.com/dichovsky/crew#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dichovsky/crew.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dichovsky/crew/issues"
+  },
+  "engines": {
+    "node": ">=24.15"
+  },
+  "bin": {
+    "crew": "dist/bin/crew.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && npm run build:web",
+    "build:web": "esbuild web/main.tsx --bundle --minify --format=esm --jsx=automatic --jsx-import-source=preact --loader:.css=text --outdir=dist/ui-assets && cp web/index.html dist/ui-assets/index.html",
+    "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:stress": "CREW_STRESS_ITERS=300 vitest run tests/spawn",
+    "test:watch": "vitest",
+    "e2e:ui": "playwright test --config e2e/ui/playwright.config.ts",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^26.1.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "esbuild": "^0.28.1",
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
+    "execa": "^9.6.1",
+    "jsdom": "^29.1.1",
+    "preact": "^10.29.5",
+    "prettier": "^3.9.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.63.0",
+    "vitest": "^4.1.10"
+  }
+}

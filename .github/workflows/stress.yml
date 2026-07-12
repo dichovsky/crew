@@ -1,0 +1,57 @@
+name: Stress (full forced-contention matrix)
+
+# Release-gate stress tier (testing-strategy "Forced-contention spawn suite"):
+# hundreds of iterations of every contention case at the Node floor (the bundled
+# node:sqlite governs locking behaviour).
+# This is OFF the PR critical path: ci.yml's fast tier (25/case) is the per-PR gate.
+# This heavy tier runs nightly on main, on manual dispatch (release prep), and on a
+# PR only when explicitly opted in with the `stress-full` label. A flaky failure
+# here is a release failure, not a candidate for a blind retry.
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: CREW_STRESS_ITERS per contention case
+        default: '500'
+  pull_request:
+    types: [labeled]
+
+jobs:
+  stress:
+    name: stress
+    # Scheduled/dispatch always run; on a PR only when the stress-full label is added.
+    if: github.event_name != 'pull_request' || github.event.label.name == 'stress-full'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          # Node floor: the lowest supported runtime, whose bundled node:sqlite is
+          # the most likely to expose least-favourable locking/retry edges.
+          node-version: '24.18.0'
+          cache: npm
+      - run: npm ci
+      # CREW_REQUIRE_TMUX below turns a missing tmux binary into a hard failure so
+      # this gate can never silently false-green.
+      - run: sudo apt-get update && sudo apt-get install -y tmux
+      - run: tmux -V
+      - run: npm run build
+      - name: Forced-contention stress
+        run: npx vitest run tests/spawn
+        env:
+          CREW_REQUIRE_TMUX: '1'
+          CREW_STRESS_ITERS: ${{ github.event.inputs.iterations || '500' }}
+      # Retain whatever the suite records on failure (seed, realized timings, a copy
+      # of the post-crash database, per-process logs). Harmless until that recording
+      # lands; wired now so the gate keeps evidence the moment it does.
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stress-artifacts
+          path: |
+            tests/spawn/**/__artifacts__/**
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "session_name": "crew-demo",
+  "created_at": 0,
+  "team": "dev",
+  "client": "codex-cli",
+  "executable": "codex",
+  "worktree": {
+    "enabled": false,
+    "path": null,
+    "branch": null,
+    "base_ref": "HEAD"
+  },
+  "relay": {
+    "enabled": true,
+    "poll_seconds": 2,
+    "reminder_seconds": 30,
+    "attach": true
+  },
+  "roster": [
+    {
+      "agent_id": "manager",
+      "role": "manager",
+      "replica_base": "manager"
+    },
+    {
+      "agent_id": "worker",
+      "role": "worker",
+      "replica_base": "worker"
+    },
+    {
+      "agent_id": "worker-2",
+      "role": "worker",
+      "replica_base": "worker"
+    },
+    {
+      "agent_id": "inspector",
+      "role": "inspector",
+      "replica_base": "inspector"
+    }
+  ],
+  "focus": {
+    "files": [
+      "src/"
+    ],
+    "docs": [
+      "docs/design/architecture.md"
+    ]
+  },
+  "constraints": [
+    "Do not modify generated files."
+  ],
+  "task_brief": {
+    "present": true,
+    "target_role": "manager"
+  },
+  "artifacts": [
+    "pane-map.json",
+    "manager-prompt.md",
+    "inspector-prompt.md",
+    "run-summary.md"
+  ]
+}
