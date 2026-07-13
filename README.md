@@ -41,8 +41,14 @@ crew requires **Node.js `>=24.15`**. Its State Store — the single database fil
 keeps all shared state — uses the built-in `node:sqlite` module, which only ships with
 Node 24 and later.
 
-> **Not yet published.** `@dichovsky/crew` has not been released to npm yet (the project is
-> pre-1.0, at version `0.1.0`). Until the first release, install from source:
+`0.1.0` is published to npm. Install it globally:
+
+```sh
+npm install -g @dichovsky/crew
+crew --version
+```
+
+Or build from source:
 
 ```sh
 git clone https://github.com/dichovsky/crew.git
@@ -53,8 +59,7 @@ npm link           # puts the `crew` executable on your PATH
 crew --version
 ```
 
-Once the first version is published, installing will be a single
-`npm install -g @dichovsky/crew`. The package name is **`@dichovsky/crew`**, but the
+The package name is **`@dichovsky/crew`**, but the
 installed executable is **`crew`** (the plain `crew` name was already taken on npm - see
 [DEC-7](./docs/design/decisions.md)). There is no background process, no local server, and no
 cloud account: every `crew` command reads or updates the database file inside your project

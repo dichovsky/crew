@@ -236,8 +236,9 @@ temporary prefix and verify:
 - Node below the engine floor fails with a clear message;
 - no source maps or test fixtures leak secrets or local paths.
 
-The package `@dichovsky/crew` is published only after the release gates close
-(the first publish uses `npm publish --access public`).
+The package `@dichovsky/crew` is published after the release gates close: `0.1.0` was a
+one-time manual `npm publish`, and `0.1.1`+ publish from CI via npm OIDC Trusted
+Publishing (`.github/workflows/publish.yml`).
 
 ## Quality gates
 

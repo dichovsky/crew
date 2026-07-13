@@ -6,12 +6,12 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
-## [0.1.0] — initial public release
+## [0.1.0] — 2026-07-13
 
 The first public release of `crew`, a local coordination CLI for terminal coding
-agents (Claude Code, Codex CLI, Gemini CLI, Copilot CLI). crew never calls a model
-provider itself — it coordinates independently running sessions through a
-workspace-local SQLite database.
+agents (Claude Code, Codex CLI, Gemini CLI, Copilot CLI, and Antigravity CLI). crew
+never calls a model provider itself — it coordinates independently running sessions
+through a workspace-local SQLite database.
 
 ### Added
 
@@ -26,9 +26,12 @@ workspace-local SQLite database.
   per-Worker isolated git worktrees and a Relay that nudges idle panes without
   consuming messages.
 - **Console** — `crew ui`, a loopback-only web dashboard with live updates and
-  Operator actions.
+  Operator actions, including the Now triage view, a light/dark theme, and Agent
+  archive/restore.
 - **Maintenance** — `crew doctor`, `crew prune`, `crew clean`, and `crew setup`
-  with an authoritative per-platform registry.
+  with an authoritative per-platform registry covering five Participant CLIs
+  (Claude Code, Codex, Gemini, Copilot, Antigravity) and the Ollama / LM Studio
+  Model Backends.
 - **Safety** — a schema-versioned STRICT SQLite store with in-database invariants,
   defensive connection settings, bounded busy retries, secret redaction, and
   terminal-escape sanitization of all human-facing output.
