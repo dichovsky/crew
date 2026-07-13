@@ -112,11 +112,12 @@ describe('MessageModal', () => {
     host.remove();
   });
 
-  it('disables the textarea and both buttons while pending and shows an error line', () => {
+  it('disables the textarea and all three dismiss/send controls while pending and shows an error line', () => {
     const { host } = mount({ pending: true, error: 'Message is empty' });
     expect((host.querySelector('textarea') as HTMLTextAreaElement).disabled).toBe(true);
     expect((host.querySelector('.btn-primary') as HTMLButtonElement).disabled).toBe(true);
     expect((host.querySelector('.btn-ghost') as HTMLButtonElement).disabled).toBe(true);
+    expect((host.querySelector('.modal-close') as HTMLButtonElement).disabled).toBe(true);
     expect(host.querySelector('.modal-error')?.textContent).toBe('Message is empty');
     expect(host.querySelector('.btn-primary')?.textContent).toBe('Sending…');
     host.remove();

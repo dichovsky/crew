@@ -119,7 +119,13 @@ export function MessageModal({
               {to}
             </span>
           </h3>
-          <button type="button" class="modal-close" onClick={onClose} aria-label="Close">
+          <button
+            type="button"
+            class="modal-close"
+            disabled={pending}
+            onClick={onClose}
+            aria-label="Close"
+          >
             ×
           </button>
         </div>

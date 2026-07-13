@@ -182,6 +182,15 @@ describe('Agents', () => {
     host.remove();
   });
 
+  it('disables the Archive/Restore button while `disabled` (FR-U32 recovery)', () => {
+    const { host } = mount({
+      agents: [agent({ id: 'grace', status: 'active' })],
+      disabled: true,
+    });
+    expect((host.querySelector('.btn-archive') as HTMLButtonElement).disabled).toBe(true);
+    host.remove();
+  });
+
   it("never shows an Archive control on the operator agent's own card (FR-U36)", () => {
     const { host } = mount({
       agents: [agent({ id: 'operator', role: 'operator', status: 'active' })],

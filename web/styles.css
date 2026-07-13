@@ -28,7 +28,7 @@
 }
 
 /*
- * Dark presentation (FR-U38, ADR-0016): the same structural tokens re-pointed
+ * Dark presentation (FR-U38, ADR-0017): the same structural tokens re-pointed
  * at the Crew Console dark palette. Semantic tints (accent, status, role,
  * engine, and danger colours) are deliberately unchanged between themes, same
  * as the design — only the neutral surface/border/text scale flips. Toggled

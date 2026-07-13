@@ -290,7 +290,11 @@ export function App() {
       setMsgModal(null);
       setMsgModalText('');
     } catch (err) {
-      setMsgModalError(err instanceof Error ? err.message : 'Send failed');
+      const message = err instanceof Error ? err.message : 'Send failed';
+      // A toast survives the modal closing (Escape/backdrop/× are not
+      // gated by `pending`), so a failed send is never silently lost.
+      pushToast('Message not sent', message, '#d15540');
+      setMsgModalError(message);
     } finally {
       setMsgModalPending(false);
     }

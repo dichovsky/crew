@@ -79,11 +79,13 @@ export type TaskActionRecord = Omit<TaskSnapshotRecord, 'events'>;
  * platform, only resume an archived one). The full Store satisfies this
  * structurally; narrowing the parameter keeps any other write (a create-new
  * join, start, submit, prune) a compile error in this module. `joinAgent` is
- * declared with arrow-property syntax rather than method shorthand
- * specifically so this narrowing is checked under `strictFunctionTypes`
- * (contravariant parameters) — TypeScript always checks method-shorthand
- * members bivariantly regardless of `strictFunctionTypes`, which would make
- * the narrowing claim above compile-checked in name only.
+ * declared with arrow-property syntax rather than method shorthand so the
+ * narrowing is checked contravariantly under `strictFunctionTypes` — method
+ * shorthand is always checked bivariantly regardless of that flag. With
+ * `JoinAgentInput`'s other fields all optional today the two syntaxes behave
+ * identically in practice; the arrow-property form is defense-in-depth
+ * against a future required field on that type, not a guarantee this line
+ * alone provides right now.
  */
 export interface ActionStore {
   sendMessages(input: {
