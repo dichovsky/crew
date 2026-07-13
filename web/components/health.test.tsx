@@ -6,10 +6,10 @@ import { render } from 'preact';
 import { afterEach, describe, expect, it } from 'vitest';
 import { HealthList, type HealthFindingView } from './health';
 
-function mount(findings: readonly HealthFindingView[]): HTMLElement {
+function mount(findings: readonly HealthFindingView[], dark = false): HTMLElement {
   const host = document.createElement('div');
   document.body.appendChild(host);
-  render(<HealthList findings={findings} />, host);
+  render(<HealthList findings={findings} dark={dark} />, host);
   return host;
 }
 
@@ -44,6 +44,17 @@ describe('HealthList', () => {
     const host = mount([{ severity: 'warn', code: 'X', message: '<img src=x onerror=alert(1)>' }]);
     expect(host.textContent).toContain('<img src=x onerror=alert(1)>');
     expect(host.querySelector('img')).toBeNull();
+    host.remove();
+  });
+
+  it('re-tints the severity pill background via colour-mix in dark mode', () => {
+    const host = mount(
+      [{ severity: 'warn', code: 'STALE_LEASE', message: 'rob holds an expired lease' }],
+      true,
+    );
+    const pill = host.querySelector('.pill') as HTMLElement;
+    // jsdom normalizes the hex colour it parsed back out to rgb().
+    expect(pill.style.background).toBe('color-mix(in srgb, rgb(176, 125, 20) 20%, transparent)');
     host.remove();
   });
 });

@@ -35,6 +35,7 @@ function mount(opts: Opts = {}): HTMLElement {
       resumableSessions={opts.resumableSessions ?? []}
       health={HEALTH}
       now={0}
+      dark={false}
       disabled={false}
       onLaunch={opts.onLaunch ?? (() => Promise.resolve())}
       onRequestResume={opts.onRequestResume ?? (() => Promise.resolve())}

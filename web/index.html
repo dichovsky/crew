@@ -3,7 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="light" />
+    <!-- FR-U38: the App applies the stored theme preference (default light) to
+         data-theme on <html> once it mounts, so the browser's own UI (scrollbars,
+         form controls) can match. `light dark` here avoids a mismatched native
+         control color before that — a returning dark-theme user may still see a
+         brief flash of the page's own light chrome, since the App sets the
+         attribute from a post-mount effect rather than an inline bootstrap script. -->
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#181a1f" />
     <title>crew Console</title>
     <!-- Design fonts; the console degrades to system fonts when offline. -->

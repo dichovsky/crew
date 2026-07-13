@@ -1,19 +1,24 @@
 /**
- * The Crew Console root (ADR-0012), rebuilt to the Crew Console design: a left
- * sidebar over five views (Overview, Agents, Tasks, Messages, Operations), with
- * toasts and a one-click confirm modal (FR-U25, relaxed). It fetches the
- * snapshot, health, and owned-session list on mount and after each SSE change
- * (no polling) and after each completed action (never mid-form). All operator
- * authority stays server-side; this shell only drives the FR-U16–U18 enable
- * logic and renders. Stored content renders through Preact's default text
- * escaping — never dangerouslySetInnerHTML.
+ * The Crew Console root (ADR-0012, extended by ADR-0017), rebuilt to the Crew
+ * Console design: a left sidebar over six views (Now, Overview, Agents,
+ * Tasks, Messages, Operations), a light/dark theme toggle (FR-U38), a
+ * quick-message modal opened by clicking an Agent (replacing the previous
+ * "jump to Messages tab" flow), toasts, and a one-click confirm modal
+ * (FR-U25, relaxed). It fetches the snapshot, health, and owned-session list
+ * on mount and after each SSE change (no polling) and after each completed
+ * action (never mid-form). All operator authority stays server-side; this
+ * shell only drives the FR-U16–U18 enable logic and renders. Stored content
+ * renders through Preact's default text escaping — never
+ * dangerouslySetInnerHTML.
  */
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { fetchSnapshot, getToken, subscribeToChanges } from './api.js';
 import { Agents } from './components/agents.js';
 import { ConfirmDialog } from './components/confirm-dialog.js';
 import type { HealthState } from './components/health.js';
+import { MessageModal } from './components/message-modal.js';
 import { MessagesView } from './components/messages-view.js';
+import { NowView } from './components/now-view.js';
 import { Operations } from './components/operations.js';
 import { Overview } from './components/overview.js';
 import { RecoveryBanner } from './components/recovery-banner.js';
@@ -27,7 +32,9 @@ import type {
 } from './types.js';
 import {
   ACCENT,
+  assertNever,
   attentionItems,
+  nowWorklist,
   OPERATOR_ID,
   reviewQueue,
   shortId,
@@ -37,11 +44,33 @@ import {
 /** Bounded, stored-content-free failure line (the cause stays in devtools). */
 const FETCH_ERROR = 'snapshot fetch failed — the crew ui server may have stopped';
 
+/** FR-U38: local-only theme preference, never sent to the server. */
+const THEME_STORAGE_KEY = 'crew-console-theme';
+type Theme = 'light' | 'dark';
+
+function loadTheme(): Theme {
+  try {
+    return window.localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
+function saveTheme(theme: Theme): void {
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // Storage may be unavailable (private browsing, quota); the toggle still
+    // works for the session, it just won't persist across reloads.
+  }
+}
+
 /** A pending destructive action awaiting its one-click confirmation (FR-U25). */
 type DestructiveAction =
   | { readonly kind: 'stop'; readonly session: string }
   | { readonly kind: 'prune' }
-  | { readonly kind: 'clean' };
+  | { readonly kind: 'clean' }
+  | { readonly kind: 'archive'; readonly agentId: string };
 
 interface ErrorEnvelope {
   readonly error?: { readonly code?: string; readonly message?: string };
@@ -94,6 +123,7 @@ async function fetchResumableSessions(): Promise<readonly ResumableSessionSnapsh
 }
 
 const TITLES: Record<ViewId, readonly [string, string]> = {
+  now: ['Now', 'What needs you — in priority order'],
   overview: ['Overview', 'Everything at a glance across the crew'],
   agents: ['Agents', 'The roster and what each agent is doing'],
   tasks: ['Tasks', 'The reviewed work board — approve, requeue, reassign'],
@@ -117,6 +147,11 @@ const CONFIRM_TEXT: Record<DestructiveAction['kind'], readonly [string, string, 
     'Clean removes the State Store files and stops this Console. This cannot be undone.',
     'Clean',
   ],
+  archive: [
+    'Archive agent',
+    'Archiving hides it from the active roster and its lease/messages stay intact. You can restore it later.',
+    'Archive agent',
+  ],
 };
 
 export function App() {
@@ -127,7 +162,8 @@ export function App() {
     readonly ResumableSessionSnapshotRecord[]
   >([]);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<ViewId>('overview');
+  const [view, setView] = useState<ViewId>('now');
+  const [theme, setTheme] = useState<Theme>(loadTheme);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [draftRecipient, setDraftRecipient] = useState('');
   const [toasts, setToasts] = useState<readonly Toast[]>([]);
@@ -135,6 +171,10 @@ export function App() {
   const [confirmPending, setConfirmPending] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [recovering, setRecovering] = useState(false);
+  const [msgModal, setMsgModal] = useState<{ readonly to: string } | null>(null);
+  const [msgModalText, setMsgModalText] = useState('');
+  const [msgModalPending, setMsgModalPending] = useState(false);
+  const [msgModalError, setMsgModalError] = useState<string | null>(null);
 
   const recoveringRef = useRef(false);
   const disposedRef = useRef(false);
@@ -154,6 +194,16 @@ export function App() {
     setConfirm(null);
     setConfirmError(null);
   }, []);
+
+  // FR-U38: apply the theme to the document root once mounted and persist it
+  // — a pure presentation preference, never sent to the server. This runs
+  // after the initial paint (a plain useEffect, not useLayoutEffect), so a
+  // returning dark-theme user may see a brief flash of the light chrome; see
+  // the matching note on the color-scheme meta tag in web/index.html.
+  useEffect(() => {
+    document.documentElement.dataset['theme'] = theme;
+    saveTheme(theme);
+  }, [theme]);
 
   const refetch = useCallback(async (): Promise<void> => {
     if (recoveringRef.current) return;
@@ -200,15 +250,57 @@ export function App() {
     };
   }, [refetch]);
 
+  /** Opens the quick-message modal pre-addressed to `id` (replaces the old jump-to-Messages flow). */
   function messageAgent(id: string): void {
-    setDraftRecipient(id);
-    setView('messages');
+    setMsgModal({ to: id });
+    setMsgModalText('');
+    setMsgModalError(null);
+  }
+
+  // Stable identity for the same reason as cancelConfirm above: MessageModal's
+  // document-keydown effect depends on this, and the App re-renders on every
+  // SSE refetch tick while the modal is open.
+  const closeMsgModal = useCallback((): void => {
+    setMsgModal(null);
+    setMsgModalText('');
+    setMsgModalError(null);
+  }, []);
+
+  /** Selects a Task and switches to the Tasks view — the Now worklist's task-item action. */
+  function goToTask(taskId: string): void {
+    setSelectedTaskId(taskId);
+    setView('tasks');
   }
 
   async function sendMessage(input: { recipient: string; content: string }): Promise<void> {
     await postAction('/api/messages', { to: input.recipient, content: input.content });
     pushToast('Message sent', `to ${input.recipient}`, '#2f7de0');
     await refetch();
+  }
+
+  async function sendModalMessage(): Promise<void> {
+    const modal = msgModal;
+    if (modal === null) return;
+    const content = msgModalText.trim();
+    if (content === '') {
+      setMsgModalError('Message is empty.');
+      return;
+    }
+    setMsgModalPending(true);
+    setMsgModalError(null);
+    try {
+      await sendMessage({ recipient: modal.to, content });
+      setMsgModal(null);
+      setMsgModalText('');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Send failed';
+      // A toast survives the modal closing (Escape/backdrop/× are not
+      // gated by `pending`), so a failed send is never silently lost.
+      pushToast('Message not sent', message, '#d15540');
+      setMsgModalError(message);
+    } finally {
+      setMsgModalPending(false);
+    }
   }
 
   async function approveTask(taskId: string): Promise<void> {
@@ -242,16 +334,39 @@ export function App() {
     await refetch();
   }
 
+  /** `POST /api/agents/:id/restore` — reversible, no confirmation (FR-U36). */
+  async function restoreAgent(id: string): Promise<void> {
+    try {
+      await postAction(`/api/agents/${encodeURIComponent(id)}/restore`, {});
+      pushToast(`Restored ${id}`, 'Back on the roster', '#27a05f');
+      await refetch();
+    } catch (err) {
+      pushToast('Restore failed', err instanceof Error ? err.message : 'Restore failed', '#d15540');
+    }
+  }
+
   async function runConfirmed(action: DestructiveAction): Promise<void> {
-    if (action.kind === 'stop') {
-      await postAction('/api/team/stop', { session: action.session, confirm: true });
-      pushToast('Session stopped', action.session, '#d15540');
-    } else if (action.kind === 'prune') {
-      await postAction('/api/prune', { confirm: true });
-      pushToast('Prune complete', 'old history removed', '#8b95a3');
-    } else {
-      await postAction('/api/clean', { confirm: true });
-      pushToast('Clean complete', 'State Store removed', '#d15540');
+    switch (action.kind) {
+      case 'stop':
+        await postAction('/api/team/stop', { session: action.session, confirm: true });
+        pushToast('Session stopped', action.session, '#d15540');
+        return;
+      case 'prune':
+        await postAction('/api/prune', { confirm: true });
+        pushToast('Prune complete', 'old history removed', '#8b95a3');
+        return;
+      case 'clean':
+        await postAction('/api/clean', { confirm: true });
+        pushToast('Clean complete', 'State Store removed', '#d15540');
+        return;
+      case 'archive':
+        await postAction(`/api/agents/${encodeURIComponent(action.agentId)}/archive`, {
+          confirm: true,
+        });
+        pushToast(`Archived ${action.agentId}`, 'Hidden from the active roster', '#d15540');
+        return;
+      default:
+        assertNever(action);
     }
   }
 
@@ -289,9 +404,11 @@ export function App() {
   }
 
   const now = Date.now();
+  const dark = theme === 'dark';
   const attention = attentionItems(snapshot.tasks, snapshot.agents, now);
   const queue = reviewQueue(snapshot.tasks);
   const unread = unreadCount(snapshot.messages);
+  const worklist = nowWorklist(snapshot.tasks, snapshot.agents, snapshot.messages, now);
   const recipientOptions = snapshot.agents.map((a) => ({ id: a.id, label: `${a.id} · ${a.role}` }));
   const roleOf = (id: string): string =>
     snapshot.agents.find((a) => a.id === id)?.role ?? (id === OPERATOR_ID ? 'operator' : 'worker');
@@ -310,6 +427,7 @@ export function App() {
         reviewCount={queue.length}
         unreadCount={unread}
         needsAttention={attention.length > 0}
+        workCount={worklist.length}
         workspaceLabel={health?.summary.workspace ?? '~/workspace'}
       />
 
@@ -322,9 +440,44 @@ export function App() {
             <h1>{title}</h1>
             <p class="subtitle">{subtitle}</p>
           </div>
-          <div class="topstat">
-            <span class="dot" />
-            {snapshot.agents.length} agents · {attention.length} need attention
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              class="theme-toggle"
+              title="Toggle light / dark"
+              aria-label="Toggle light / dark theme"
+              aria-pressed={dark}
+              onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 18 18"
+                fill="none"
+                stroke={dark ? 'var(--faint)' : '#d99a2b'}
+                stroke-width="1.6"
+              >
+                <circle cx="9" cy="9" r="3.5" />
+                <path d="M9 1.5v2M9 14.5v2M1.5 9h2M14.5 9h2M3.7 3.7l1.4 1.4M12.9 12.9l1.4 1.4M14.3 3.7l-1.4 1.4M5.1 12.9l-1.4 1.4" />
+              </svg>
+              <span class={`theme-toggle-track${dark ? ' dark' : ''}`}>
+                <span class="theme-toggle-knob" />
+              </span>
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 18 18"
+                fill="none"
+                stroke={dark ? ACCENT : 'var(--faint)'}
+                stroke-width="1.6"
+              >
+                <path d="M15 10.5A6.5 6.5 0 0 1 7.5 3a6.5 6.5 0 1 0 7.5 7.5Z" />
+              </svg>
+            </button>
+            <div class="topstat">
+              <span class="dot" />
+              {snapshot.agents.length} agents · {attention.length} need attention
+            </div>
           </div>
         </header>
 
@@ -336,12 +489,22 @@ export function App() {
           )}
           <RecoveryBanner visible={recovering} />
 
+          {view === 'now' && (
+            <NowView
+              items={worklist}
+              dark={dark}
+              onSelectTask={goToTask}
+              onMessageAgent={messageAgent}
+              onOpenMessages={() => setView('messages')}
+            />
+          )}
           {view === 'overview' && (
             <Overview
               agents={snapshot.agents}
               tasks={snapshot.tasks}
               health={health}
               now={now}
+              dark={dark}
               onMessageAgent={messageAgent}
               onGoAgents={() => setView('agents')}
             />
@@ -351,7 +514,14 @@ export function App() {
               agents={snapshot.agents}
               tasks={snapshot.tasks}
               now={now}
+              dark={dark}
+              disabled={recovering}
               onMessageAgent={messageAgent}
+              onArchiveAgent={(id) => {
+                setConfirmError(null);
+                setConfirm({ kind: 'archive', agentId: id });
+              }}
+              onRestoreAgent={(id) => void restoreAgent(id)}
             />
           )}
           {view === 'tasks' && (
@@ -359,6 +529,7 @@ export function App() {
               tasks={snapshot.tasks}
               selectedId={selectedTaskId}
               now={now}
+              dark={dark}
               disabled={recovering}
               recipientOptions={recipientOptions}
               onSelect={setSelectedTaskId}
@@ -372,6 +543,7 @@ export function App() {
               recipientOptions={recipientOptions}
               recipient={draftRecipient}
               now={now}
+              dark={dark}
               disabled={recovering}
               roleOf={roleOf}
               onRecipientChange={setDraftRecipient}
@@ -384,6 +556,7 @@ export function App() {
               resumableSessions={resumableSessions}
               health={health}
               now={now}
+              dark={dark}
               disabled={recovering}
               onLaunch={launchTeam}
               onRequestResume={resumeTeam}
@@ -405,6 +578,16 @@ export function App() {
       </main>
 
       <Toasts toasts={toasts} />
+
+      <MessageModal
+        to={msgModal?.to ?? null}
+        text={msgModalText}
+        pending={msgModalPending}
+        error={msgModalError}
+        onTextChange={setMsgModalText}
+        onClose={closeMsgModal}
+        onSend={() => void sendModalMessage()}
+      />
 
       <ConfirmDialog
         open={confirm !== null}

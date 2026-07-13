@@ -18,6 +18,7 @@
 | [0014](./0014-worker-context-clear-signoff.md) | accepted | a Worker may clear its own context only after a Manager-sent Sign-off note confirms its Task has fully landed; no new Message kind |
 | [0015](./0015-per-worker-task-worktrees.md) | accepted | opt-in per-Task Worker worktrees share the one State Store through a pointer file; the Inspector instead gets one persistent, reusable review worktree |
 | [0016](./0016-structured-clear-safe-signoff-and-relay-reset.md) | accepted | the Sign-off is a structured `clear_safe` Message kind created by land/abandon (schema v6), and crew's Relay — not the Worker — delivers the context reset; amends ADR-0014's no-new-kind and no-registry-reset-command sentences |
+| [0017](./0017-console-now-view-theme-and-agent-archive.md) | accepted | Console v2: a "Now" triage view (FR-U37), a light/dark theme toggle (FR-U38), and Operator Agent archive/restore over the Console (FR-U36, the same `crew leave`/`crew join --resume` operations the CLI already exposes — not permanent delete); extends ADR-0013 |
 
 ADRs record choices that would be hard to reverse, and the reasoning behind them. Detailed
 behavior belongs in the requirements and contract documents.

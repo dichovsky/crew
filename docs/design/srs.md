@@ -802,8 +802,9 @@ rather than restating them.
   as the CLI; non-consumption re-proven after every POST).*
 - **FR-U19 — Console action scope.** The Console action surface shall be limited to sending a
   Message, creating a Task, approving or sending back a Submission, launching a Team, stopping
-  a Team, peeking at a pane, and running `prune` or `clean`. *Verify: inspection — Console route
-  inventory in `src/ui/server.ts`/`src/ui/actions.ts`, unknown routes and methods rejected in
+  a Team, peeking at a pane, running `prune` or `clean`, and archiving or restoring an Agent
+  (FR-U36). *Verify: inspection — Console route inventory in
+  `src/ui/server.ts`/`src/ui/actions.ts`, unknown routes and methods rejected in
   `tests/integration/ui-server-actions.test.ts`, `tests/integration/ui-server-team.test.ts`.*
 - **FR-U20 — Detached browser launch.** A Team launch from the Console shall be detached, and
   attaching to its session shall remain a terminal-only action. *Verify: automated test —
@@ -831,10 +832,12 @@ rather than restating them.
   (control bytes stripped on the JSON surface — the deliberate FR-U24 exception to raw-bytes JSON),
   `tests/unit/launcher/tmux.test.ts` (capturePane argv).*
 - **FR-U25 — Destructive-action confirmation.** The Console shall require an explicit
-  confirmation before invoking `team stop`, `prune`, or `clean`: the browser shall present a
-  modal that names the irreversible effect, and the request shall carry a `confirm: true` flag
-  the server verifies (absent or non-`true` is a USAGE failure). A bare, unconfirmed POST shall
-  never run a destructive action. *Verify: automated test —
+  confirmation before invoking `team stop`, `prune`, `clean`, or archiving an Agent (FR-U36): the
+  browser shall present a modal that names the irreversible or hard-to-reverse effect, and the
+  request shall carry a `confirm: true` flag the server verifies (absent or non-`true` is a USAGE
+  failure). A bare, unconfirmed POST shall never run a destructive action. Restoring an archived
+  Agent is deliberately NOT gated by this requirement — it is the reversible corrective action,
+  offered with no prompt. *Verify: automated test —
   `tests/integration/ui-server-team.test.ts` (missing/non-true confirm rejected; team stop gated
   too), `web/components/confirm-dialog.test.tsx` (including the confirm-path focus restore
   falling back to a usable control when the trigger disables),
@@ -873,14 +876,18 @@ rather than restating them.
   passing, which no database write would otherwise announce — so the SSE poller notifies
   connected browsers of it like any other change. *Verify: automated test —
   `tests/store/change-signature.test.ts`, `tests/integration/ui-server.test.ts`.*
-- **FR-U34 — Five-view Console presentation.** The Console shall present crew state through a
-  persistent left navigation rail over five views, and shall render stored content only through
-  the framework's default text escaping (never as HTML). The views are:
+- **FR-U34 — Six-view Console presentation (extended by FR-U37, ADR-0017).** The Console shall
+  present crew state through a persistent left navigation rail over six views, and shall render
+  stored content only through the framework's default text escaping (never as HTML). The views
+  are:
+  - **Now** — a single prioritized worklist of everything needing the Operator, in priority
+    order (FR-U37).
   - **Overview** — headline counts (active agents, in-progress Tasks, Tasks awaiting the
     Operator's review, health), the live Agent roster, a "needs attention" list (stale Leases,
     idle Agents, the Operator's review queue), and a merged newest-first Task-event feed.
   - **Agents** — one card per Agent with role, honest activity (FR-U30), platform, last-seen,
-    current in-progress Task, and content-free inbox depth, plus a "Message" action.
+    current in-progress Task, and content-free inbox depth, plus Message and archive/restore
+    actions (FR-U36).
   - **Tasks** — a board of five honest status columns (`queued`, `in_progress`, `submitted`
     shown as "In review" per FR-U31, `completed`, and a real, selectable `abandoned`
     column) beside a detail panel carrying the FR-U16/FR-U17 approve and requeue controls.
@@ -890,7 +897,8 @@ rather than restating them.
     (FR-U26–U29, FR-U35), pane peek (FR-U24), workspace health, and the `prune`/`clean`
     maintenance actions gated by FR-U25.
   *Verify: automated test — `web/app.test.tsx` (navigation + per-view rendering),
-  `web/view-model.test.ts`, `web/components/{overview,agents,tasks-view,messages-view,operations}.test.tsx`.*
+  `web/view-model.test.ts`,
+  `web/components/{now-view,overview,agents,tasks-view,messages-view,operations,message-modal}.test.tsx`.*
 - **FR-U35 — Owned-session listing.** The Console shall list the crew-owned tmux Team sessions
   that are live now — and only those — reusing the same pane-map ownership proof as `team stop`
   (a validated pane-map whose ownership token matches the live session). A leftover pane-map
@@ -901,6 +909,36 @@ rather than restating them.
   `tests/unit/launcher/sessions.test.ts` (stale/foreign-owner/malformed/tmux-absent omitted,
   ordering), `tests/integration/ui-server-team.test.ts` (`GET /api/sessions`: empty, populated,
   tmux-absent).*
+- **FR-U36 — Operator Agent archive/restore authority (additive post-v1, ADR-0017).** Extends
+  FR-U19's Console action-scope enumeration to also cover archiving or restoring an Agent. The
+  Operator may archive an active Agent through the Console exactly as `crew leave <id>` does, or
+  restore (resume) an archived Agent exactly as `crew join <id> --resume` does — the same Store
+  domain methods, the same authority and invariants (FR-U18), no new authority invented. The
+  Console's own operator Agent row shall never be archivable through this route (archiving it
+  would silently break every later Console action in the running session, since the operator row
+  is only re-established at `crew ui` startup or FR-U32 Store reopen, not per request) —
+  attempting it shall fail as a USAGE error, and the Agents view shall not present an Archive
+  control on the operator's own card (a visible control that can only ever fail is dishonest
+  presentation, the same principle FR-U30/FR-U31 already apply to activity and Task status).
+  Archiving requires the FR-U25 one-click confirmation (`{ "confirm": true }`); restoring does
+  not. This is deliberately NOT a permanent-delete capability — crew has no Store operation that
+  irreversibly removes a single Agent's row and its Message/Task-event history, and adding one
+  was judged out of scope for this change (see ADR-0017). *Verify: automated test —
+  `tests/integration/ui-server-actions.test.ts`,
+  `web/components/agents.test.tsx`.*
+- **FR-U37 — Now triage view (additive post-v1, ADR-0017).** The Console shall present a sixth
+  view, "Now" (FR-U34), as the first item in the navigation rail: a single prioritized worklist
+  aggregating everything needing the Operator's attention — stale-Lease Tasks, the Operator's
+  review queue, idle Agents, and the Operator's unread Messages — each item routing to the same
+  underlying action already offered elsewhere (select the Task, message the Agent, or open
+  Messages). It introduces no new data or authority; when nothing needs attention it shows an
+  explicit "All clear" empty state, never a blank pane. *Verify: automated test —
+  `web/components/now-view.test.tsx`, `web/view-model.test.ts`, `web/app.test.tsx`.*
+- **FR-U38 — Local theme preference (additive post-v1, ADR-0017).** The Console shall let the
+  Operator switch between a light and dark presentation from the header, persisted locally (e.g.
+  browser storage) across reloads of the same browser; the default is light. The choice affects
+  presentation only — no Store data, authority, or action behavior changes with it. *Verify:
+  automated test — `web/app.test.tsx`.*
 
 #### W. Worker and review worktrees
 
@@ -1280,7 +1318,7 @@ that says so.
 | FR-K07 | FR-K10 | — |
 
 Counts: **98** old v1 ids → **183** new v1 single-rule ids; **66** old ids were split. The
-additive post-v1 ids `FR-U01`–`FR-U33`, `FR-E22`–`FR-E24`, `FR-H29`, and `FR-W01`–`FR-W15` did
+additive post-v1 ids `FR-U01`–`FR-U38`, `FR-E22`–`FR-E24`, `FR-H29`, and `FR-W01`–`FR-W15` did
 not exist in the retired v1 set and are intentionally excluded from those counts. Deferred
 `FR-X01`–`FR-X08` are unchanged, except `FR-X07`, which is promoted to the group W contract
 (`FR-W01`–`FR-W15`, ADR-0015); see Appendix D.
@@ -1335,7 +1373,7 @@ requirement is therefore graded.
 | I | FR-I01–FR-I14 | all nine P (except FR-I04, FR-I05, FR-I09) |
 | J | FR-J01–FR-J15 | all nine P |
 | K | FR-K01–FR-K10 | all nine P (except FR-K01) |
-| U | FR-U01–FR-U33 | all nine P |
+| U | FR-U01–FR-U38 | all nine P |
 | W | FR-W01–FR-W15 | all nine P |
 | NFR | all NFR-\* | all nine P |
 

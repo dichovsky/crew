@@ -3,6 +3,8 @@
  * dot + title + detail + tag). Pure render from the /api/health response shape.
  * The view types are shared with the App and Overview.
  */
+import { pillBg } from '../view-model.js';
+
 export interface HealthFindingView {
   readonly severity: string;
   readonly code: string;
@@ -36,22 +38,24 @@ const SEVERITY: Record<string, SeverityStyle> = {
   ok: { dot: '#27a05f', bg: '#e6f4ec', fg: '#1f8a53', tag: 'OK' },
 };
 
-function severityStyle(severity: string): SeverityStyle {
-  return SEVERITY[severity] ?? SEVERITY['info']!;
+function severityStyle(severity: string, dark: boolean): SeverityStyle {
+  const style = SEVERITY[severity] ?? SEVERITY['info']!;
+  return { ...style, bg: pillBg(style.bg, style.fg, dark) };
 }
 
 export interface HealthListProps {
   readonly findings: readonly HealthFindingView[];
+  readonly dark: boolean;
 }
 
-export function HealthList({ findings }: HealthListProps) {
+export function HealthList({ findings, dark }: HealthListProps) {
   if (findings.length === 0) {
     return <p class="empty-state">No findings — the workspace is healthy.</p>;
   }
   return (
     <div>
       {findings.map((finding) => {
-        const style = severityStyle(finding.severity);
+        const style = severityStyle(finding.severity, dark);
         return (
           <div class="health-row" key={`${finding.code}:${finding.message}`}>
             <span class="dot" style={{ background: style.dot, marginTop: '4px' }} />

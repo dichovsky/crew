@@ -59,6 +59,7 @@ function mount(tasks: readonly TaskSnapshotRecord[], opts: Overrides = {}): HTML
       tasks={tasks}
       selectedId={opts.selectedId ?? null}
       now={0}
+      dark={false}
       disabled={false}
       recipientOptions={[{ id: 'grace', label: 'grace · worker' }]}
       onSelect={opts.onSelect ?? (() => {})}

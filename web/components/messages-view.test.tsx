@@ -39,6 +39,7 @@ function mount(messages: readonly MessageSnapshotRecord[], opts: Opts = {}): HTM
       recipientOptions={[{ id: 'grace', label: 'grace · worker' }]}
       recipient={opts.recipient ?? ''}
       now={0}
+      dark={false}
       disabled={false}
       roleOf={() => 'worker'}
       onRecipientChange={opts.onRecipientChange ?? (() => {})}

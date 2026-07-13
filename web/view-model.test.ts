@@ -13,14 +13,19 @@ import {
   canRequeue,
   currentTaskFor,
   describeEvent,
+  engineMeta,
   initials,
   isUnreadToOperator,
   leaseView,
   messageKindMeta,
+  nowWorklist,
   OPERATOR_ID,
+  pillBg,
   relTime,
   reviewQueue,
   roleColor,
+  rolePillBg,
+  rolePillColor,
   shortId,
   statusMeta,
   unreadCount,
@@ -146,6 +151,19 @@ describe('colour vocabularies', () => {
     expect(statusMeta('nonsense').label).toBe('Queued');
   });
 
+  it('statusMeta keeps the fixed light pastel bg by default and dark:false', () => {
+    expect(statusMeta('completed').bg).toBe('#e6f4ec');
+    expect(statusMeta('completed', false).bg).toBe('#e6f4ec');
+  });
+
+  it('statusMeta re-tints the bg via colour-mix in dark mode, fg unchanged', () => {
+    const light = statusMeta('completed', false);
+    const dark = statusMeta('completed', true);
+    expect(dark.bg).toBe('color-mix(in srgb, #1f8a53 20%, transparent)');
+    expect(dark.fg).toBe(light.fg);
+    expect(dark.dot).toBe(light.dot);
+  });
+
   it('activityMeta maps known activities and falls back to idle', () => {
     expect(activityMeta('recent').label).toBe('Active');
     expect(activityMeta('stale').color).toBe('#c04532');
@@ -157,10 +175,51 @@ describe('colour vocabularies', () => {
     expect(roleColor('mystery')).toBe('#5b6675');
   });
 
+  it("rolePillColor keeps every role's colour unchanged except operator in dark mode", () => {
+    expect(rolePillColor('manager', false)).toBe(roleColor('manager'));
+    expect(rolePillColor('manager', true)).toBe(roleColor('manager'));
+    expect(rolePillColor('operator', false)).toBe('#181a1f');
+    // The near-black operator colour is unreadable as dark-mode pill text on a
+    // color-mix-darkened near-black bg (the bug this helper exists to fix) —
+    // substitutes a light tone instead.
+    expect(rolePillColor('operator', true)).toBe('#c7ccd4');
+    expect(rolePillColor('operator', true)).not.toBe(roleColor('operator'));
+  });
+
+  it('pillBg returns the fixed bg in light mode and a colour-mix tint in dark mode', () => {
+    expect(pillBg('#e6f4ec', '#1f8a53', false)).toBe('#e6f4ec');
+    expect(pillBg('#e6f4ec', '#1f8a53', true)).toBe('color-mix(in srgb, #1f8a53 20%, transparent)');
+  });
+
+  it('rolePillBg keeps the ~9% hex-alpha tint in light mode and colour-mix in dark mode', () => {
+    expect(rolePillBg('#3b5bd9', false)).toBe('#3b5bd918');
+    expect(rolePillBg('#3b5bd9', true)).toBe('color-mix(in srgb, #3b5bd9 20%, transparent)');
+  });
+
   it('messageKindMeta maps known kinds and falls back to note', () => {
     expect(messageKindMeta('task_submitted').label).toBe('Submitted');
     expect(messageKindMeta('clear_safe').label).toBe('Sign-off');
     expect(messageKindMeta('other').label).toBe('Note');
+  });
+
+  it('messageKindMeta re-tints the bg in dark mode like statusMeta', () => {
+    const light = messageKindMeta('task_submitted', false);
+    const dark = messageKindMeta('task_submitted', true);
+    expect(dark.bg).toBe(`color-mix(in srgb, ${light.fg} 20%, transparent)`);
+    expect(dark.fg).toBe(light.fg);
+  });
+
+  it('engineMeta maps every known platform to a distinct label and glyph', () => {
+    expect(engineMeta('claude-code').label).toBe('Claude Code');
+    expect(engineMeta('codex-cli').label).toBe('Codex');
+    expect(engineMeta('gemini-cli').label).toBe('Gemini');
+    expect(engineMeta('copilot-cli').label).toBe('Copilot');
+    expect(engineMeta('antigravity-cli').label).toBe('Antigravity');
+  });
+
+  it('engineMeta falls back to a neutral "unknown" badge for null or unrecognized platforms', () => {
+    expect(engineMeta(null)).toMatchObject({ label: 'unknown', glyph: '·' });
+    expect(engineMeta('some-future-cli').label).toBe('some-future-cli');
   });
 });
 
@@ -289,5 +348,107 @@ describe('leaseView', () => {
     expect(active.label).toContain('left');
     expect(leaseView(task({ lease_expires_at: null }), now).label).toBe('—');
     expect(leaseView(task({ lease_expires_at: now / 1000 - 10 }), now).label).toBe('expired');
+  });
+});
+
+describe('nowWorklist', () => {
+  it('orders items stale-lease, then review queue, then idle agents, then unread messages', () => {
+    const now = 1_000_000;
+    const items = nowWorklist(
+      [
+        task({ id: 'r'.repeat(36), status: 'submitted', reviewer_id: OPERATOR_ID }),
+        task({ id: 's'.repeat(36), stale_lease: true, assignee_id: 'rob', title: 'Fix it' }),
+      ],
+      [agent({ id: 'grace', activity: 'idle', last_seen: now / 1000 - 360 })],
+      [message({ id: 9, recipient_id: OPERATOR_ID, sender_id: 'ada', content: 'ping' })],
+      now,
+    );
+    expect(items.map((i) => i.kind)).toEqual([
+      'stale_lease',
+      'review',
+      'idle_agent',
+      'unread_message',
+    ]);
+  });
+
+  it('is empty when nothing needs the operator', () => {
+    expect(
+      nowWorklist(
+        [task({ status: 'queued' })],
+        [agent({ activity: 'recent' })],
+        [message({ read_at: 1 })],
+      ),
+    ).toEqual([]);
+  });
+
+  it('builds one item per stale-lease task, naming its assignee and title', () => {
+    const items = nowWorklist(
+      [task({ id: 's'.repeat(36), stale_lease: true, assignee_id: 'rob', title: 'Fix the bug' })],
+      [],
+      [],
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      kind: 'stale_lease',
+      actionLabel: 'Resolve',
+      target: { kind: 'task', taskId: 's'.repeat(36) },
+    });
+    expect(items[0]!.title).toContain('s'.repeat(36));
+    expect(items[0]!.detail).toContain('rob');
+    expect(items[0]!.detail).toContain('Fix the bug');
+  });
+
+  it('builds one item per queued review, naming its submitter', () => {
+    const t = task({
+      id: 'r'.repeat(36),
+      status: 'submitted',
+      reviewer_id: OPERATOR_ID,
+      assignee_id: 'grace',
+      title: 'Ship it',
+    });
+    const items = nowWorklist([t], [], []);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      kind: 'review',
+      actionLabel: 'Review',
+      target: { kind: 'task', taskId: t.id },
+    });
+    expect(items[0]!.detail).toContain('grace');
+  });
+
+  it('builds one item per idle agent, routing to messaging that agent', () => {
+    const now = 1_000_000;
+    const items = nowWorklist(
+      [],
+      [agent({ id: 'grace', activity: 'idle', last_seen: now / 1000 - 360 })],
+      [],
+      now,
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      kind: 'idle_agent',
+      actionLabel: 'Message',
+      target: { kind: 'agent', agentId: 'grace' },
+    });
+  });
+
+  it('builds one item per unread operator message, routing to Messages', () => {
+    const items = nowWorklist(
+      [],
+      [],
+      [
+        message({ id: 1, recipient_id: OPERATOR_ID, sender_id: 'ada', content: 'hello' }),
+        message({ id: 2, recipient_id: OPERATOR_ID, read_at: 5 }), // read — excluded
+        message({ id: 3, recipient_id: 'ada' }), // not addressed to the operator — excluded
+      ],
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      kind: 'unread_message',
+      actionLabel: 'Open inbox',
+      target: { kind: 'messages' },
+    });
+    expect(items[0]!.title).toContain('ada');
+    expect(items[0]!.detail).toContain('hello');
   });
 });

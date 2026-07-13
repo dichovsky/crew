@@ -65,6 +65,8 @@ function stubStore(): UiStore {
     createTask: unusedAction,
     approveTask: unusedAction,
     requeueTask: unusedAction,
+    leaveAgent: unusedAction,
+    joinAgent: unusedAction,
     getChangeSignature: () => ({
       maxMessageId: 0,
       maxTaskEventId: 0,

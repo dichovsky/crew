@@ -115,6 +115,8 @@ const ACTION_PATHS = (taskId: string): string[] => [
   '/api/tasks',
   `/api/tasks/${taskId}/approve`,
   `/api/tasks/${taskId}/requeue`,
+  `/api/agents/${ABSENT_UUID}/archive`,
+  `/api/agents/${ABSENT_UUID}/restore`,
 ];
 
 afterEach(async () => {
@@ -237,14 +239,17 @@ describe('Console action body validation (USAGE at the boundary)', () => {
       ['/api/tasks', { creator: 'manager', assignee: 'worker', reviewer: 'inspector', title: 't' }],
       [`/api/tasks/${task.id}/approve`, { actor: 'inspector' }],
       [`/api/tasks/${task.id}/requeue`, { actor: 'manager', reason: 'r' }],
+      [`/api/agents/worker/archive`, { actor: 'manager', confirm: true }],
+      [`/api/agents/worker/restore`, { actor: 'manager' }],
     ];
     for (const [path, body] of attempts) {
       const reply = await post(port, path, body);
       expect(reply.status).toBe(400);
       expect(envelope(reply).error?.code).toBe('USAGE');
     }
-    // The task is untouched by the rejected impersonation attempts.
+    // The task and the agent are untouched by the rejected impersonation attempts.
     expect(store.getTask(task.id)?.status).toBe('submitted');
+    expect(store.getAgent('worker')?.status).toBe('active');
   });
 });
 
@@ -468,6 +473,90 @@ describe('POST /api/tasks/:id/requeue (FR-U17)', () => {
     const reply = await post(port, `/api/tasks/${task.id}/requeue`, { reason: 'not mine' });
     expect(reply.status).toBe(409);
     expect(envelope(reply)).toMatchObject({ ok: false, error: { code: 'TASK_CONFLICT' } });
+  });
+});
+
+describe('POST /api/agents/:id/archive (FR-U36)', () => {
+  it('archives an active agent with confirm:true, mirroring `crew leave`', async () => {
+    const { store, port } = await actionWorkspace();
+    const reply = await post(port, '/api/agents/worker/archive', { confirm: true });
+    expect(reply.status).toBe(200);
+    const body = envelope(reply) as unknown as { agent?: Record<string, unknown> };
+    expect(body.agent).toMatchObject({ type: 'agent', id: 'worker', status: 'archived' });
+    expect(store.getAgent('worker')?.status).toBe('archived');
+  });
+
+  it('rejects a missing or non-true confirm as USAGE without archiving', async () => {
+    const { store, port } = await actionWorkspace();
+    for (const confirm of [undefined, false, 'true']) {
+      const body: Record<string, unknown> = {};
+      if (confirm !== undefined) body['confirm'] = confirm;
+      const reply = await post(port, '/api/agents/worker/archive', body);
+      expect(reply.status).toBe(400);
+      expect(envelope(reply).error?.code).toBe('USAGE');
+    }
+    expect(store.getAgent('worker')?.status).toBe('active');
+  });
+
+  it('refuses to archive the operator itself as USAGE', async () => {
+    const { store, port } = await actionWorkspace();
+    const reply = await post(port, `/api/agents/${OPERATOR_AGENT_ID}/archive`, { confirm: true });
+    expect(reply.status).toBe(400);
+    expect(envelope(reply).error?.code).toBe('USAGE');
+    expect(store.getAgent(OPERATOR_AGENT_ID)?.status).toBe('active');
+  });
+
+  it('maps an unknown agent to NOT_FOUND', async () => {
+    const { port } = await actionWorkspace();
+    const reply = await post(port, `/api/agents/${ABSENT_UUID}/archive`, { confirm: true });
+    expect(reply.status).toBe(404);
+    expect(envelope(reply).error?.code).toBe('NOT_FOUND');
+  });
+
+  it('maps an already-archived agent to AGENT_INACTIVE with a 409', async () => {
+    const { store, port } = await actionWorkspace();
+    store.leaveAgent('worker');
+    const reply = await post(port, '/api/agents/worker/archive', { confirm: true });
+    expect(reply.status).toBe(409);
+    expect(envelope(reply).error?.code).toBe('AGENT_INACTIVE');
+  });
+});
+
+describe('POST /api/agents/:id/restore (FR-U36)', () => {
+  it('restores an archived agent with no confirmation required, mirroring `crew join --resume`', async () => {
+    const { store, port } = await actionWorkspace();
+    store.leaveAgent('worker');
+    const reply = await post(port, '/api/agents/worker/restore', {});
+    expect(reply.status).toBe(200);
+    const body = envelope(reply) as unknown as { agent?: Record<string, unknown> };
+    expect(body.agent).toMatchObject({ type: 'agent', id: 'worker', status: 'active' });
+    expect(store.getAgent('worker')?.status).toBe('active');
+  });
+
+  it('preserves the stored role and platform on restore', async () => {
+    const { store, port } = await actionWorkspace();
+    store.joinAgent({ id: 'coder', role: 'worker', platformId: 'codex-cli' });
+    store.leaveAgent('coder');
+    const reply = await post(port, '/api/agents/coder/restore', {});
+    expect(reply.status).toBe(200);
+    expect(envelope(reply)).toMatchObject({
+      ok: true,
+      agent: { role: 'worker', platform_id: 'codex-cli', status: 'active' },
+    });
+  });
+
+  it('maps an unknown agent to NOT_FOUND', async () => {
+    const { port } = await actionWorkspace();
+    const reply = await post(port, `/api/agents/${ABSENT_UUID}/restore`, {});
+    expect(reply.status).toBe(404);
+    expect(envelope(reply).error?.code).toBe('NOT_FOUND');
+  });
+
+  it('maps an already-active agent to ALREADY_EXISTS with a 409', async () => {
+    const { port } = await actionWorkspace();
+    const reply = await post(port, '/api/agents/worker/restore', {});
+    expect(reply.status).toBe(409);
+    expect(envelope(reply).error?.code).toBe('ALREADY_EXISTS');
   });
 });
 

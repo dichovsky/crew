@@ -24,6 +24,7 @@ export interface MessagesViewProps {
   readonly recipientOptions: readonly RecipientOption[];
   readonly recipient: string;
   readonly now: number;
+  readonly dark: boolean;
   readonly disabled: boolean;
   /** Resolve an id to a role so the avatar tint matches the sender's role. */
   readonly roleOf: (id: string) => string;
@@ -36,6 +37,7 @@ export function MessagesView({
   recipientOptions,
   recipient,
   now,
+  dark,
   disabled,
   roleOf,
   onRecipientChange,
@@ -81,7 +83,7 @@ export function MessagesView({
           ) : (
             messages.map((message) => {
               const unread = isUnreadToOperator(message);
-              const kind = messageKindMeta(message.kind);
+              const kind = messageKindMeta(message.kind, dark);
               return (
                 <div class={`msg-row${unread ? ' unread' : ''}`} key={message.id}>
                   <span class="avatar" style={{ background: roleColor(roleOf(message.sender_id)) }}>

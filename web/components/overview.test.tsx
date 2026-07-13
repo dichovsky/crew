@@ -78,6 +78,7 @@ function mount(
       tasks={tasks}
       health={HEALTH}
       now={0}
+      dark={false}
       onMessageAgent={handlers.onMessageAgent ?? (() => {})}
       onGoAgents={handlers.onGoAgents ?? (() => {})}
     />,

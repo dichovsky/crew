@@ -99,11 +99,13 @@ test('the dashboard renders seeded agents, tasks, and messages live', async ({ p
   expect(consoleUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/\?token=[0-9a-f]{64}$/);
 
   await page.goto(consoleUrl);
-  // The sidebar shell renders once the snapshot loads.
+  // The sidebar shell renders once the snapshot loads; Now is the default view (FR-U37).
   await expect(page.locator('.brand-name')).toHaveText('crew');
-  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Now' })).toBeVisible();
 
   // Overview roster shows the seeded agent id.
+  await page.locator('.nav-item', { hasText: 'Overview' }).click();
+  await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
   await expect(page.locator('.roster-row', { hasText: AGENT_ID }).first()).toBeVisible();
 
   // The seeded Task lives on the Tasks board.
