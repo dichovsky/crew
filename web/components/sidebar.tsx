@@ -6,7 +6,7 @@
  */
 import type { JSX } from 'preact';
 
-export type ViewId = 'overview' | 'agents' | 'tasks' | 'messages' | 'operations';
+export type ViewId = 'now' | 'overview' | 'agents' | 'tasks' | 'messages' | 'operations';
 
 export interface SidebarProps {
   readonly view: ViewId;
@@ -15,6 +15,8 @@ export interface SidebarProps {
   readonly reviewCount: number;
   readonly unreadCount: number;
   readonly needsAttention: boolean;
+  /** The Now view's worklist size (FR-U37); zero renders no badge. */
+  readonly workCount: number;
   readonly workspaceLabel: string;
 }
 
@@ -38,6 +40,16 @@ const icon = (children: JSX.Element): JSX.Element => (
 );
 
 const NAV: readonly NavDef[] = [
+  {
+    id: 'now',
+    label: 'Now',
+    icon: icon(
+      <>
+        <circle cx="9" cy="9" r="7" />
+        <path d="M9 5v4l2.5 1.5" />
+      </>,
+    ),
+  },
   {
     id: 'overview',
     label: 'Overview',
@@ -99,6 +111,7 @@ export function Sidebar({
   reviewCount,
   unreadCount,
   needsAttention,
+  workCount,
   workspaceLabel,
 }: SidebarProps) {
   return (
@@ -124,6 +137,11 @@ export function Sidebar({
           >
             {item.icon}
             <span class="nav-label">{item.label}</span>
+            {item.id === 'now' && workCount > 0 && (
+              <span class="nav-badge work" aria-label={`${workCount} need you`}>
+                {workCount}
+              </span>
+            )}
             {item.id === 'overview' && needsAttention && (
               <span class="nav-dot" aria-label="needs attention" />
             )}

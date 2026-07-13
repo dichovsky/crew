@@ -43,6 +43,7 @@ export interface TasksViewProps {
   readonly tasks: readonly TaskSnapshotRecord[];
   readonly selectedId: string | null;
   readonly now: number;
+  readonly dark: boolean;
   readonly disabled: boolean;
   readonly recipientOptions: readonly RecipientOption[];
   readonly onSelect: (taskId: string) => void;
@@ -54,6 +55,7 @@ export function TasksView({
   tasks,
   selectedId,
   now,
+  dark,
   disabled,
   recipientOptions,
   onSelect,
@@ -177,6 +179,7 @@ export function TasksView({
           <TaskDetail
             task={selected}
             now={now}
+            dark={dark}
             disabled={disabled}
             pending={pending}
             error={error}
@@ -197,6 +200,7 @@ export function TasksView({
 interface TaskDetailProps {
   readonly task: TaskSnapshotRecord;
   readonly now: number;
+  readonly dark: boolean;
   readonly disabled: boolean;
   readonly pending: boolean;
   readonly error: string | null;
@@ -212,6 +216,7 @@ interface TaskDetailProps {
 function TaskDetail({
   task,
   now,
+  dark,
   disabled,
   pending,
   error,
@@ -223,7 +228,7 @@ function TaskDetail({
   onApprove,
   onRequeue,
 }: TaskDetailProps) {
-  const meta = statusMeta(task.status);
+  const meta = statusMeta(task.status, dark);
   const lease = leaseView(task, now);
   const approvable = canApprove(task);
   const requeueable = canRequeue(task);

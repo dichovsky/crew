@@ -261,6 +261,9 @@ const GET_PATHS: ReadonlySet<string> = new Set([
 /** The POST task-action route shape: `/api/tasks/:id/approve|requeue`. */
 const TASK_ACTION_ROUTE = /^\/api\/tasks\/([^/]+)\/(approve|requeue)$/;
 
+/** The POST agent-action route shape: `/api/agents/:id/archive|restore` (FR-U36). */
+const AGENT_ACTION_ROUTE = /^\/api\/agents\/([^/]+)\/(archive|restore)$/;
+
 /** The fixed-path POST routes of the FR-U19 inventory. */
 const POST_PATHS: ReadonlySet<string> = new Set([
   '/api/messages',
@@ -272,9 +275,13 @@ const POST_PATHS: ReadonlySet<string> = new Set([
   '/api/clean',
 ]);
 
-/** True for a member of the exhaustive FR-U19 POST route inventory. */
+/** True for a member of the exhaustive FR-U19/FR-U36 POST route inventory. */
 function isActionPath(pathname: string): boolean {
-  return POST_PATHS.has(pathname) || TASK_ACTION_ROUTE.test(pathname);
+  return (
+    POST_PATHS.has(pathname) ||
+    TASK_ACTION_ROUTE.test(pathname) ||
+    AGENT_ACTION_ROUTE.test(pathname)
+  );
 }
 
 /**
@@ -491,13 +498,22 @@ export function startUiServer(options: UiServerOptions): Promise<UiServer> {
     } else if (pathname === '/api/clean') {
       action = (body) => actions.cleanWorkspace(io, body);
     } else {
-      const match = TASK_ACTION_ROUTE.exec(pathname);
-      if (match !== null) {
-        const taskId = decodePathSegment(match[1]!);
+      const taskMatch = TASK_ACTION_ROUTE.exec(pathname);
+      if (taskMatch !== null) {
+        const taskId = decodePathSegment(taskMatch[1]!);
         action =
-          match[2] === 'approve'
+          taskMatch[2] === 'approve'
             ? (body) => actions.approveTask(liveStore, taskId, body)
             : (body) => actions.requeueTask(liveStore, taskId, body);
+      } else {
+        const agentMatch = AGENT_ACTION_ROUTE.exec(pathname);
+        if (agentMatch !== null) {
+          const agentId = decodePathSegment(agentMatch[1]!);
+          action =
+            agentMatch[2] === 'archive'
+              ? (body) => actions.archiveAgent(liveStore, agentId, body)
+              : (body) => actions.restoreAgent(liveStore, agentId, body);
+        }
       }
     }
     if (action === null) {

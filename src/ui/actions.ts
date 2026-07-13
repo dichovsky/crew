@@ -24,7 +24,7 @@ import { readOwnedSession, runTeamStop } from '../launcher/stop.js';
 import type { TmuxAdapter } from '../launcher/tmux.js';
 import { runClean, runPrune } from '../maintenance.js';
 import { openWorkspaceStore } from '../store/index.js';
-import type { MessageRecord, Store, TaskRecord } from '../store/index.js';
+import type { AgentRecord, MessageRecord, Store, TaskRecord } from '../store/index.js';
 import { resolveWorkspaceRoot } from '../workspace.js';
 import type { MessageSnapshotRecord, TaskSnapshotRecord } from './snapshot.js';
 
@@ -69,10 +69,21 @@ export function ensureOperatorAgent(store: Store): void {
 export type TaskActionRecord = Omit<TaskSnapshotRecord, 'events'>;
 
 /**
- * The exact mutating Store surface the Console actions may call — the four
- * FR-U19 Message/Task actions and nothing else. The full Store satisfies this
- * structurally; narrowing the parameter keeps any other write (join, leave,
- * start, submit, prune) a compile error in this module.
+ * The exact mutating Store surface the Console actions may call — the FR-U19
+ * Message/Task actions plus, per the FR-U36 scope amendment (ADR-0017), the
+ * two Agent lifecycle operations `crew leave`/`crew join --resume` already
+ * expose over the CLI: `leaveAgent` (archive) and a restore-only `joinAgent`
+ * (its parameter type here is deliberately narrower than the Store's real
+ * `JoinAgentInput` — only `{ id, resume: true }` typechecks — so the Console
+ * can never use this surface to create a new Agent or change one's role or
+ * platform, only resume an archived one). The full Store satisfies this
+ * structurally; narrowing the parameter keeps any other write (a create-new
+ * join, start, submit, prune) a compile error in this module. `joinAgent` is
+ * declared with arrow-property syntax rather than method shorthand
+ * specifically so this narrowing is checked under `strictFunctionTypes`
+ * (contravariant parameters) — TypeScript always checks method-shorthand
+ * members bivariantly regardless of `strictFunctionTypes`, which would make
+ * the narrowing claim above compile-checked in name only.
  */
 export interface ActionStore {
   sendMessages(input: {
@@ -90,6 +101,8 @@ export interface ActionStore {
   }): TaskRecord;
   approveTask(reviewerId: string, taskId: string, summary?: string | null): TaskRecord;
   requeueTask(input: { actorId: string; taskId: string; reason: string; to?: string }): TaskRecord;
+  leaveAgent(id: string): AgentRecord;
+  readonly joinAgent: (input: { id: string; resume: true }) => AgentRecord;
 }
 
 /** Mirror of the CLI `message` NDJSON record (raw stored bytes, never rewritten). */
@@ -135,6 +148,37 @@ function taskRecord(task: TaskRecord): TaskActionRecord {
     created_at: task.createdAt,
     updated_at: task.updatedAt,
     stale_lease: task.staleLease,
+  };
+}
+
+/** Mirror of the CLI `agent` NDJSON record (same shape `crew leave`/`crew join` render). */
+export interface AgentActionRecord {
+  readonly type: 'agent';
+  readonly schema_version: 1;
+  readonly id: string;
+  readonly role: string;
+  readonly platform_id: AgentRecord['platformId'];
+  readonly status: AgentRecord['status'];
+  readonly activity: AgentRecord['activity'];
+  readonly joined_at: number;
+  readonly last_seen: number;
+  readonly archived_at: number | null;
+  readonly stale_lease_count: number;
+}
+
+function agentRecord(agent: AgentRecord): AgentActionRecord {
+  return {
+    type: 'agent',
+    schema_version: 1,
+    id: agent.id,
+    role: agent.role,
+    platform_id: agent.platformId,
+    status: agent.status,
+    activity: agent.activity,
+    joined_at: agent.joinedAt,
+    last_seen: agent.lastSeen,
+    archived_at: agent.archivedAt,
+    stale_lease_count: agent.staleLeaseCount,
   };
 }
 
@@ -572,4 +616,49 @@ export function requeueTask(
     ...(to !== undefined ? { to } : {}),
   });
   return { task: taskRecord(task) };
+}
+
+/**
+ * The Console's own acting identity must never be archived through this
+ * route: `ensureOperatorAgent` only re-establishes it at `crew ui` startup
+ * and on FR-U32 Store reopen, not per request, so an archived operator row
+ * would silently fail every later action in the running session (send,
+ * approve, requeue, …) until the process restarts.
+ */
+function assertNotOperator(id: string): void {
+  if (id === OPERATOR_AGENT_ID) {
+    throw new CrewError('USAGE', 'the operator agent cannot be archived from the Console');
+  }
+}
+
+/**
+ * `POST /api/agents/:id/archive` — Operator authority mirrors `crew leave`
+ * (FR-U36); gated by the same FR-U25 one-click confirmation as team stop,
+ * prune, and clean.
+ */
+export function archiveAgent(
+  store: ActionStore,
+  id: string,
+  body: unknown,
+): { agent: AgentActionRecord } {
+  const fields = bodyFields(body, ['actor', 'confirm']);
+  assertOperatorField(fields, 'actor');
+  assertConfirmed(fields);
+  assertNotOperator(id);
+  return { agent: agentRecord(store.leaveAgent(id)) };
+}
+
+/**
+ * `POST /api/agents/:id/restore` — Operator authority mirrors
+ * `crew join --resume` (FR-U36). Unlike archive, restore is the reversible
+ * corrective action and requires no confirmation, matching the design.
+ */
+export function restoreAgent(
+  store: ActionStore,
+  id: string,
+  body: unknown,
+): { agent: AgentActionRecord } {
+  const fields = bodyFields(body, ['actor']);
+  assertOperatorField(fields, 'actor');
+  return { agent: agentRecord(store.joinAgent({ id, resume: true })) };
 }

@@ -22,6 +22,7 @@ function mount(overrides: Partial<SidebarProps> = {}): {
       reviewCount={0}
       unreadCount={0}
       needsAttention={false}
+      workCount={0}
       workspaceLabel="~/dev/crew"
       {...overrides}
     />,
@@ -35,10 +36,11 @@ afterEach(() => {
 });
 
 describe('Sidebar', () => {
-  it('renders the five views and marks the active one', () => {
+  it('renders the six views and marks the active one', () => {
     const { host } = mount({ view: 'tasks' });
     const items = [...host.querySelectorAll('.nav-item')];
     expect(items.map((i) => i.textContent?.replace(/[0-9]/g, '').trim())).toEqual([
+      'Now',
       'Overview',
       'Agents',
       'Tasks',
@@ -47,6 +49,14 @@ describe('Sidebar', () => {
     ]);
     const active = host.querySelector('[aria-current="page"]');
     expect(active?.textContent).toContain('Tasks');
+  });
+
+  it('shows the Now work-count badge only when non-zero', () => {
+    const { host } = mount({ workCount: 0 });
+    expect(host.querySelector('.nav-badge.work')).toBeNull();
+
+    const { host: host2 } = mount({ workCount: 4 });
+    expect(host2.querySelector('.nav-badge.work')?.textContent).toBe('4');
   });
 
   it('shows the agent count always and the review/unread badges only when non-zero', () => {

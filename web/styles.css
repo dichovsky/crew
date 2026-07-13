@@ -10,7 +10,11 @@
   --bg: #f5f6f8;
   --panel: #ffffff;
   --panel-alt: #fbfcfd;
+  --subtle: #f1f3f6;
+  --chip: #eef0f3;
+  --input-border: #e0e3e8;
   --ink: #181a1f;
+  --strong: #3d4550;
   --line: #e6e8ec;
   --line-soft: #eceef1;
   --line-row: #f2f4f6;
@@ -21,6 +25,31 @@
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --display: 'Space Grotesk', system-ui, sans-serif;
   --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/*
+ * Dark presentation (FR-U38, ADR-0016): the same structural tokens re-pointed
+ * at the Crew Console dark palette. Semantic tints (accent, status, role,
+ * engine, and danger colours) are deliberately unchanged between themes, same
+ * as the design — only the neutral surface/border/text scale flips. Toggled
+ * by App via `document.documentElement.dataset.theme`.
+ */
+html[data-theme='dark'] {
+  --bg: #0f1115;
+  --panel: #181b21;
+  --panel-alt: #14171c;
+  --subtle: #20242c;
+  --chip: #232833;
+  --input-border: #333a46;
+  --ink: #eef0f3;
+  --strong: #c7ccd4;
+  --line: #2b2f38;
+  --line-soft: #23272f;
+  --line-row: #23272f;
+  --muted: #9aa1ac;
+  --muted-2: #8b929c;
+  --quiet: #6b7480;
+  --faint: #5b6470;
 }
 
 * {
@@ -49,6 +78,23 @@ input,
 select,
 textarea {
   font-family: inherit;
+}
+
+input,
+select,
+textarea {
+  color: var(--ink);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--faint);
+}
+
+/* Native dropdown chrome does not inherit custom properties reliably. */
+option {
+  color: var(--ink);
+  background: var(--panel);
 }
 
 @keyframes crewpulse {
@@ -193,7 +239,7 @@ textarea {
 }
 
 .nav-item:hover {
-  background: #f1f3f6;
+  background: var(--subtle);
 }
 
 .nav-item[aria-current='page'] {
@@ -214,7 +260,7 @@ textarea {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--quiet);
-  background: #eef0f3;
+  background: var(--chip);
   padding: 1px 7px;
   border-radius: 6px;
 }
@@ -226,6 +272,10 @@ textarea {
   color: #fff;
   padding: 1px 7px;
   border-radius: 6px;
+}
+
+.nav-badge.work {
+  background: #d15540;
 }
 
 .nav-badge.review {
@@ -275,7 +325,7 @@ textarea {
   align-items: center;
   gap: 9px;
   padding: 8px;
-  background: #f1f3f6;
+  background: var(--subtle);
   border-radius: 9px;
 }
 
@@ -349,7 +399,7 @@ textarea {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--muted);
-  background: #f1f3f6;
+  background: var(--subtle);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 7px 11px;
@@ -361,6 +411,48 @@ textarea {
   height: 6px;
   border-radius: 50%;
   background: #27a05f;
+}
+
+/* ---- Theme toggle -------------------------------------------------------- */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  background: var(--subtle);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.theme-toggle-track {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex: none;
+  border-radius: 999px;
+  transition: background 180ms ease;
+  background: var(--chip);
+}
+
+.theme-toggle-track.dark {
+  background: var(--accent);
+}
+
+.theme-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+  transition: transform 180ms ease;
+}
+
+.theme-toggle-track.dark .theme-toggle-knob {
+  transform: translateX(20px);
 }
 
 .view {
@@ -467,8 +559,8 @@ textarea {
 }
 
 .btn-ghost {
-  background: #fff;
-  border: 1px solid #e0e3e8;
+  background: var(--panel);
+  border: 1px solid var(--input-border);
   color: var(--muted);
   padding: 11px;
 }
@@ -485,10 +577,10 @@ textarea {
 .textarea {
   width: 100%;
   padding: 10px 11px;
-  border: 1px solid #e0e3e8;
+  border: 1px solid var(--input-border);
   border-radius: 9px;
   font-size: 13px;
-  background: #fff;
+  background: var(--panel);
   color: var(--ink);
 }
 
@@ -502,6 +594,122 @@ textarea {
   font-size: 11px;
   color: var(--muted-2);
   font-weight: 500;
+}
+
+/* ---- Now ----------------------------------------------------------------- */
+.now-wrap {
+  max-width: 800px;
+  margin: 0 auto;
+  animation: crewfade 0.25s ease;
+}
+
+.now-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.now-head h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.now-head p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted-2);
+}
+
+.now-list {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.work-card {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 15px 17px;
+}
+
+.work-bar {
+  width: 4px;
+  flex: none;
+  border-radius: 4px;
+}
+
+.work-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.work-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-top: 8px;
+}
+
+.work-detail {
+  font-size: 12.5px;
+  color: var(--muted-2);
+  margin-top: 3px;
+  line-height: 1.45;
+}
+
+.work-action {
+  display: flex;
+  align-items: center;
+}
+
+.work-action button {
+  padding: 9px 17px;
+  border: none;
+  border-radius: 9px;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.now-empty {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 64px 24px;
+  text-align: center;
+}
+
+.now-empty-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: #e6f4ec;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.now-empty-title {
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.now-empty-desc {
+  font-size: 13px;
+  color: var(--muted-2);
+  margin-top: 5px;
 }
 
 /* ---- Overview ---------------------------------------------------------- */
@@ -703,7 +911,7 @@ textarea {
 
 .event-text {
   font-size: 12px;
-  color: #5b6675;
+  color: var(--muted);
   line-height: 1.4;
 }
 
@@ -799,14 +1007,87 @@ textarea {
 }
 
 .agent-actions .btn-outline {
-  border: 1px solid #e0e3e8;
-  background: #fff;
+  border: 1px solid var(--input-border);
+  background: var(--panel);
   color: var(--accent);
   border-radius: 9px;
 }
 
 .agent-actions .btn-outline.secondary {
   color: var(--muted);
+}
+
+.agent-actions .btn-archive {
+  width: 40px;
+  flex: none;
+  padding: 9px;
+  border: 1px solid var(--input-border);
+  background: var(--subtle);
+  border-radius: 9px;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agent-card.archived {
+  opacity: 0.62;
+}
+
+.agent-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 14px;
+}
+
+.archived-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 13px;
+  border-radius: 9px;
+  border: 1px solid var(--input-border);
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.archived-toggle.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.engine-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 8px 3px 6px;
+  border-radius: 7px;
+}
+
+.engine-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.agent-card-engine {
+  margin-top: 11px;
 }
 
 /* ---- Tasks ------------------------------------------------------------- */
@@ -840,7 +1121,7 @@ textarea {
 .column-label {
   font-size: 12px;
   font-weight: 600;
-  color: #5b6675;
+  color: var(--muted);
 }
 
 .column-count {
@@ -857,7 +1138,7 @@ textarea {
 }
 
 .task-card {
-  background: #fff;
+  background: var(--panel);
   border: 1px solid var(--line);
   box-shadow: 0 1px 2px rgb(0 0 0 / 3%);
   border-radius: 11px;
@@ -933,7 +1214,7 @@ textarea {
 }
 
 .column-empty {
-  border: 1px dashed #e0e3e8;
+  border: 1px dashed var(--input-border);
   border-radius: 11px;
   padding: 16px 10px;
   text-align: center;
@@ -1006,7 +1287,7 @@ textarea {
 .submission p {
   margin: 6px 0 0;
   font-size: 12.5px;
-  color: #3d4550;
+  color: var(--strong);
   line-height: 1.5;
   white-space: pre-wrap;
 }
@@ -1041,7 +1322,7 @@ textarea {
 
 .tl-text {
   font-size: 12px;
-  color: #3d4550;
+  color: var(--strong);
 }
 
 .tl-text .actor {
@@ -1112,7 +1393,7 @@ textarea {
   width: 40px;
   height: 40px;
   border-radius: 11px;
-  background: #f1f3f6;
+  background: var(--subtle);
   margin: 0 auto 12px;
   display: flex;
   align-items: center;
@@ -1214,7 +1495,7 @@ textarea {
 
 .msg-content {
   font-size: 13px;
-  color: #3d4550;
+  color: var(--strong);
   line-height: 1.45;
   margin-top: 4px;
   overflow-wrap: anywhere;
@@ -1428,7 +1709,7 @@ textarea {
   display: flex;
   gap: 11px;
   align-items: flex-start;
-  background: #fff;
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 13px 15px;
@@ -1471,12 +1752,46 @@ textarea {
 }
 
 .modal {
-  background: #fff;
+  background: var(--panel);
   border-radius: 16px;
   padding: 24px;
   width: 400px;
   max-width: calc(100% - 2rem);
   box-shadow: 0 24px 60px rgb(0 0 0 / 22%);
+}
+
+.modal.message-modal {
+  width: 440px;
+  padding: 22px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.modal-head h3 {
+  margin: 0;
+}
+
+.modal-close {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: none;
+  background: var(--subtle);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  font-family: inherit;
+}
+
+.modal .textarea {
+  margin: 0;
 }
 
 .modal h3 {
@@ -1540,6 +1855,23 @@ textarea {
   color: #665030;
 }
 
+/* No design reference for this app-level banner; the amber tint is kept
+   readable in dark mode with the same color-mix idiom the design uses for
+   dark pill backgrounds elsewhere in this file. */
+html[data-theme='dark'] .recovery {
+  border-color: color-mix(in srgb, #d99a2b 45%, transparent);
+  background: color-mix(in srgb, #d99a2b 12%, var(--panel));
+  color: #e8b869;
+}
+
+html[data-theme='dark'] .recovery-title {
+  color: #f0c988;
+}
+
+html[data-theme='dark'] .recovery-desc {
+  color: #d8c3a0;
+}
+
 /* ---- Loading + error --------------------------------------------------- */
 .boot {
   display: flex;
@@ -1568,6 +1900,12 @@ textarea {
   color: #9a3229;
   background: #fff4f2;
   font-size: 12.5px;
+}
+
+html[data-theme='dark'] .error-line {
+  border-color: color-mix(in srgb, #d15540 45%, transparent);
+  background: color-mix(in srgb, #d15540 12%, var(--panel));
+  color: #f0a89c;
 }
 
 .empty-state {

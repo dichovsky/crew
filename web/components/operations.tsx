@@ -16,6 +16,7 @@ export interface OperationsProps {
   readonly resumableSessions: readonly ResumableSessionSnapshotRecord[];
   readonly health: HealthState | null;
   readonly now: number;
+  readonly dark: boolean;
   readonly disabled: boolean;
   readonly onLaunch: (team: string) => Promise<void>;
   readonly onRequestResume: (session: string) => Promise<void>;
@@ -29,6 +30,7 @@ export function Operations({
   resumableSessions,
   health,
   now,
+  dark,
   disabled,
   onLaunch,
   onRequestResume,
@@ -153,7 +155,7 @@ export function Operations({
           {health === null ? (
             <p class="empty-state">Loading health…</p>
           ) : (
-            <HealthList findings={health.findings} />
+            <HealthList findings={health.findings} dark={dark} />
           )}
         </div>
 

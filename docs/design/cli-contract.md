@@ -389,20 +389,29 @@ crew ui [--port <n>] [--no-open] [--json]
   (with the same authority checks) as the equivalent CLI command. `crew ui` makes sure the
   Operator row exists at startup.
 - The Console's actions additionally cover launching a Team (always detached — attaching
-  stays terminal-only), stopping a Team crew owns, peeking at a pane, and running `prune` or
-  `clean` — and nothing else. Pane peek returns the pane's `capture-pane` text with terminal
-  control characters stripped, even on the JSON surface (the deliberate FR-U24 exception to
-  the rule that JSON output keeps raw bytes). Team stop, `prune`, and `clean` each require an
-  explicit confirmation: the browser shows a dialog naming the irreversible effect, and the
+  stays terminal-only), stopping a Team crew owns, peeking at a pane, running `prune` or
+  `clean`, and archiving or restoring an Agent — and nothing else. Pane peek returns the
+  pane's `capture-pane` text with terminal control characters stripped, even on the JSON
+  surface (the deliberate FR-U24 exception to the rule that JSON output keeps raw bytes).
+  Team stop, `prune`, `clean`, and archiving an Agent each require an explicit confirmation:
+  the browser shows a dialog naming the irreversible or hard-to-reverse effect, and the
   request must carry a `confirm: true` flag the server checks before acting (a bare,
-  unconfirmed POST is rejected).
+  unconfirmed POST is rejected). Restoring an archived Agent is not gated this way — it is
+  the reversible corrective action.
+- `POST /api/agents/:id/archive` and `POST /api/agents/:id/restore` (SRS FR-U36) are the exact
+  same operations as `crew leave <id>` and `crew join <id> --resume`, over the same Store
+  domain methods with the same authority — the Console invents no new Agent lifecycle
+  capability. In particular, there is no Console (or CLI) route that permanently deletes a
+  single Agent; `leaveAgent`/archive is reversible, and the whole-Workspace `clean` is the only
+  destructive removal crew has.
 - For reading, the Console additionally exposes `GET /api/sessions` — the crew-owned tmux
   Team sessions that are live right now. It reuses the same pane-map ownership proof as
   `team stop`, so only sessions crew could actually stop are listed; stale, foreign, or
   malformed entries are left out. Each row carries `session_name`, `pane_count`,
   `agent_count`, and `started_at` (in epoch seconds — seconds since 1970). The browser app
-  itself has five views (Overview, Agents, Tasks, Messages, Operations), as specified in SRS
-  FR-U34.
+  itself has six views (Now, Overview, Agents, Tasks, Messages, Operations), as specified in
+  SRS FR-U34/FR-U37, and supports a light/dark presentation toggle in the header, persisted in
+  the browser only (SRS FR-U38) — a purely cosmetic preference with no wire-protocol effect.
 - A successful `clean` run from the Console shuts that `crew ui` process down after the
   response has been sent. While winding down, the server rejects further requests, closes the
   Store connection it opened at startup, and never serves data from the deleted database or

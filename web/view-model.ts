@@ -56,9 +56,21 @@ const STATUS_META: Record<string, StatusMeta> = {
   abandoned: { label: 'Abandoned', fg: '#c04532', bg: '#fbece9', dot: '#d15540' },
 };
 
+/**
+ * Pill background: the design's fixed light pastel, or (dark mode) a
+ * translucent tint of the foreground colour — the Crew Console dark
+ * palette's own `color-mix(in srgb, fg 20%, transparent)` formula, since a
+ * flat light pastel reads as washed out against a dark surface. Foreground,
+ * dot, and every other semantic colour stay identical between themes.
+ */
+export function pillBg(bg: string, fg: string, dark: boolean): string {
+  return dark ? `color-mix(in srgb, ${fg} 20%, transparent)` : bg;
+}
+
 /** Status vocabulary for pills, dots and column headers. Unknown → queued. */
-export function statusMeta(status: string): StatusMeta {
-  return STATUS_META[status] ?? STATUS_META['queued']!;
+export function statusMeta(status: string, dark = false): StatusMeta {
+  const meta = STATUS_META[status] ?? STATUS_META['queued']!;
+  return { ...meta, bg: pillBg(meta.bg, meta.fg, dark) };
 }
 
 export interface ActivityMeta {
@@ -87,9 +99,80 @@ const ROLE_COLOR: Record<string, string> = {
   operator: '#181a1f',
 };
 
-/** Role tint for avatars and role pills. Unknown → neutral slate. */
+/** Role tint for avatars. Unknown → neutral slate. Always this value, in both themes — avatars pair it with fixed white text (`.avatar` CSS), which stays legible against operator's near-black either way. */
 export function roleColor(role: string): string {
   return ROLE_COLOR[role] ?? '#5b6675';
+}
+
+/**
+ * Role tint for pills specifically (text colour and, via {@link rolePillBg},
+ * the tinted background). Distinct from {@link roleColor}: operator's near-
+ * black (`#181a1f`, correct on an avatar's white-on-black chip) would put
+ * near-black text on a `color-mix`-darkened near-black pill background in
+ * dark mode — invisible. Substitutes a light, legible tone for operator only
+ * when dark; every other role's colour already has enough contrast in both
+ * themes and is returned unchanged.
+ */
+export function rolePillColor(role: string, dark: boolean): string {
+  if (dark && role === 'operator') return '#c7ccd4';
+  return roleColor(role);
+}
+
+/**
+ * Role pill background: light mode keeps the design's ~9% hex-alpha tint
+ * (`${color}18`); dark mode uses the same `color-mix` translucency as every
+ * other pill in {@link pillBg}. Pass {@link rolePillColor}'s result, not
+ * {@link roleColor}'s, so the tint matches the (possibly substituted) text.
+ */
+export function rolePillBg(color: string, dark: boolean): string {
+  return dark ? `color-mix(in srgb, ${color} 20%, transparent)` : `${color}18`;
+}
+
+export interface EngineMeta {
+  readonly label: string;
+  /** Two-glyph badge symbol; a Unicode character rather than a logo image (no network asset). */
+  readonly glyph: string;
+  /** Solid tint for the small glyph chip. */
+  readonly color: string;
+  readonly bg: string;
+  readonly fg: string;
+}
+
+const ENGINE_META: Record<string, EngineMeta> = {
+  'claude-code': {
+    label: 'Claude Code',
+    glyph: '✳',
+    color: '#d97757',
+    bg: '#fbf0ea',
+    fg: '#b45635',
+  },
+  'codex-cli': { label: 'Codex', glyph: '◇', color: '#10a37f', bg: '#e6f5f0', fg: '#0c7d61' },
+  'gemini-cli': { label: 'Gemini', glyph: '✦', color: '#4285f4', bg: '#e8f0fe', fg: '#2b66c9' },
+  'copilot-cli': { label: 'Copilot', glyph: '⧉', color: '#6e40c9', bg: '#f0eafb', fg: '#5a2fb0' },
+  'antigravity-cli': {
+    label: 'Antigravity',
+    glyph: '▲',
+    color: '#1f8a53',
+    bg: '#e6f4ec',
+    fg: '#1a7345',
+  },
+};
+
+/**
+ * Per-platform badge tint for an Agent card. Unlike status/role pills this
+ * does not vary with the light/dark theme — the design keeps engine badges
+ * at a fixed pastel in both. Unknown or absent (`null`) platform → a neutral
+ * "unknown" badge naming whatever id was given (or "unknown" for `null`).
+ */
+export function engineMeta(platformId: string | null): EngineMeta {
+  if (platformId !== null && platformId in ENGINE_META) return ENGINE_META[platformId]!;
+  return {
+    label: platformId ?? 'unknown',
+    glyph: '·',
+    color: '#5b6675',
+    bg: '#eef0f3',
+    fg: '#5b6675',
+  };
 }
 
 export interface MessageKindMeta {
@@ -108,8 +191,9 @@ const MESSAGE_KIND_META: Record<string, MessageKindMeta> = {
 };
 
 /** Message-kind pill vocabulary. Unknown → note. */
-export function messageKindMeta(kind: string): MessageKindMeta {
-  return MESSAGE_KIND_META[kind] ?? MESSAGE_KIND_META['note']!;
+export function messageKindMeta(kind: string, dark = false): MessageKindMeta {
+  const meta = MESSAGE_KIND_META[kind] ?? MESSAGE_KIND_META['note']!;
+  return { ...meta, bg: pillBg(meta.bg, meta.fg, dark) };
 }
 
 /** True when a Message is unread and addressed to the Operator. */
@@ -177,6 +261,100 @@ export function attentionItems(
       title: `${queue.length} task(s) await your review`,
       detail: `${queue.map((task) => task.id).join(', ')} assigned to you as reviewer.`,
       dot: '#8b4fd0',
+    });
+  }
+  return items;
+}
+
+export type WorkItemKind = 'stale_lease' | 'review' | 'idle_agent' | 'unread_message';
+
+export type WorkItemTarget =
+  | { readonly kind: 'task'; readonly taskId: string }
+  | { readonly kind: 'agent'; readonly agentId: string }
+  | { readonly kind: 'messages' };
+
+export interface WorkItem {
+  readonly key: string;
+  readonly kind: WorkItemKind;
+  readonly label: string;
+  readonly title: string;
+  readonly detail: string;
+  readonly actionLabel: string;
+  /** Bar/tag/action-button tint. */
+  readonly color: string;
+  /** Tag's light-mode background (dark mode derives its own via {@link pillBg}). */
+  readonly bg: string;
+  readonly target: WorkItemTarget;
+}
+
+/**
+ * The "Now" triage worklist (FR-U37): the same stale-Lease/review-queue/
+ * idle-Agent signals {@link attentionItems} surfaces for Overview, plus the
+ * Operator's unread Messages, in the design's priority order (stale lease,
+ * review queue, idle Agents, unread Messages) with an action each item
+ * routes to. Introduces no new data or authority — every action named here
+ * already exists elsewhere in the Console.
+ */
+export function nowWorklist(
+  tasks: readonly TaskSnapshotRecord[],
+  agents: readonly AgentSnapshotRecord[],
+  messages: readonly MessageSnapshotRecord[],
+  now: number = Date.now(),
+): WorkItem[] {
+  const items: WorkItem[] = [];
+  for (const task of tasks) {
+    if (!task.stale_lease) continue;
+    items.push({
+      key: `stale:${task.id}`,
+      kind: 'stale_lease',
+      label: 'Stale lease',
+      title: `Reassign or requeue ${task.id}`,
+      detail: `${task.assignee_id} holds an expired lease on “${task.title}”.`,
+      actionLabel: 'Resolve',
+      color: '#d15540',
+      bg: '#fbece9',
+      target: { kind: 'task', taskId: task.id },
+    });
+  }
+  for (const task of reviewQueue(tasks)) {
+    items.push({
+      key: `review:${task.id}`,
+      kind: 'review',
+      label: 'Awaiting review',
+      title: `Review ${task.id}`,
+      detail: `“${task.title}” submitted by ${task.assignee_id}.`,
+      actionLabel: 'Review',
+      color: '#8b4fd0',
+      bg: '#f3ecfb',
+      target: { kind: 'task', taskId: task.id },
+    });
+  }
+  for (const agent of agents) {
+    if (agent.activity !== 'idle') continue;
+    items.push({
+      key: `idle:${agent.id}`,
+      kind: 'idle_agent',
+      label: 'Idle agent',
+      title: `${agent.id} has gone quiet`,
+      detail: `No activity for ${relTime(agent.last_seen, now).replace(' ago', '')}. Nudge it or reassign its work.`,
+      actionLabel: 'Message',
+      color: '#d99a2b',
+      bg: '#fbf1de',
+      target: { kind: 'agent', agentId: agent.id },
+    });
+  }
+  for (const message of messages) {
+    if (!isUnreadToOperator(message)) continue;
+    items.push({
+      key: `unread:${message.id}`,
+      kind: 'unread_message',
+      label: 'Unread message',
+      title: `Reply to ${message.sender_id}`,
+      detail: `“${message.content}”`,
+      actionLabel: 'Open inbox',
+      color: ACCENT,
+      bg: `${ACCENT}18`,
+      target: { kind: 'messages' },
     });
   }
   return items;
@@ -272,4 +450,15 @@ function humanizeDuration(seconds: number): string {
   const h = Math.round(m / 60);
   if (h < 24) return `${h}h`;
   return `${Math.round(h / 24)}d`;
+}
+
+/**
+ * Exhaustiveness guard for a discriminated union's remaining branch (e.g. the
+ * last arm of an if/else chain or a switch's default). `x` is typed `never`
+ * only when every other member has already been narrowed away, so adding a
+ * new union member without handling it here is a compile error, not a silent
+ * runtime no-op.
+ */
+export function assertNever(x: never): never {
+  throw new Error(`unreachable: ${JSON.stringify(x)}`);
 }

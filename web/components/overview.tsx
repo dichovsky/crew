@@ -2,7 +2,7 @@
  * Overview view: four headline stats, the live crew roster, the "needs
  * attention" list, and a merged recent-events feed. Pure render — every value
  * is derived from the real snapshot via view-model selectors. Clicking a
- * roster row opens the Messages compose pre-addressed to that Agent.
+ * roster row opens the quick-message modal pre-addressed to that Agent.
  */
 import type { AgentSnapshotRecord, TaskSnapshotRecord } from '../types.js';
 import type { HealthState } from './health.js';
@@ -12,9 +12,12 @@ import {
   attentionItems,
   currentTaskFor,
   initials,
+  pillBg,
   relTime,
   reviewQueue,
   roleColor,
+  rolePillBg,
+  rolePillColor,
   shortId,
   statusMeta,
 } from '../view-model.js';
@@ -24,6 +27,7 @@ export interface OverviewProps {
   readonly tasks: readonly TaskSnapshotRecord[];
   readonly health: HealthState | null;
   readonly now: number;
+  readonly dark: boolean;
   readonly onMessageAgent: (id: string) => void;
   readonly onGoAgents: () => void;
 }
@@ -41,6 +45,7 @@ export function Overview({
   tasks,
   health,
   now,
+  dark,
   onMessageAgent,
   onGoAgents,
 }: OverviewProps) {
@@ -96,7 +101,10 @@ export function Overview({
           <div class="stat" key={s.label}>
             <div class="stat-top">
               <span class="stat-label">{s.label}</span>
-              <span class="pill" style={{ background: s.tagBg, color: s.tagFg }}>
+              <span
+                class="pill"
+                style={{ background: pillBg(s.tagBg, s.tagFg, dark), color: s.tagFg }}
+              >
                 {s.tag}
               </span>
             </div>
@@ -120,6 +128,7 @@ export function Overview({
           {agents.map((agent) => {
             const meta = activityMeta(agent.activity);
             const color = roleColor(agent.role);
+            const pillColor = rolePillColor(agent.role, dark);
             return (
               <button
                 type="button"
@@ -133,7 +142,10 @@ export function Overview({
                 <span class="roster-main">
                   <span class="id-line">
                     <span class="mono-id">{agent.id}</span>
-                    <span class="pill" style={{ background: `${color}18`, color }}>
+                    <span
+                      class="pill"
+                      style={{ background: rolePillBg(pillColor, dark), color: pillColor }}
+                    >
                       {agent.role}
                     </span>
                   </span>
