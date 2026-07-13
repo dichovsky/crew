@@ -64,7 +64,7 @@ export function NowView(props: NowViewProps) {
         <h2>
           {items.length} thing{items.length === 1 ? '' : 's'} need you
         </h2>
-        <span>Work top to bottom — the list clears as you go.</span>
+        <p>Work top to bottom — the list clears as you go.</p>
       </div>
       <div class="now-list">
         {items.map((item) => (

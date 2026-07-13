@@ -138,7 +138,10 @@ export function Sidebar({
             {item.icon}
             <span class="nav-label">{item.label}</span>
             {item.id === 'now' && workCount > 0 && (
-              <span class="nav-badge work" aria-label={`${workCount} need you`}>
+              <span
+                class="nav-badge work"
+                aria-label={`${workCount} thing${workCount === 1 ? '' : 's'} need your attention`}
+              >
                 {workCount}
               </span>
             )}

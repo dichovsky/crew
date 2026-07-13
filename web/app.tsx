@@ -195,8 +195,11 @@ export function App() {
     setConfirmError(null);
   }, []);
 
-  // FR-U38: apply the theme to the document root before paint and persist it
-  // — a pure presentation preference, never sent to the server.
+  // FR-U38: apply the theme to the document root once mounted and persist it
+  // — a pure presentation preference, never sent to the server. This runs
+  // after the initial paint (a plain useEffect, not useLayoutEffect), so a
+  // returning dark-theme user may see a brief flash of the light chrome; see
+  // the matching note on the color-scheme meta tag in web/index.html.
   useEffect(() => {
     document.documentElement.dataset['theme'] = theme;
     saveTheme(theme);
@@ -442,6 +445,7 @@ export function App() {
               type="button"
               class="theme-toggle"
               title="Toggle light / dark"
+              aria-label="Toggle light / dark theme"
               aria-pressed={dark}
               onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
             >
