@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { execa } from 'execa';
-import { mkdirSync, symlinkSync, rmSync } from 'node:fs';
+import { mkdirSync, symlinkSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +27,9 @@ describe('bin/crew.ts entry guard', () => {
   it('runs successfully when argv[1] contains vite/vitest', async () => {
     const projectRoot = fileURLToPath(new URL('../../', import.meta.url));
     const distBin = join(projectRoot, 'dist', 'bin', 'crew.js');
+    const { version } = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8')) as {
+      version: string;
+    };
 
     const tempViteDir = join(tmpdir(), 'crew-vite-test-' + Math.random().toString(36).slice(2));
     mkdirSync(tempViteDir, { recursive: true });
@@ -38,7 +41,7 @@ describe('bin/crew.ts entry guard', () => {
       // Execute the symlink. process.argv[1] will contain "vite" in its path.
       const result = await execa('node', [symlinkPath, '--version'], { reject: false });
       expect(result.exitCode).toBe(0);
-      expect(result.stdout.trim()).toBe('0.1.0');
+      expect(result.stdout.trim()).toBe(version);
     } finally {
       rmSync(tempViteDir, { recursive: true, force: true });
     }
