@@ -58,7 +58,7 @@ calls a model provider** and runs no AI model itself.
 
 ### 1.2 Scope (§9.5.2)
 
-- **Product name:** `crew` (npm package name `@dichovsky/crew`, not yet published; installed executable `crew`).
+- **Product name:** `crew` (npm package name `@dichovsky/crew`, published; installed executable `crew`).
 - **What it does:** Agent identities that survive restarts; a shared Inbox of Messages; a
   Task workflow in which every result is reviewed, protected by Leases (claims that expire on
   their own after a set time, so a crashed agent cannot hold a Task forever) and recorded as

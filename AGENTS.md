@@ -5,7 +5,7 @@ This file provides guidance to coding agents when working with code in this repo
 ## What this is
 
 `crew` is a local coordination CLI for terminal coding agents (Claude Code, Codex CLI,
-Gemini CLI, Copilot CLI). It gives independently running sessions a shared inbox, a
+Gemini CLI, Copilot CLI, Antigravity CLI). It gives independently running sessions a shared inbox, a
 reviewed task workflow, and an optional tmux launcher. **crew never calls a model
 provider itself** — it only coordinates via a workspace-local SQLite database.
 
@@ -24,13 +24,13 @@ subcommand that nudges idle panes from the content-free Inbox summary without co
 Messages (ADR-0008). The live launch is worktree-enabled, with per-Worker isolated Task
 worktrees (ADR-0015).
 
-Nothing is published yet: the package is at `0.1.0`, unreleased — no git tags, and
-`@dichovsky/crew` does not exist on the npm registry. `docs/README.md`
-("Current readiness") is the single source of truth for release status; in short, all six
-release gates' *automatable* parts are landed and only the maintainer's manual steps remain
-(run the credentialed live smoke and commit `docs/release/artifacts-<date>.json`,
-`npm publish --access public`, tag `v0.1.0`) — no npm token ever enters CI. `1.0.0` is
-reserved for a later milestone, once the CLI and store contracts are declared stable.
+`0.1.0` is published to npm. The first publish was a one-time manual `npm publish`
+(npm OIDC Trusted Publishing can only attach to a package that already exists); from
+`0.1.1`, a published GitHub Release runs `.github/workflows/publish.yml` and publishes
+via OIDC with provenance — no long-lived npm secret ever enters CI. `docs/README.md`
+("Current readiness") is the single source of truth for release status, and
+`docs/release/publishing.md` is the runbook. `1.0.0` is reserved for a later milestone,
+once the CLI and store contracts are declared stable.
 
 ## Branch discipline (HARD RULE — never violate)
 

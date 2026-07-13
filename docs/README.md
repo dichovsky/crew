@@ -52,13 +52,13 @@ the same plan), the live tmux Launcher and Relay with per-Worker isolated git wo
 concurrent use and security attacks, and the `crew ui` Console — a dashboard reachable
 only from your own computer, with live updates (SSE) and Operator actions.
 
-Nothing has been published yet: the package is at `0.1.0`, unreleased — there are no
-git tags, `@dichovsky/crew` does not exist on the npm registry, and `CHANGELOG.md`
-lists the feature set under its first entry. The canonical
+`0.1.0` is published to npm as the first release. Because npm's OIDC Trusted Publishing
+can only attach to a package that already exists, that first publish was a one-time
+manual `npm publish` (so `0.1.0` carries no CI provenance); from `0.1.1` onward,
+publishing a GitHub Release runs
+[`.github/workflows/publish.yml`](../.github/workflows/publish.yml), which publishes to
+npm via OIDC — no long-lived npm secret ever enters CI — with provenance. The canonical
 [release-gate table](./design/product-spec.md#release-gates) records the six gates that
-block that first publish; every part of them that can be automated is already done.
-What remains are the maintainer's manual steps — run the live smoke test (the hands-on
-check that needs real credentials) and commit its evidence files,
-`npm publish --access public`, and tag `v0.1.0` — and the npm publishing token never
-enters CI. `1.0.0` is reserved for a later milestone, once the CLI and store contracts
-are declared stable.
+governed the release, and [publishing.md](./release/publishing.md) is the end-to-end
+runbook. `1.0.0` is reserved for a later milestone, once the CLI and store contracts are
+declared stable.

@@ -104,17 +104,18 @@ requires one process that stays alive for as long as the tmux session does.
 ## Release gates
 
 This is the **canonical release-gate list**. Other documents reference it and must not keep a
-separate copy. All six gates must close before the **first publish** (`0.1.0`).
-The implementation is feature-complete, but nothing has
-been published yet: the package is at `0.1.0`, unreleased, with no git tags. The
+separate copy. The first publish (`0.1.0`) has shipped to npm. Because npm's OIDC Trusted Publishing
+can only attach to a package that already exists, `0.1.0` was published once by hand;
+from `0.1.1` on, a published GitHub Release runs `.github/workflows/publish.yml`, which
+publishes via OIDC with provenance and no stored npm secret (see
+[publishing.md](../release/publishing.md)). The
 SQLite-stress and Security-review gates are closed, and the Relay-proof gate's full
 end-to-end test — a launch against real tmux with a fake Participant standing in for a real
 CLI — is in place. Every part of the remaining gates that a machine
 can run has landed: a green `npm publish --dry-run` (the rehearsal half of the npm-name gate), plus the
 recorder and guided checklist for the maintainer-run live smoke test and the `doctor` version
-floor (for the Participant-CLI-matrix and Model-Backend gates). Those gates close when
-the maintainer runs the live smoke with real credentials, commits
-`docs/release/artifacts-<date>.json`, and publishes with `npm publish --access public`; no
+floor (for the Participant-CLI-matrix and Model-Backend gates). Each release re-runs the
+credentialed live smoke and commits `docs/release/artifacts-<date>.json`; no long-lived
 npm token ever enters CI.
 `1.0.0` is reserved for a later milestone, once the CLI and store contracts are declared
 stable.
@@ -122,7 +123,7 @@ stable.
 | Gate | Why it blocks release | Evidence required |
 |---|---|---|
 | npm name ownership | `crew` is not available as an unscoped package name on npm, so the package publishes as scoped `@dichovsky/crew` | a successful `npm publish --dry-run` (the first real publish uses `npm publish --access public`) |
-| Participant CLI matrix | the CLIs' install paths and permission models change quickly | a live smoke test in a clean home directory for each of the four Participant CLIs at their pinned minimum versions, including the Copilot scoped shell-rule syntax (`--allow-tool='shell(crew:*)'`) confirmed against the installed version |
+| Participant CLI matrix | the CLIs' install paths and permission models change quickly | a live smoke test in a clean home directory for each of the five Participant CLIs at their pinned minimum versions, including the Copilot scoped shell-rule syntax (`--allow-tool='shell(crew:*)'`) confirmed against the installed version |
 | Model Backend recipes | the Ollama and LM Studio integration paths change independently and are unverified until actually run | an Ollama and an LM Studio tool-call smoke test through a supported Participant CLI |
 | Relay proof | launched autonomy depends on wake-up actually working | a tmux end-to-end test with an idle pane, a nudge, a receive, and proof that no Message is consumed twice |
 | SQLite stress | the product depends on staying correct when several processes write at once | a repeatable forced-contention suite on Linux and macOS proving the documented contention and delivery behavior |

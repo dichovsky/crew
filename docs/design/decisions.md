@@ -24,9 +24,10 @@ restate them.
 The executable is `crew`, the Workspace directory `.crew/`, and the State Store
 `.crew/state/crew.db`. The unscoped npm package name `crew` is taken, so the package
 publishes under the maintainer's namespace as `@dichovsky/crew`
-(`npm install -g @dichovsky/crew`; the installed command is still `crew`). Nothing has
-been published yet. The remaining steps for the first publish are running the live
-smoke test with real credentials, `npm publish --access public`, and tagging `v0.1.0`.
+(`npm install -g @dichovsky/crew`; the installed command is still `crew`). `0.1.0` is
+published: the first publish was a one-time manual `npm publish` (npm OIDC Trusted
+Publishing can only attach to a package that already exists), and from `0.1.1` a
+published GitHub Release publishes via OIDC through `.github/workflows/publish.yml`.
 (`1.0.0` is reserved for a later stability milestone.)
 
 ### DEC-8 — Runtime and build
@@ -52,9 +53,10 @@ higher.
 
 ### DEC-10 — Participant and backend support
 
-v1 supports four Participant CLI targets (Claude Code, Codex CLI, Gemini CLI, Copilot CLI)
-and two Model Backend recipes (Ollama, LM Studio). “All six first-class Agents” is rejected:
-the two model servers cannot run crew commands themselves, so they are Setup Targets only.
+v1 supports five Participant CLI targets (Claude Code, Codex CLI, Gemini CLI, Copilot CLI,
+Antigravity CLI) and two Model Backend recipes (Ollama, LM Studio). Treating all seven
+Setup Targets as first-class Agents is rejected: the two model servers cannot run crew
+commands themselves, so they are Setup Targets only.
 The current paths and invocations are in [setup-integration.md](./setup-integration.md) and
 must be verified by the release smoke test.
 

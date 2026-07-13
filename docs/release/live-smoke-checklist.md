@@ -57,5 +57,7 @@ For each of **Ollama** and **LM Studio**:
 - [ ] `artifacts-<date>.json` is committed under `docs/release/`.
 - [ ] The gate statuses in the release-gate table in `docs/design/product-spec.md` are
       updated (Gates 2 & 3 closed).
-- [ ] The maintainer runs `npm publish --access public` by hand (CI only proves that
-      `npm publish --dry-run` works; the npm publishing token never enters CI).
+- [ ] The release is published: `0.1.0` was a one-time manual `npm publish`; for
+      `0.1.1`+ the maintainer publishes a GitHub Release, which runs `publish.yml` and
+      publishes via npm OIDC Trusted Publishing (no long-lived npm secret in CI). See
+      [publishing.md](./publishing.md).

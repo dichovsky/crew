@@ -28,6 +28,6 @@ npm run build
 CREW_RELEASE_SMOKE=1 npx vitest run tests/tools/release-smoke.test.ts
 ```
 
-Then work through `live-smoke-checklist.md` by hand, commit the dated evidence file, and
-update the gate statuses in the
-[release-gate table](../design/product-spec.md#release-gates).
+Then follow the [release runbook](./publishing.md): work through
+`live-smoke-checklist.md`, commit the dated evidence file, and update the gate statuses
+in the [release-gate table](../design/product-spec.md#release-gates).

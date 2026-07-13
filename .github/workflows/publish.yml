@@ -1,0 +1,105 @@
+name: Publish
+
+# Publishes @dichovsky/crew to npm when a GitHub Release is published.
+#
+# Authentication is npm Trusted Publishing (OIDC): npm validates the short-lived
+# OIDC token minted by GitHub Actions against this repository's Trusted Publisher
+# configuration on npmjs.com (provider: GitHub Actions, workflow file:
+# publish.yml). No NPM_TOKEN secret is stored in CI, and provenance attestations
+# are generated automatically from the OIDC context and attached on the npm
+# registry (they live on npm + the public transparency log, not on the GitHub
+# Release). See docs/release/publishing.md.
+#
+# The very first publish (0.1.0) was a one-time manual bootstrap, because npm can
+# only attach a Trusted Publisher to a package that already exists. From 0.1.1 on,
+# publishing a GitHub Release runs this workflow.
+
+on:
+  release:
+    types: [published]
+
+# Least privilege: read the source, mint an OIDC token for npm. Nothing else.
+permissions:
+  contents: read
+  id-token: write
+
+# One publish at a time; never cancel an in-flight publish.
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish to npm (OIDC)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # This job never pushes back to the repo; don't leave the token in .git/config.
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.18.0'
+          registry-url: 'https://registry.npmjs.org'
+          # Never reuse a cache in a release build.
+          package-manager-cache: false
+      - run: npm ci
+
+      # The GitHub Release tag must match the version being published, so a
+      # mis-tagged Release can never ship the wrong version. tag_name is untrusted
+      # input, so it is read from the environment, never interpolated into the shell.
+      - name: Verify tag matches package version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$RELEASE_TAG" != "v$PKG_VERSION" ]; then
+            echo "::error::Release tag '$RELEASE_TAG' does not match package.json version 'v$PKG_VERSION'"
+            exit 1
+          fi
+
+      # Run the full pre-publish gate explicitly rather than relying on the
+      # prepublishOnly lifecycle hook, so a red gate blocks the publish visibly.
+      # tmux is required by the coverage suite's launch/relay tests (mirrors ci.yml).
+      - run: sudo apt-get update && sudo apt-get install -y tmux
+      - run: tmux -V
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run build
+      - run: npm run test:coverage
+        env:
+          CREW_REQUIRE_TMUX: '1'
+          CREW_STRESS_ITERS: '25'
+
+      # Preflight: if this exact version is already on npm, skip the publish step so
+      # a re-published GitHub Release exits green instead of failing the duplicate-
+      # version PUT with a misleading red. `npm view` prints the version when it
+      # exists and nothing when it does not, so a non-empty result is the signal; a
+      # transient lookup failure only degrades to the prior duplicate-error behavior
+      # (npm rejects the real duplicate), never a false skip.
+      - name: Check whether this version is already published
+        id: preflight
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ -n "$(npm view "$PKG_NAME@$PKG_VERSION" version 2>/dev/null)" ]; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$PKG_NAME@$PKG_VERSION is already on npm — skipping publish."
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # A pre-release GitHub Release publishes under the `next` dist-tag so it never
+      # displaces `latest` for `npm install @dichovsky/crew`. `release.prerelease` is a
+      # GitHub-set boolean, read from the environment rather than interpolated into the shell.
+      - name: Publish to npm with provenance
+        if: steps.preflight.outputs.already_published == 'false'
+        env:
+          IS_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            npm publish --provenance --access public --tag next
+          else
+            npm publish --provenance --access public --tag latest
+          fi
