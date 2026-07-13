@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-07-13
+
+First release published through the automated OIDC Trusted Publishing pipeline, so the
+npm artifact now carries build provenance (the manually bootstrapped `0.1.0` did not).
+No functional changes to the CLI.
+
+### Changed
+
+- README install instructions now reflect the published package
+  (`npm install -g @dichovsky/crew`).
+
 ## [0.1.0] — 2026-07-13
 
 The first public release of `crew`, a local coordination CLI for terminal coding
