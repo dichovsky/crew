@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# Least privilege: these jobs only read the repo — no OIDC, no write scope.
+permissions:
+  contents: read
+
 jobs:
   build-test:
     name: ubuntu / node 24.18.0
@@ -37,8 +41,9 @@ jobs:
   # Fast, deterministic proof that the package is publishable: `npm publish --dry-run`
   # packs and validates the tarball WITHOUT publishing and WITHOUT any npm token. The
   # pack-smoke test guards the exact file allowlist; this job guards that the manifest
-  # itself is publishable (not private, valid version). The maintainer runs the real
-  # publish by hand.
+  # itself is publishable (not private, valid version). Real publishing runs in
+  # publish.yml when a GitHub Release is published (npm OIDC Trusted Publishing); this
+  # job only rehearses it.
   publish-dry-run:
     name: publish dry-run
     runs-on: ubuntu-latest
@@ -50,4 +55,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: npm publish --dry-run
+      # Skip when this version is already on npm (e.g. between releases): a dry-run of an
+      # already-published version trips npm's duplicate-version check, a false alarm here.
+      # The pack-smoke test still guards the exact file allowlist unconditionally.
+      - name: Publish dry-run (skips if version already published)
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ -n "$(npm view "$PKG_NAME@$PKG_VERSION" version 2>/dev/null)" ]; then
+            echo "::notice::$PKG_NAME@$PKG_VERSION already on npm — skipping dry-run."
+          else
+            npm publish --dry-run
+          fi
