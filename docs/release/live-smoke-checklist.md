@@ -22,10 +22,10 @@ For each checkbox below, record the outcome (pass or fail, plus the version test
 the date) alongside the generated `artifacts-<date>.json`. If a minimum version changes,
 update the platform registry's `minimumVerifiedVersion` / `verifiedOn`.
 
-## Gate 2 — Participant CLI matrix (five CLIs, pinned minimum versions)
+## Gate 2 — Participant CLI matrix (seven CLIs, pinned minimum versions)
 
 For each of **Claude Code**, **Codex CLI**, **Gemini CLI**, **Copilot CLI**,
-**Antigravity CLI**:
+**Antigravity CLI**, **Pi CLI**, **opencode CLI**:
 
 - [ ] `crew --version` matches the package version being released.
 - [ ] `<cli> --version` is at or above the registry's `minimumVerifiedVersion`
@@ -40,6 +40,14 @@ For each of **Claude Code**, **Codex CLI**, **Gemini CLI**, **Copilot CLI**,
 - [ ] **Copilot specifically:** confirm that the installed Copilot version accepts the
       scoped shell-rule syntax `--allow-tool='shell(crew:*)'` and that the grant is
       limited to `crew` commands.
+- [ ] **opencode specifically:** confirm the `permission.bash` allowlist
+      `{ "*": "ask", "crew *": "allow" }` in `opencode.json` auto-approves only `crew`
+      commands (catch-all listed first, last-match-wins); do not enable `--auto`.
+- [ ] **Pi specifically:** pi has no permission model, so confirm scoping comes from the
+      Workspace/OS boundary — there is no scoped-approval flag and no bypass flag to avoid.
+- [ ] **Pi and opencode readiness:** in a launched pane, read
+      `tmux display -p '#{pane_current_command}'`; if it cleanly reports `pi` / `opencode`,
+      tighten that target's `readinessMode` from `not-shell` to `names`.
 
 ## Gate 3 — Model Backend recipes (Ollama, LM Studio)
 

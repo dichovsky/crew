@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Two new Participant CLI engines, `pi-cli` (Pi) and `opencode-cli` (opencode), bringing
+  the registry to seven Participant CLIs. Each ships a Markdown customization artifact
+  (`crew.md`) that exposes the `/crew <role> [id]` command: pi as a Prompt Template under
+  `~/.pi/agent/prompts/` and opencode as a custom command under
+  `~/.config/opencode/commands/`. Both are wired through `setup`, `doctor`, the Team
+  display, and the live tmux launcher. The platform registry advances to revision 4.
+- pi has no permission model by design, so crew ships no gating code and its permission
+  guidance is the Workspace/OS boundary; opencode's guidance scopes shell approval through
+  the `permission.bash` allowlist in `opencode.json`.
+
 ## [0.1.1] — 2026-07-13
 
 First release published through the automated OIDC Trusted Publishing pipeline, so the

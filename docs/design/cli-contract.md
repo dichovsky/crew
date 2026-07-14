@@ -34,7 +34,7 @@ the `crew` executable regardless of the final npm package name.
 ```text
 crew init [--with-guides] [--json]
 crew setup [--list] [--json]
-crew setup <claude-code|codex-cli|gemini-cli|copilot-cli|antigravity-cli|ollama|lmstudio>
+crew setup <claude-code|codex-cli|gemini-cli|copilot-cli|antigravity-cli|pi-cli|opencode-cli|ollama|lmstudio>
            [--project] [--force] [--json]
 crew doctor [--system] [--json]
 ```
