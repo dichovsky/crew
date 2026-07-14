@@ -150,13 +150,31 @@ describe('crew doctor — uncovered diagnostic and rendering branches', () => {
       clock: () => 0,
       env: {
         HOME: home,
-        PATH: fakeBin('tmux', 'git', 'claude', 'codex', 'gemini', 'copilot', 'agy'),
+        PATH: fakeBin(
+          'tmux',
+          'git',
+          'claude',
+          'codex',
+          'gemini',
+          'copilot',
+          'agy',
+          'pi',
+          'opencode',
+        ),
       },
       // Above every participant floor, so no VERSION_FLOOR finding is produced.
       runProcess: () => Promise.resolve({ status: 0, stdout: '9.9.9', stderr: '' }),
     });
     // Write every current global artifact so no SETUP_DRIFT (absent) finding remains.
-    for (const id of ['claude-code', 'codex-cli', 'gemini-cli', 'copilot-cli', 'antigravity-cli']) {
+    for (const id of [
+      'claude-code',
+      'codex-cli',
+      'gemini-cli',
+      'copilot-cli',
+      'antigravity-cli',
+      'pi-cli',
+      'opencode-cli',
+    ]) {
       expect(await run(['setup', id], io)).toBe(0);
     }
     out.length = 0;

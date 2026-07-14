@@ -10,6 +10,8 @@ export const PARTICIPANT_IDS = [
   'gemini-cli',
   'copilot-cli',
   'antigravity-cli',
+  'pi-cli',
+  'opencode-cli',
 ] as const;
 
 export type ParticipantId = (typeof PARTICIPANT_IDS)[number];

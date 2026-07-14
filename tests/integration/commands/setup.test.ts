@@ -83,6 +83,8 @@ describe('crew setup --list (detection, FR-G02)', () => {
       'gemini-cli',
       'copilot-cli',
       'antigravity-cli',
+      'pi-cli',
+      'opencode-cli',
       'ollama',
       'lmstudio',
     ]);
@@ -123,7 +125,7 @@ describe('crew setup <participant> (install, FR-G04/G05)', () => {
     expect(rec.action).toBe('written');
     expect(rec.scope).toBe('global');
     expect(rec.path).toBe('~/.claude/skills/crew/SKILL.md');
-    expect(rec.registry_revision).toBe(3);
+    expect(rec.registry_revision).toBe(4);
     const body = readFileSync(join(home, '.claude/skills/crew/SKILL.md'), 'utf8');
     expect(classifyArtifact(body)).toBe('managed-current');
   });
@@ -307,7 +309,7 @@ describe('crew setup edge cases (review hardening)', () => {
     const { io, out } = sandbox({ env: { HOME: '', USERPROFILE: '' } });
     expect(await run(['setup', '--list', '--json'], io)).toBe(0);
     const recs = records(out);
-    expect(recs).toHaveLength(7);
+    expect(recs).toHaveLength(9);
     expect(recs.find((r) => r.id === 'claude-code')!.global_state).toBeNull();
   });
 

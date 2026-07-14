@@ -14,7 +14,7 @@ import type { ParticipantId } from '../participants.js';
 import { resolveExecutableOnPath } from '../which.js';
 
 /** Integer revision of the platform registry record set; bumped on any artifact change. */
-export const REGISTRY_REVISION = 3;
+export const REGISTRY_REVISION = 4;
 
 /** Date the documented paths/invocations were last re-verified (setup-integration.md). */
 export const VERIFIED_ON = '2026-06-29';

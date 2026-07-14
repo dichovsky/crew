@@ -11,6 +11,8 @@ import { copilotTarget } from './copilot.js';
 import { geminiTarget } from './gemini.js';
 import { lmstudioTarget } from './lmstudio.js';
 import { ollamaTarget } from './ollama.js';
+import { opencodeTarget } from './opencode.js';
+import { piTarget } from './pi.js';
 import type { BackendTarget, ParticipantTarget, SetupTarget, SetupTargetId } from './shared.js';
 
 /** Participant CLI targets, in canonical display order. */
@@ -20,6 +22,8 @@ export const PARTICIPANT_TARGETS: readonly ParticipantTarget[] = [
   geminiTarget,
   copilotTarget,
   antigravityTarget,
+  piTarget,
+  opencodeTarget,
 ];
 
 /** Model Backend targets, in canonical display order. */
