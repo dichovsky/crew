@@ -123,7 +123,7 @@ stable.
 | Gate | Why it blocks release | Evidence required |
 |---|---|---|
 | npm name ownership | `crew` is not available as an unscoped package name on npm, so the package publishes as scoped `@dichovsky/crew` | a successful `npm publish --dry-run` (the first real publish uses `npm publish --access public`) |
-| Participant CLI matrix | the CLIs' install paths and permission models change quickly | a live smoke test in a clean home directory for each of the five Participant CLIs at their pinned minimum versions, including the Copilot scoped shell-rule syntax (`--allow-tool='shell(crew:*)'`) confirmed against the installed version |
+| Participant CLI matrix | the CLIs' install paths and permission models change quickly | a live smoke test in a clean home directory for each of the seven Participant CLIs at their pinned minimum versions, including the Copilot scoped shell-rule syntax (`--allow-tool='shell(crew:*)'`) confirmed against the installed version |
 | Model Backend recipes | the Ollama and LM Studio integration paths change independently and are unverified until actually run | an Ollama and an LM Studio tool-call smoke test through a supported Participant CLI |
 | Relay proof | launched autonomy depends on wake-up actually working | a tmux end-to-end test with an idle pane, a nudge, a receive, and proof that no Message is consumed twice |
 | SQLite stress | the product depends on staying correct when several processes write at once | a repeatable forced-contention suite on Linux and macOS proving the documented contention and delivery behavior |

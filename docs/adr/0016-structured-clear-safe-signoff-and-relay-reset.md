@@ -84,3 +84,11 @@ the reset.
 - Each engine's reset facts (commands, aliases, caveats) will be recorded in the platform
   registry and `docs/design/setup-integration.md` in the follow-up change; Antigravity releases
   weekly, so its `/clear` must be re-verified then.
+
+## Update 2026-07-14 — reset facts for the `pi-cli` and `opencode-cli` engines
+
+The `pi-cli` and `opencode-cli` engines were added (registry revision 4). Their reset
+commands are **not** uniformly `/clear`, so the follow-up per-engine reset field must not
+assume it: **opencode** resets with `/new` (documented alias `/clear`), but **pi** has
+**no `/clear` and no `/reset`** — its only context reset is `/new`. Record `/new` for both
+when the Relay-delivered reset lands.

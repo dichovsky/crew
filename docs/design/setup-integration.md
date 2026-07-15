@@ -29,6 +29,8 @@ or locally edited, `--force` backs it up before replacing it.
 | `gemini-cli` | Participant CLI | `~/.gemini/commands/crew.toml` | `.gemini/commands/crew.toml` | `/crew <role> [id]` | docs verified; live smoke required |
 | `copilot-cli` | Participant CLI | `~/.copilot/agents/crew.agent.md` | `.github/agents/crew.agent.md` | `/agent`, select crew, then prompt | docs verified; live smoke required |
 | `antigravity-cli` | Participant CLI | `~/.gemini/antigravity-cli/skills/crew/SKILL.md` | `.agents/skills/crew/SKILL.md` | `/crew <role> [id]` | docs verified; live smoke required |
+| `pi-cli` | Participant CLI | `~/.pi/agent/prompts/crew.md` | `.pi/prompts/crew.md` | `/crew <role> [id]` | docs verified; live smoke required |
+| `opencode-cli` | Participant CLI | `~/.config/opencode/commands/crew.md` | `.opencode/commands/crew.md` | `/crew <role> [id]` | docs verified; live smoke required |
 | `ollama` | Model Backend | none | none | `ollama launch <participant>` or env/profile | docs verified; live smoke required |
 | `lmstudio` | Model Backend | none | none | start server, load model, launch participant | docs verified; live smoke required |
 
@@ -49,6 +51,15 @@ they replaced are recorded once in
   byte-identical `.agents/skills/crew/SKILL.md`. Drift detection compares content only,
   so if the two renders differed, the installed content would depend on which target ran
   `setup` first.
+- Pi discovers Prompt Templates as Markdown files under `~/.pi/agent/prompts/` (user) and
+  `.pi/prompts/` (project); the basename becomes the `/name` command. Pi has no permission
+  or approval model by design, so crew ships no gating code and scopes shell access through
+  the Workspace/OS boundary only.
+- opencode discovers custom commands as Markdown files under the plural
+  `~/.config/opencode/commands/` (user) and `.opencode/commands/` (project) directories;
+  the singular `command/` directory is a backwards-compat alias crew does not use. Shell
+  approval is scoped in `opencode.json` via the `permission.bash` glob map, which is
+  last-match-wins (so the `*` catch-all is listed before `crew *`).
 - Ollama's official Copilot integration uses the documented provider environment
   variables.
 - Codex local providers speak the Responses wire protocol; crew must not generate
@@ -107,7 +118,8 @@ instructions. Run only bounded one-shot crew commands; a shell watcher cannot wa
 ```
 
 `<target>` stands for the registry id (`claude-code`, `codex-cli`, `gemini-cli`,
-`copilot-cli`, `antigravity-cli`). Like `<id>`, `<role>`, and `<actual-id>`, it is a
+`copilot-cli`, `antigravity-cli`, `pi-cli`, `opencode-cli`). Like `<id>`, `<role>`, and
+`<actual-id>`, it is a
 literal placeholder that the Agent fills in while working, so the block's bytes stay
 identical across platforms. Only the `{{ROLE_ARGS}}` token is replaced when the file is
 generated, and the replacement depends on the platform:
@@ -119,6 +131,8 @@ generated, and the replacement depends on the platform:
 | `codex-cli` | the phrase: the role and optional id given after `$crew` (Codex CLI) or `/crew` (Antigravity CLI) | `<!-- … -->` |
 | `copilot-cli` | the phrase: the role and optional id typed after selecting this agent | `<!-- … -->` |
 | `antigravity-cli` | identical to `codex-cli` (one shared artifact) | `<!-- … -->` |
+| `pi-cli` | literal token `$ARGUMENTS` | `<!-- … -->` |
+| `opencode-cli` | literal token `$ARGUMENTS` | `<!-- … -->` |
 
 ### 4.1 Claude Code
 
@@ -258,6 +272,67 @@ allows `crew` and nothing broader.
 
 Official sources: [Antigravity skills](https://antigravity.google/docs/skills) and the
 [Antigravity CLI repository](https://github.com/google-antigravity/antigravity-cli).
+
+### 4.6 Pi CLI
+
+Pi (`pi`) discovers Prompt Templates as Markdown files under `~/.pi/agent/prompts/<name>.md`
+(user) and `<repo>/.pi/prompts/<name>.md` (project); the file's basename becomes the `/name`
+slash command, so crew writes `crew.md` to expose `/crew`. The template references the
+operator's `<role> [id]` with `$ARGUMENTS`. crew generates:
+
+```markdown
+---
+description: Join and coordinate through the local crew inbox and reviewed task workflow.
+argument-hint: <manager|worker|inspector> [agent-id]
+---
+
+<!-- generated-by: crew setup; registry-revision: 4 -->
+
+[shared finite workflow rendered here]
+```
+
+You start it by typing `/crew` followed by the arguments. Pi loads a project-local
+`.pi/prompts/crew.md` only after the project is trusted, so the global file is the default
+integration path; a launched pane can also be trusted with `-a`/`--approve` or `/trust`.
+
+Pi has no per-command approval or sandbox by design: the built-in `bash` tool runs every
+command — including `crew` — with the full permissions of the pi process, and there is no
+allowlist configuration to scope it. crew therefore ships no gating code and relies on its
+Workspace boundary (crew writes only inside the Workspace and runs bounded one-shot
+commands) plus any OS/container isolation. There is no blunt-bypass flag to avoid because
+the default is already unrestricted.
+
+Official sources: [Pi documentation](https://pi.dev/docs/latest) and the
+[Pi repository](https://github.com/earendil-works/pi).
+
+### 4.7 opencode CLI
+
+opencode (`opencode`) discovers custom commands as Markdown files under
+`~/.config/opencode/commands/<name>.md` (user) and `<repo>/.opencode/commands/<name>.md`
+(project); the basename becomes the `/name` slash command and `$ARGUMENTS` interpolates the
+operator's `<role> [id]`. crew generates:
+
+```markdown
+---
+description: Join and coordinate through the local crew inbox and reviewed task workflow.
+---
+
+<!-- generated-by: crew setup; registry-revision: 4 -->
+
+[shared finite workflow rendered here]
+```
+
+You start it by typing `/crew` followed by the arguments.
+
+Shell approval is scoped in `opencode.json` via the `permission.bash` glob map, whose
+rules are last-match-wins: `{ "*": "ask", "crew *": "allow" }` with the
+`*` catch-all listed first auto-approves only command lines starting with `crew ` and
+prompts for everything else. crew writes no `opencode.json`; it prints this guidance. Do not
+enable `--auto`, which approves every request that is not explicitly denied and defeats the
+crew-only scope.
+
+Official sources: [opencode documentation](https://opencode.ai/docs) and the
+[opencode repository](https://github.com/anomalyco/opencode).
 
 ## 5. Model Backend recipes
 
@@ -404,8 +479,9 @@ starts as `copilot --agent=crew --prompt …`; nothing is pasted into an already
 Copilot interface. The Team display and setup keep the guidance about selecting crew via
 `/agent`.
 
-The registry lives in `src/platforms/` and is currently at **registry-revision 3**
-(the revision started at 1; adding Participants and launch facts since then bumped it).
+The registry lives in `src/platforms/` and is currently at **registry-revision 4**
+(the revision started at 1; adding Participants and launch facts since then bumped it,
+most recently the `pi-cli` and `opencode-cli` targets).
 `registry.ts` looks up targets; `shared.ts` holds the record types, the shared workflow
 text, the marker and content-hash rules, and the version probe; each target has its own
 module supplying its facts and rendering (`agent-skills.ts` holds the single renderer
@@ -424,9 +500,9 @@ and then runs exactly that resolved path, so the file that was checked for and t
 that runs are always the same one. A missing executable yields `DEPENDENCY_MISSING`;
 output that cannot be parsed yields an unknown-version finding, not a crash.
 `minimum_verified_version` records a version the maintainer actually confirmed was
-present (the first four were pinned together; `antigravity-cli` was verified when it was
-added) and is confirmed again for each release — per FR-G13 and DEC-10, support is never
-claimed from documentation alone.
+present (the first four were pinned together; `antigravity-cli`, `pi-cli`, and
+`opencode-cli` were each verified when they were added) and is confirmed again for each
+release — per FR-G13 and DEC-10, support is never claimed from documentation alone.
 
 | Target | Probe | Readiness | `minimum_verified_version` |
 |---|---|---|---|
@@ -435,11 +511,14 @@ claimed from documentation alone.
 | `gemini-cli` | `gemini --version` | not-shell (node shim) | `0.46.0` |
 | `copilot-cli` | `copilot --version` | name `copilot` | `1.0.67` |
 | `antigravity-cli` | `agy --version` | name `agy` | `1.0.14` (verified present 2026-07-02) |
+| `pi-cli` | `pi --version` | not-shell (node interpreter) | `0.80.6` (verified present 2026-07-14) |
+| `opencode-cli` | `opencode --version` | not-shell (node launcher) | `1.17.19` (verified present 2026-07-14) |
 | `ollama` | `ollama --version` | n/a (backend) | unset — Model-Backend release gate |
 | `lmstudio` | `lms version` | n/a (backend) | unset — Model-Backend release gate |
 
 `verified_on` records the date the documented paths and invocations were last re-checked
-(2026-06-29 for the original targets; 2026-07-02 for `antigravity-cli`). Each
+(2026-06-29 for the original targets; 2026-07-02 for `antigravity-cli`; 2026-07-14 for
+`pi-cli` and `opencode-cli`). Each
 Participant's minimum version is one the maintainer actually saw working, and the
 maintainer re-confirms it through the
 [release verification checklist](#8-release-verification-checklist).

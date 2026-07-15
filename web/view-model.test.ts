@@ -215,6 +215,12 @@ describe('colour vocabularies', () => {
     expect(engineMeta('gemini-cli').label).toBe('Gemini');
     expect(engineMeta('copilot-cli').label).toBe('Copilot');
     expect(engineMeta('antigravity-cli').label).toBe('Antigravity');
+    expect(engineMeta('pi-cli').label).toBe('Pi');
+    expect(engineMeta('opencode-cli').label).toBe('opencode');
+    // Every registered engine gets a branded badge, never the neutral fallback glyph.
+    for (const id of ['pi-cli', 'opencode-cli']) {
+      expect(engineMeta(id).glyph).not.toBe('·');
+    }
   });
 
   it('engineMeta falls back to a neutral "unknown" badge for null or unrecognized platforms', () => {

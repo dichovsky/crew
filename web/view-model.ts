@@ -156,6 +156,8 @@ const ENGINE_META: Record<string, EngineMeta> = {
     bg: '#e6f4ec',
     fg: '#1a7345',
   },
+  'pi-cli': { label: 'Pi', glyph: 'π', color: '#c2317a', bg: '#fbe9f2', fg: '#a52868' },
+  'opencode-cli': { label: 'opencode', glyph: '❯', color: '#c9821f', bg: '#f9f0e2', fg: '#a66b12' },
 };
 
 /**

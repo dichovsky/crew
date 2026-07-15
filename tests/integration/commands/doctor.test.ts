@@ -83,7 +83,7 @@ afterEach(() => {
 describe('crew doctor', () => {
   it('reports a healthy workspace with only a NO_STATE_STORE info and exits 0', async () => {
     const { io, out, err } = workspace(() => 0, {
-      PATH: fakeBin('tmux', 'git', 'claude', 'codex', 'gemini', 'copilot', 'agy'),
+      PATH: fakeBin('tmux', 'git', 'claude', 'codex', 'gemini', 'copilot', 'agy', 'pi', 'opencode'),
     });
     expect(await run(['doctor', '--json'], io)).toBe(0);
     expect(err).toEqual([]);
@@ -121,7 +121,19 @@ describe('crew doctor', () => {
     made.push(cwd);
     const { io, out } = captureIo({
       cwd,
-      env: { PATH: fakeBin('tmux', 'git', 'claude', 'codex', 'gemini', 'copilot', 'agy') },
+      env: {
+        PATH: fakeBin(
+          'tmux',
+          'git',
+          'claude',
+          'codex',
+          'gemini',
+          'copilot',
+          'agy',
+          'pi',
+          'opencode',
+        ),
+      },
     });
     expect(await run(['doctor', '--system', '--json'], io)).toBe(0);
     const recs = records(out);
@@ -416,7 +428,7 @@ describe('crew doctor', () => {
     const binDir = mkdtempSync(join(tmpdir(), 'crew-bin-'));
     made.push(binDir);
     mkdirSync(join(binDir, 'tmux')); // a directory named like the command
-    for (const name of ['git', 'claude', 'codex', 'gemini', 'copilot', 'agy']) {
+    for (const name of ['git', 'claude', 'codex', 'gemini', 'copilot', 'agy', 'pi', 'opencode']) {
       const file = join(binDir, name);
       writeFileSync(file, '');
       chmodSync(file, 0o755);
@@ -475,12 +487,19 @@ describe('crew doctor', () => {
 
 describe('crew doctor — participant and setup findings (FR-K01)', () => {
   it('reports an absent Participant CLI as info DEPENDENCY_MISSING with its target', async () => {
-    // Only claude present; the other four participants are absent.
+    // Only claude present; the other six participants are absent.
     const { io, out } = workspace(() => 0, { PATH: fakeBin('tmux', 'git', 'claude') });
     expect(await run(['doctor', '--json'], io)).toBe(0);
     const recs = records(out).filter((r) => r.code === 'DEPENDENCY_MISSING');
     const targets = recs.map((r) => (r.details as Record<string, unknown>).target).filter(Boolean);
-    expect(targets).toEqual(['codex-cli', 'gemini-cli', 'copilot-cli', 'antigravity-cli']);
+    expect(targets).toEqual([
+      'codex-cli',
+      'gemini-cli',
+      'copilot-cli',
+      'antigravity-cli',
+      'pi-cli',
+      'opencode-cli',
+    ]);
     for (const r of recs) expect(r.severity).toBe('info');
   });
 
@@ -535,7 +554,7 @@ describe('crew doctor — participant and setup findings (FR-K01)', () => {
     made.push(home);
     const { io, out } = workspace(() => 0, {
       HOME: home,
-      PATH: fakeBin('tmux', 'git', 'claude', 'codex', 'gemini', 'copilot', 'agy'),
+      PATH: fakeBin('tmux', 'git', 'claude', 'codex', 'gemini', 'copilot', 'agy', 'pi', 'opencode'),
     });
     // An internally-consistent artifact from an older registry revision.
     const blanked =
@@ -557,7 +576,7 @@ describe('crew doctor — participant and setup findings (FR-K01)', () => {
     made.push(home);
     const { io, out, cwd } = workspace(() => 0, {
       HOME: home,
-      PATH: fakeBin('tmux', 'git', 'claude', 'codex', 'gemini', 'copilot', 'agy'),
+      PATH: fakeBin('tmux', 'git', 'claude', 'codex', 'gemini', 'copilot', 'agy', 'pi', 'opencode'),
     });
     // A non-crew file squats the project copilot path.
     const squat = join(cwd, '.github/agents/crew.agent.md');
@@ -581,7 +600,7 @@ describe('crew doctor — participant and setup findings (FR-K01)', () => {
 
   it('deduplicates a shared project artifact into one SETUP_DRIFT finding', async () => {
     const { io, out, cwd } = workspace(() => 0, {
-      PATH: fakeBin('tmux', 'git', 'claude', 'codex', 'gemini', 'copilot', 'agy'),
+      PATH: fakeBin('tmux', 'git', 'claude', 'codex', 'gemini', 'copilot', 'agy', 'pi', 'opencode'),
     });
     const shared = join(cwd, '.agents', 'skills', 'crew', 'SKILL.md');
     mkdirSync(join(cwd, '.agents', 'skills', 'crew'), { recursive: true });

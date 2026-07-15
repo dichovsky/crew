@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 `crew` is a local coordination CLI for terminal coding agents (Claude Code, Codex CLI,
-Gemini CLI, Copilot CLI, Antigravity CLI). It gives independently running sessions a shared inbox, a
+Gemini CLI, Copilot CLI, Antigravity CLI, Pi CLI, opencode CLI). It gives independently running sessions a shared inbox, a
 reviewed task workflow, and an optional tmux launcher. **crew never calls a model
 provider itself** — it only coordinates via a workspace-local SQLite database.
 

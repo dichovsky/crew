@@ -53,10 +53,10 @@ higher.
 
 ### DEC-10 — Participant and backend support
 
-v1 supports five Participant CLI targets (Claude Code, Codex CLI, Gemini CLI, Copilot CLI,
-Antigravity CLI) and two Model Backend recipes (Ollama, LM Studio). Treating all seven
-Setup Targets as first-class Agents is rejected: the two model servers cannot run crew
-commands themselves, so they are Setup Targets only.
+v1 supports seven Participant CLI targets (Claude Code, Codex CLI, Gemini CLI, Copilot CLI,
+Antigravity CLI, Pi CLI, opencode CLI) and two Model Backend recipes (Ollama, LM Studio).
+Treating all nine Setup Targets as first-class Agents is rejected: the two model servers
+cannot run crew commands themselves, so they are Setup Targets only.
 The current paths and invocations are in [setup-integration.md](./setup-integration.md) and
 must be verified by the release smoke test.
 

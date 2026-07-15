@@ -25,16 +25,18 @@ function pathWithExecutable(exe: string): string {
 }
 
 describe('registry shape', () => {
-  it('exposes the five participants and two backends in canonical order', () => {
+  it('exposes the seven participants and two backends in canonical order', () => {
     expect(PARTICIPANT_TARGETS.map((t) => t.id)).toEqual([
       'claude-code',
       'codex-cli',
       'gemini-cli',
       'copilot-cli',
       'antigravity-cli',
+      'pi-cli',
+      'opencode-cli',
     ]);
     expect(BACKEND_TARGETS.map((t) => t.id)).toEqual(['ollama', 'lmstudio']);
-    expect(ALL_TARGETS).toHaveLength(7);
+    expect(ALL_TARGETS).toHaveLength(9);
   });
 
   it('every participant id is a known ParticipantId; backends are not', () => {
@@ -109,6 +111,8 @@ describe('participant artifact rendering', () => {
     expect(inv('codex-cli')).toBe('$crew worker worker-2');
     expect(inv('copilot-cli')).toBe('/agent (select crew), then: worker worker-2');
     expect(inv('antigravity-cli')).toBe('/crew worker worker-2');
+    expect(inv('pi-cli')).toBe('/crew worker worker-2');
+    expect(inv('opencode-cli')).toBe('/crew worker worker-2');
   });
 
   it('appends --resume to every per-platform invocation when resuming a clean stop', () => {
@@ -121,6 +125,8 @@ describe('participant artifact rendering', () => {
     expect(inv('codex-cli')).toBe('$crew worker worker-2 --resume');
     expect(inv('copilot-cli')).toBe('/agent (select crew), then: worker worker-2 --resume');
     expect(inv('antigravity-cli')).toBe('/crew worker worker-2 --resume');
+    expect(inv('pi-cli')).toBe('/crew worker worker-2 --resume');
+    expect(inv('opencode-cli')).toBe('/crew worker worker-2 --resume');
   });
 
   it('keeps Copilot interactive guidance separate from its startup command', () => {
@@ -132,13 +138,17 @@ describe('participant artifact rendering', () => {
     ]);
   });
 
-  it('claude and gemini declare not-shell readiness; the rest match exact names', () => {
+  it('node-wrapped CLIs declare not-shell readiness; the rest match exact names', () => {
     // Live probe 2026-07-02: claude's pane command is its version string
     // (setproctitle), gemini's is its `node` interpreter — exact names cannot
     // track either, so Stage 1 waits for the pane to stop being a shell instead.
+    // pi and opencode are node launchers too, so they default to not-shell until
+    // a live pane confirms an exact name (see their module comments).
     const mode = (id: string) => PARTICIPANT_TARGETS.find((t) => t.id === id)!.readinessMode;
     expect(mode('claude-code')).toBe('not-shell');
     expect(mode('gemini-cli')).toBe('not-shell');
+    expect(mode('pi-cli')).toBe('not-shell');
+    expect(mode('opencode-cli')).toBe('not-shell');
     expect(mode('codex-cli')).toBeUndefined();
     expect(mode('copilot-cli')).toBeUndefined();
     expect(mode('antigravity-cli')).toBeUndefined();
@@ -157,6 +167,29 @@ describe('participant artifact rendering', () => {
     const gemini = PARTICIPANT_TARGETS.find((t) => t.id === 'gemini-cli')!;
     expect(gemini.userPath).toBe('.gemini/commands/crew.toml');
     expect(gemini.projectPath).toBe('.gemini/commands/crew.toml');
+  });
+
+  it('pi and opencode use their documented markdown command paths', () => {
+    const pi = PARTICIPANT_TARGETS.find((t) => t.id === 'pi-cli')!;
+    expect(pi.userPath).toBe('.pi/agent/prompts/crew.md');
+    expect(pi.projectPath).toBe('.pi/prompts/crew.md');
+    expect(pi.format).toBe('markdown');
+    const opencode = PARTICIPANT_TARGETS.find((t) => t.id === 'opencode-cli')!;
+    expect(opencode.userPath).toBe('.config/opencode/commands/crew.md');
+    expect(opencode.projectPath).toBe('.opencode/commands/crew.md');
+    expect(opencode.format).toBe('markdown');
+  });
+
+  it('pi and opencode define no launchArgs, so crew types the invocation after readiness', () => {
+    // Neither CLI can reliably auto-submit a startup-argv prompt (opencode --prompt
+    // only pre-fills; pi's positional is unconfirmed), so both rely on the
+    // paste-invocation launch path rather than launchArgs.
+    const pi = PARTICIPANT_TARGETS.find((t) => t.id === 'pi-cli')!;
+    const opencode = PARTICIPANT_TARGETS.find((t) => t.id === 'opencode-cli')!;
+    // Optional-chain call (never a bare unbound-method reference): an undefined
+    // launchArgs short-circuits, so the launcher uses the paste-invocation path.
+    expect(pi.launchArgs?.('worker', 'worker-2')).toBeUndefined();
+    expect(opencode.launchArgs?.('worker', 'worker-2')).toBeUndefined();
   });
 
   it('antigravity uses a distinct global path and shares the codex project artifact byte-identically', () => {
@@ -181,13 +214,15 @@ describe('participant artifact rendering', () => {
     // bytes, the digest changes and this fails, forcing both an update here AND a
     // REGISTRY_REVISION bump so previously-installed artifacts read as managed-outdated.
     const expected: Record<string, string> = {
-      'claude-code': '2d35b8d9498f1423569183dfcd16bd8f1a569c59bb2dbded0670702b965582ac',
-      'codex-cli': 'aa6269e0236e175f45ec4d3b53404a74340084ebf44e2eb37fd406bb02dbb3c5',
-      'gemini-cli': '52a39c89875d965632bb72153ce776765f852c1c3a838663386a879b80f1a6b9',
-      'copilot-cli': '75a21e7495321a7f3a419f94713aa1906f25981b32d65271cc180fc9a2ef9801',
-      'antigravity-cli': 'aa6269e0236e175f45ec4d3b53404a74340084ebf44e2eb37fd406bb02dbb3c5',
+      'claude-code': '783277135b0ba7f937929d5b3e68f5e46cfaa9946a26c880bb41c584980cebd9',
+      'codex-cli': 'ff95fded7ddeea15da00e4f0d41aeffb18e15b9bee47194ca7bd008a443bba4b',
+      'gemini-cli': '42aeff491ae088f34a44055eac618fed8966272177b691797221490afb7ea4ae',
+      'copilot-cli': '9d189910f19b0cbe992ffabfc34f13eb37c2e9588cc10eb2292437f6b2f6638b',
+      'antigravity-cli': 'ff95fded7ddeea15da00e4f0d41aeffb18e15b9bee47194ca7bd008a443bba4b',
+      'pi-cli': 'a4832ebbe8973026b0fc24a24860dc0c3b844e3e7d36359278bcf145430b6582',
+      'opencode-cli': '83c9610922e6d4f68800dc4a67f8557ac674a00bc613aaf85877d18535bbcb78',
     };
-    expect(REGISTRY_REVISION).toBe(3); // bump together with the digests above
+    expect(REGISTRY_REVISION).toBe(4); // bump together with the digests above
     for (const t of PARTICIPANT_TARGETS) {
       const hash = /content-hash: sha256:([0-9a-f]{64})/.exec(t.render())![1];
       expect(hash, `${t.id} artifact bytes changed`).toBe(expected[t.id]);

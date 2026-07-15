@@ -42,8 +42,8 @@ and the canonical gate list in
    CREW_RELEASE_SMOKE=1 npx vitest run tests/tools/release-smoke.test.ts
    ```
 3. **Work through [live-smoke-checklist.md](./live-smoke-checklist.md)** in a throwaway
-   `HOME` — all five Participant CLIs (Claude Code, Codex, Gemini, Copilot, Antigravity)
-   at their pinned minimum versions, plus the Ollama and LM Studio Model-Backend
+   `HOME` — all seven Participant CLIs (Claude Code, Codex, Gemini, Copilot, Antigravity,
+   Pi, opencode) at their pinned minimum versions, plus the Ollama and LM Studio Model-Backend
    tool-call smokes.
 4. **Commit the evidence:** `docs/release/artifacts-<date>.json`, and update the gate
    statuses in the [release-gate table](../design/product-spec.md#release-gates).
