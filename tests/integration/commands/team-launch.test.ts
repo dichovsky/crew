@@ -87,6 +87,21 @@ describe('crew team <name> --launch --print', () => {
     expect(text).not.toContain('Do the thing.');
   });
 
+  it('accepts Little Coder as a launch client and emits its executable', async () => {
+    const cwd = demoWorkspace();
+    const { io: testIo, out } = io(cwd);
+    expect(
+      await run(
+        ['team', 'dev', '--launch', '--print', '--json', '--client', 'little-coder'],
+        testIo,
+      ),
+    ).toBe(0);
+    expect(JSON.parse(out.join(''))).toMatchObject({
+      client: 'little-coder',
+      executable: 'little-coder',
+    });
+  });
+
   it('bare --launch with no tmux returns DEPENDENCY_MISSING and manual-launch guidance (FR-H02)', async () => {
     const cwd = demoWorkspace();
     // captureIo's default runProcess reports "could not spawn" (status null), so the

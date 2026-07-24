@@ -84,6 +84,7 @@ describe('crew setup --list (detection, FR-G02)', () => {
       'copilot-cli',
       'antigravity-cli',
       'pi-cli',
+      'little-coder',
       'opencode-cli',
       'ollama',
       'lmstudio',
@@ -125,7 +126,7 @@ describe('crew setup <participant> (install, FR-G04/G05)', () => {
     expect(rec.action).toBe('written');
     expect(rec.scope).toBe('global');
     expect(rec.path).toBe('~/.claude/skills/crew/SKILL.md');
-    expect(rec.registry_revision).toBe(4);
+    expect(rec.registry_revision).toBe(5);
     const body = readFileSync(join(home, '.claude/skills/crew/SKILL.md'), 'utf8');
     expect(classifyArtifact(body)).toBe('managed-current');
   });
@@ -179,6 +180,49 @@ describe('crew setup <participant> (install, FR-G04/G05)', () => {
     // Copilot's project path differs from its global path.
     expect(rec.path).toBe('.github/agents/crew.agent.md');
     expect(existsSync(join(cwd, '.github/agents/crew.agent.md'))).toBe(true);
+  });
+
+  it('writes Little Coder global and project Pi prompts with identical managed bytes', async () => {
+    const global = sandbox();
+    expect(await run(['setup', 'little-coder', '--json'], global.io)).toBe(0);
+    expect(records(global.out)[0]).toMatchObject({
+      id: 'little-coder',
+      scope: 'global',
+      path: '~/.pi/agent/prompts/crew.md',
+      action: 'written',
+    });
+    const globalBody = readFileSync(join(global.home, '.pi/agent/prompts/crew.md'), 'utf8');
+    expect(classifyArtifact(globalBody)).toBe('managed-current');
+
+    const project = sandbox();
+    expect(await run(['setup', 'little-coder', '--project', '--json'], project.io)).toBe(0);
+    expect(records(project.out)[0]).toMatchObject({
+      id: 'little-coder',
+      scope: 'project',
+      path: '.pi/prompts/crew.md',
+      action: 'written',
+    });
+    const projectBody = readFileSync(join(project.cwd, '.pi/prompts/crew.md'), 'utf8');
+    expect(classifyArtifact(projectBody)).toBe('managed-current');
+    expect(projectBody).toBe(globalBody);
+  });
+
+  it('applies managed drift and force backup behavior to Little Coder', async () => {
+    const { io, out, err, home } = sandbox({ clock: () => 11 });
+    expect(await run(['setup', 'little-coder'], io)).toBe(0);
+    const prompt = join(home, '.pi/agent/prompts/crew.md');
+    writeFileSync(prompt, `${readFileSync(prompt, 'utf8')}local edit\n`);
+    out.length = 0;
+    expect(await run(['setup', 'little-coder'], io)).toBe(1);
+    expect(err.join('')).toContain('[ALREADY_EXISTS]');
+    err.length = 0;
+    expect(await run(['setup', 'little-coder', '--force', '--json'], io)).toBe(0);
+    expect(records(out)[0]).toMatchObject({
+      id: 'little-coder',
+      action: 'written',
+      state: 'managed-edited',
+      backup_path: '~/.pi/agent/prompts/crew.md.bak.11',
+    });
   });
 
   it('[security] --project refuses a symlinked repo component and writes nothing outside the root', async () => {
@@ -309,7 +353,7 @@ describe('crew setup edge cases (review hardening)', () => {
     const { io, out } = sandbox({ env: { HOME: '', USERPROFILE: '' } });
     expect(await run(['setup', '--list', '--json'], io)).toBe(0);
     const recs = records(out);
-    expect(recs).toHaveLength(9);
+    expect(recs).toHaveLength(10);
     expect(recs.find((r) => r.id === 'claude-code')!.global_state).toBeNull();
   });
 
@@ -347,6 +391,17 @@ describe('crew setup human output', () => {
     expect(text).toContain('Trust: crew cannot authenticate Agents');
   });
 
+  it('prints Little Coder scoped additive Bash permission guidance', async () => {
+    const { io, out } = sandbox();
+    expect(await run(['setup', 'little-coder'], io)).toBe(0);
+    const text = out.join('');
+    expect(text).toContain('Invoke: /crew <role> [id]');
+    expect(text).toContain(
+      'export LITTLE_CODER_BASH_ALLOW="${LITTLE_CODER_BASH_ALLOW:+$LITTLE_CODER_BASH_ALLOW,}crew "',
+    );
+    expect(text).toContain('Do not use LITTLE_CODER_PERMISSION_MODE=accept-all');
+  });
+
   it('prints backend checks and recipe on the human surface', async () => {
     const { io, out } = sandbox({
       env: { PATH: fakeBin('ollama') },
@@ -357,6 +412,7 @@ describe('crew setup human output', () => {
     expect(text).toContain('Backend ollama');
     expect(text).toContain('[ok] executable');
     expect(text).toContain('ollama launch codex');
+    expect(text).toContain('little-coder --model ollama/<model>');
   });
 
   it('regenerates an outdated artifact in place without a backup', async () => {

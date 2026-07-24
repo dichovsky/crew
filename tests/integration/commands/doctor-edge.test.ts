@@ -159,6 +159,7 @@ describe('crew doctor — uncovered diagnostic and rendering branches', () => {
           'copilot',
           'agy',
           'pi',
+          'little-coder',
           'opencode',
         ),
       },
@@ -173,6 +174,7 @@ describe('crew doctor — uncovered diagnostic and rendering branches', () => {
       'copilot-cli',
       'antigravity-cli',
       'pi-cli',
+      'little-coder',
       'opencode-cli',
     ]) {
       expect(await run(['setup', id], io)).toBe(0);

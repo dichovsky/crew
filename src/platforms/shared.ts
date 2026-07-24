@@ -9,12 +9,14 @@
  * mirrors verbatim — a change there is a registry-revision bump here.
  */
 import { createHash } from 'node:crypto';
+import { readFileSync, realpathSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import type { Io } from '../io.js';
 import type { ParticipantId } from '../participants.js';
 import { resolveExecutableOnPath } from '../which.js';
 
 /** Integer revision of the platform registry record set; bumped on any artifact change. */
-export const REGISTRY_REVISION = 4;
+export const REGISTRY_REVISION = 5;
 
 /** Date the documented paths/invocations were last re-verified (setup-integration.md). */
 export const VERIFIED_ON = '2026-06-29';
@@ -46,6 +48,12 @@ export interface ParticipantTarget {
   readonly executable: string;
   /** Argument vector for the version probe (e.g. ['--version']). */
   readonly versionArgs: readonly string[];
+  /**
+   * Optional path, relative to the resolved executable's real file, to an npm
+   * package.json whose `version` is the Participant version. Used only when a
+   * wrapper forwards `--version` to a different bundled CLI.
+   */
+  readonly versionPackageJson?: string;
   /** Home-relative path of the global artifact (joined with $HOME by the writer). */
   readonly userPath: string;
   /** Workspace-relative path of the project artifact. */
@@ -193,16 +201,32 @@ export function classifyArtifact(content: string | null): DriftState {
 }
 
 /**
- * Probe a target's version: presence is a PATH lookup (no spawn); when present,
- * spawn the bounded capture-only probe and extract the first `\d+.\d+.\d+`. A
- * missing executable or unparseable output yields `version: null`, never a throw.
- * The spawn uses the exact absolute path the presence check resolved, so execvp
- * performs no second PATH search that could pick a different (CWD) binary.
+ * Probe a target's version: presence is a PATH lookup (no spawn). Most targets
+ * use a bounded capture-only process probe and the first `\d+.\d+.\d+`; a
+ * wrapper that reports a bundled CLI's version may instead name an adjacent npm
+ * package.json. Missing or unparseable metadata/output yields `version: null`,
+ * never a throw. Process probes use the exact absolute path the presence check
+ * resolved, so execvp performs no second PATH search that could pick a different
+ * (CWD) binary.
  */
 export async function probeVersion(io: Io, target: SetupTarget): Promise<VersionProbe> {
   const executable = resolveExecutableOnPath(io.env, target.executable);
   if (executable === null) {
     return { present: false, version: null };
+  }
+  if (target.category === 'participant' && target.versionPackageJson !== undefined) {
+    try {
+      const realExecutable = realpathSync(executable);
+      const packagePath = resolve(dirname(realExecutable), target.versionPackageJson);
+      const parsed = JSON.parse(readFileSync(packagePath, 'utf8')) as { version?: unknown };
+      const version =
+        typeof parsed.version === 'string'
+          ? /(\d+\.\d+\.\d+)/.exec(parsed.version)?.[1]
+          : undefined;
+      return { present: true, version: version ?? null };
+    } catch {
+      return { present: true, version: null };
+    }
   }
   const result = await io.runProcess(executable, target.versionArgs, {
     timeoutMs: VERSION_PROBE_TIMEOUT_MS,
