@@ -384,9 +384,11 @@ The currently preferred integration paths:
 - Copilot CLI: `ollama launch copilot`; manual setup uses
   `COPILOT_PROVIDER_BASE_URL=http://localhost:11434/v1`,
   `COPILOT_PROVIDER_WIRE_API=responses`, `COPILOT_PROVIDER_API_KEY=`, and `COPILOT_MODEL`.
-- Little Coder: set `OLLAMA_API_KEY=noop`, then run
-  `little-coder --model ollama/<model>`. Its provider selection remains Little Coder
-  configuration; crew only launches and coordinates the resulting Participant.
+- Little Coder: its shipped Ollama entry is `ollama/qwen3.5`; set
+  `OLLAMA_API_KEY=noop`, then run `little-coder --model ollama/qwen3.5`. Other Ollama
+  model ids require an explicit `~/.config/little-coder/models.json` entry. Provider
+  selection remains Little Coder configuration; crew only launches and coordinates the
+  resulting Participant.
 
 Following current integration guidance, setup recommends a context window of at least
 64k for the Ollama Codex and Copilot paths.

@@ -412,7 +412,8 @@ describe('crew setup human output', () => {
     expect(text).toContain('Backend ollama');
     expect(text).toContain('[ok] executable');
     expect(text).toContain('ollama launch codex');
-    expect(text).toContain('little-coder --model ollama/<model>');
+    expect(text).toContain('little-coder --model ollama/qwen3.5');
+    expect(text).toContain('~/.config/little-coder/models.json');
   });
 
   it('regenerates an outdated artifact in place without a backup', async () => {

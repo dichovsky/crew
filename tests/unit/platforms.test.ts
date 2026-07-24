@@ -383,6 +383,87 @@ describe('probeVersion', () => {
     });
     expect(await probeVersion(io, littleCoder)).toEqual({ present: true, version: '1.11.0' });
   });
+
+  it.each([
+    ['missing', undefined],
+    ['invalid', '{not-json}\n'],
+    ['for another package', '{"name":"not-little-coder","version":"9.9.9"}\n'],
+    ['oversized', ' '.repeat(64 * 1024 + 1)],
+  ])(
+    'returns a null Little Coder version without spawning when package metadata is %s',
+    async (_description, packageJson) => {
+      const root = mkdtempSync(join(tmpdir(), 'crew-little-coder-bad-metadata-'));
+      const bin = join(root, 'bin');
+      const shims = join(root, 'shims');
+      mkdirSync(bin);
+      mkdirSync(shims);
+      if (packageJson !== undefined) {
+        writeFileSync(join(root, 'package.json'), packageJson);
+      }
+      const launcher = join(bin, 'little-coder.mjs');
+      writeFileSync(launcher, '#!/usr/bin/env node\n');
+      chmodSync(launcher, 0o755);
+      symlinkSync(launcher, join(shims, 'little-coder'));
+      const { io } = captureIo({
+        env: { PATH: shims },
+        runProcess: () => {
+          throw new Error('Little Coder metadata failure must not spawn its Pi wrapper');
+        },
+      });
+      expect(await probeVersion(io, littleCoder)).toEqual({ present: true, version: null });
+    },
+  );
+
+  it('resolves Little Coder metadata through a pnpm global shell shim', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'crew-little-coder-pnpm-'));
+    const bin = join(root, 'bin');
+    const packageRoot = join(root, 'global', '5', 'node_modules', 'little-coder');
+    mkdirSync(bin);
+    mkdirSync(join(packageRoot, 'bin'), { recursive: true });
+    writeFileSync(
+      join(packageRoot, 'package.json'),
+      '{"name":"little-coder","version":"1.11.0"}\n',
+    );
+    writeFileSync(join(packageRoot, 'bin', 'little-coder.mjs'), '#!/usr/bin/env node\n');
+    const shim = join(bin, 'little-coder');
+    writeFileSync(
+      shim,
+      `#!/bin/sh
+basedir=$(dirname "$(echo "$0" | sed -e 's,\\\\,/,g')")
+# "\${basedir}/../missing/node_modules/little-coder/bin/little-coder.mjs"
+# "/missing/node_modules/little-coder/bin/little-coder.mjs"
+exec node "$basedir/../global/5/node_modules/little-coder/bin/little-coder.mjs" "$@"
+`,
+    );
+    chmodSync(shim, 0o755);
+    const { io } = captureIo({
+      env: { PATH: bin },
+      runProcess: () => {
+        throw new Error('Little Coder pnpm metadata probing must not spawn its wrapper');
+      },
+    });
+    expect(await probeVersion(io, littleCoder)).toEqual({ present: true, version: '1.11.0' });
+  });
+
+  it('rejects non-regular Little Coder package metadata without spawning', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'crew-little-coder-non-regular-'));
+    const bin = join(root, 'bin');
+    const shims = join(root, 'shims');
+    mkdirSync(bin);
+    mkdirSync(shims);
+    mkdirSync(join(root, 'package.json'));
+    const launcher = join(bin, 'little-coder.mjs');
+    writeFileSync(launcher, '#!/usr/bin/env node\n');
+    chmodSync(launcher, 0o755);
+    symlinkSync(launcher, join(shims, 'little-coder'));
+    const { io } = captureIo({
+      env: { PATH: shims },
+      runProcess: () => {
+        throw new Error('Little Coder metadata failure must not spawn its Pi wrapper');
+      },
+    });
+    expect(await probeVersion(io, littleCoder)).toEqual({ present: true, version: null });
+  });
 });
 
 describe('official sources mirror setup-integration.md', () => {
@@ -427,7 +508,8 @@ describe('backend targets', () => {
     const recipe = ollama.recipe().join('\n');
     expect(recipe).not.toContain('sk-should-not-appear');
     expect(recipe).toContain('ollama launch codex');
-    expect(recipe).toContain('little-coder --model ollama/<model>');
+    expect(recipe).toContain('little-coder --model ollama/qwen3.5');
+    expect(recipe).toContain('~/.config/little-coder/models.json');
     // The complete official auth env per the linked integration guides.
     expect(recipe).toContain('ANTHROPIC_AUTH_TOKEN=ollama');
     expect(recipe).toContain('unset ANTHROPIC_API_KEY');
