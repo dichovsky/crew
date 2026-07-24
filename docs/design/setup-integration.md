@@ -1,8 +1,8 @@
 # `crew setup` Integration Design
 
-> The official documentation behind this page was last re-checked on **2026-06-29**. All
-> of these facts live in this one document on purpose: how each Participant CLI is
-> customized changes quickly. Before a release, the live smoke-test matrix in
+> The original target documentation was last re-checked on **2026-06-29**; Little Coder
+> was checked on **2026-07-24**. All of these facts live in this one document on purpose:
+> how each Participant CLI is customized changes quickly. Before a release, the live smoke-test matrix in
 > [testing-strategy.md](./testing-strategy.md) must actually be run; this document alone
 > is not proof of compatibility.
 
@@ -30,6 +30,7 @@ or locally edited, `--force` backs it up before replacing it.
 | `copilot-cli` | Participant CLI | `~/.copilot/agents/crew.agent.md` | `.github/agents/crew.agent.md` | `/agent`, select crew, then prompt | docs verified; live smoke required |
 | `antigravity-cli` | Participant CLI | `~/.gemini/antigravity-cli/skills/crew/SKILL.md` | `.agents/skills/crew/SKILL.md` | `/crew <role> [id]` | docs verified; live smoke required |
 | `pi-cli` | Participant CLI | `~/.pi/agent/prompts/crew.md` | `.pi/prompts/crew.md` | `/crew <role> [id]` | docs verified; live smoke required |
+| `little-coder` | Participant CLI | `~/.pi/agent/prompts/crew.md` | `.pi/prompts/crew.md` | `/crew <role> [id]` | docs verified; live smoke required |
 | `opencode-cli` | Participant CLI | `~/.config/opencode/commands/crew.md` | `.opencode/commands/crew.md` | `/crew <role> [id]` | docs verified; live smoke required |
 | `ollama` | Model Backend | none | none | `ollama launch <participant>` or env/profile | docs verified; live smoke required |
 | `lmstudio` | Model Backend | none | none | start server, load model, launch participant | docs verified; live smoke required |
@@ -55,6 +56,10 @@ they replaced are recorded once in
   `.pi/prompts/` (project); the basename becomes the `/name` command. Pi has no permission
   or approval model by design, so crew ships no gating code and scopes shell access through
   the Workspace/OS boundary only.
+- Little Coder is a Pi-based Participant CLI and discovers those same Prompt Template paths.
+  The `pi-cli` and `little-coder` targets therefore render byte-identical artifacts. Little
+  Coder's own Bash gate requires the narrow `crew ` allow-prefix opt-in; crew prints the
+  supported environment-variable recipe and writes no third-party configuration.
 - opencode discovers custom commands as Markdown files under the plural
   `~/.config/opencode/commands/` (user) and `.opencode/commands/` (project) directories;
   the singular `command/` directory is a backwards-compat alias crew does not use. Shell
@@ -118,7 +123,7 @@ instructions. Run only bounded one-shot crew commands; a shell watcher cannot wa
 ```
 
 `<target>` stands for the registry id (`claude-code`, `codex-cli`, `gemini-cli`,
-`copilot-cli`, `antigravity-cli`, `pi-cli`, `opencode-cli`). Like `<id>`, `<role>`, and
+`copilot-cli`, `antigravity-cli`, `pi-cli`, `little-coder`, `opencode-cli`). Like `<id>`, `<role>`, and
 `<actual-id>`, it is a
 literal placeholder that the Agent fills in while working, so the block's bytes stay
 identical across platforms. Only the `{{ROLE_ARGS}}` token is replaced when the file is
@@ -132,6 +137,7 @@ generated, and the replacement depends on the platform:
 | `copilot-cli` | the phrase: the role and optional id typed after selecting this agent | `<!-- … -->` |
 | `antigravity-cli` | identical to `codex-cli` (one shared artifact) | `<!-- … -->` |
 | `pi-cli` | literal token `$ARGUMENTS` | `<!-- … -->` |
+| `little-coder` | identical to `pi-cli` (one shared artifact) | `<!-- … -->` |
 | `opencode-cli` | literal token `$ARGUMENTS` | `<!-- … -->` |
 
 ### 4.1 Claude Code
@@ -286,7 +292,7 @@ description: Join and coordinate through the local crew inbox and reviewed task 
 argument-hint: <manager|worker|inspector> [agent-id]
 ---
 
-<!-- generated-by: crew setup; registry-revision: 4 -->
+<!-- generated-by: crew setup; registry-revision: 5 -->
 
 [shared finite workflow rendered here]
 ```
@@ -305,7 +311,33 @@ the default is already unrestricted.
 Official sources: [Pi documentation](https://pi.dev/docs/latest) and the
 [Pi repository](https://github.com/earendil-works/pi).
 
-### 4.7 opencode CLI
+### 4.7 Little Coder
+
+Little Coder (`little-coder`) launches a bundled Pi runtime optimized for small local
+models. It retains Pi's Prompt Template discovery, so `crew setup little-coder` writes the
+same byte-identical `crew.md` body and paths documented for `pi-cli`: the global
+`~/.pi/agent/prompts/crew.md` or project `.pi/prompts/crew.md`. You start it by typing
+`/crew` followed by the role and optional id.
+
+Little Coder's default Bash gate does not include `crew`. Setup prints this narrow,
+additive opt-in, which preserves any existing deployment-specific prefixes:
+
+```sh
+export LITTLE_CODER_BASH_ALLOW="${LITTLE_CODER_BASH_ALLOW:+$LITTLE_CODER_BASH_ALLOW,}crew "
+```
+
+crew does not write shell startup files or Little Coder settings. Do not use
+`LITTLE_CODER_PERMISSION_MODE=accept-all`: it bypasses the Bash gate for every command
+rather than allowing only crew.
+
+Little Coder configures its model provider independently of crew. It can use its preferred
+llama.cpp server or select an Ollama or LM Studio model with `--model`; crew continues to
+coordinate only through the Participant CLI and never contacts those inference servers.
+
+Official sources: [Little Coder repository](https://github.com/itayinbarr/little-coder)
+and its [permission configuration](https://github.com/itayinbarr/little-coder#permissions).
+
+### 4.8 opencode CLI
 
 opencode (`opencode`) discovers custom commands as Markdown files under
 `~/.config/opencode/commands/<name>.md` (user) and `<repo>/.opencode/commands/<name>.md`
@@ -317,7 +349,7 @@ operator's `<role> [id]`. crew generates:
 description: Join and coordinate through the local crew inbox and reviewed task workflow.
 ---
 
-<!-- generated-by: crew setup; registry-revision: 4 -->
+<!-- generated-by: crew setup; registry-revision: 5 -->
 
 [shared finite workflow rendered here]
 ```
@@ -352,6 +384,9 @@ The currently preferred integration paths:
 - Copilot CLI: `ollama launch copilot`; manual setup uses
   `COPILOT_PROVIDER_BASE_URL=http://localhost:11434/v1`,
   `COPILOT_PROVIDER_WIRE_API=responses`, `COPILOT_PROVIDER_API_KEY=`, and `COPILOT_MODEL`.
+- Little Coder: set `OLLAMA_API_KEY=noop`, then run
+  `little-coder --model ollama/<model>`. Its provider selection remains Little Coder
+  configuration; crew only launches and coordinates the resulting Participant.
 
 Following current integration guidance, setup recommends a context window of at least
 64k for the Ollama Codex and Copilot paths.
@@ -380,6 +415,8 @@ The currently preferred integration paths:
 - Codex: `codex --oss` with `oss_provider = "lmstudio"`; LM Studio exposes `/v1/responses`.
 - Claude Code: `ANTHROPIC_BASE_URL=http://localhost:1234` and
   `ANTHROPIC_AUTH_TOKEN=lmstudio`; LM Studio exposes `/v1/messages`.
+- Little Coder: set `LMSTUDIO_API_KEY=noop`, then run
+  `little-coder --model lmstudio/local-model`.
 
 Official sources: [LM Studio + Codex](https://lmstudio.ai/docs/integrations/codex),
 [LM Studio + Claude Code](https://lmstudio.ai/docs/integrations/claude-code), and
@@ -458,7 +495,7 @@ Each Participant entry supplies:
 ```text
 id, category, executable, user_path, project_path, format,
 invocation(role,id), launch_args?(role,id), readiness_names, readiness_mode?, render(), detect_version(),
-minimum_verified_version, verified_on, official_sources[]
+version_package_json?, minimum_verified_version, verified_on, official_sources[]
 ```
 
 `readiness_mode` chooses how the first stage of launch readiness interprets the command
@@ -479,9 +516,9 @@ starts as `copilot --agent=crew --prompt …`; nothing is pasted into an already
 Copilot interface. The Team display and setup keep the guidance about selecting crew via
 `/agent`.
 
-The registry lives in `src/platforms/` and is currently at **registry-revision 4**
+The registry lives in `src/platforms/` and is currently at **registry-revision 5**
 (the revision started at 1; adding Participants and launch facts since then bumped it,
-most recently the `pi-cli` and `opencode-cli` targets).
+most recently the `little-coder` target).
 `registry.ts` looks up targets; `shared.ts` holds the record types, the shared workflow
 text, the marker and content-hash rules, and the version probe; each target has its own
 module supplying its facts and rendering (`agent-skills.ts` holds the single renderer
@@ -491,17 +528,22 @@ is classified as `managed-outdated`.
 
 ### 7.1 Version probes and minimums
 
-`detect_version()` starts the probe process with an argument array and `shell:false` —
-no shell ever parses the command — and a short timeout, then takes the first
-version-shaped match (`\d+\.\d+\.\d+`) from its output. Before running it, crew resolves
-the executable to an absolute path along `PATH`, considering only absolute `PATH`
+`detect_version()` normally starts the probe process with an argument array and
+`shell:false` — no shell ever parses the command — and a short timeout, then takes the
+first version-shaped match (`\d+\.\d+\.\d+`) from its output. Before running it, crew
+resolves the executable to an absolute path along `PATH`, considering only absolute `PATH`
 entries — an empty, `.`, or relative entry would resolve through the current directory —
 and then runs exactly that resolved path, so the file that was checked for and the file
-that runs are always the same one. A missing executable yields `DEPENDENCY_MISSING`;
-output that cannot be parsed yields an unknown-version finding, not a crash.
+that runs are always the same one.
+
+Little Coder is the one metadata-probe exception: its launcher forwards `--version` to
+the bundled Pi runtime (Little Coder 1.11.0 reports Pi 0.79.10), so crew resolves the
+launcher's real file and reads the adjacent installed `little-coder/package.json` version
+without running the wrapper. Missing or unparseable metadata/output yields an
+unknown-version finding, not a crash. A missing executable yields `DEPENDENCY_MISSING`.
 `minimum_verified_version` records a version the maintainer actually confirmed was
-present (the first four were pinned together; `antigravity-cli`, `pi-cli`, and
-`opencode-cli` were each verified when they were added) and is confirmed again for each
+present (the first four were pinned together; later targets were each verified when they
+were added) and is confirmed again for each
 release — per FR-G13 and DEC-10, support is never claimed from documentation alone.
 
 | Target | Probe | Readiness | `minimum_verified_version` |
@@ -512,13 +554,14 @@ release — per FR-G13 and DEC-10, support is never claimed from documentation a
 | `copilot-cli` | `copilot --version` | name `copilot` | `1.0.67` |
 | `antigravity-cli` | `agy --version` | name `agy` | `1.0.14` (verified present 2026-07-02) |
 | `pi-cli` | `pi --version` | not-shell (node interpreter) | `0.80.6` (verified present 2026-07-14) |
+| `little-coder` | adjacent package.json (`--version` reports Pi) | not-shell (Node launcher) | `1.11.0` (probe verified 2026-07-24; live smoke required) |
 | `opencode-cli` | `opencode --version` | not-shell (node launcher) | `1.17.19` (verified present 2026-07-14) |
 | `ollama` | `ollama --version` | n/a (backend) | unset — Model-Backend release gate |
 | `lmstudio` | `lms version` | n/a (backend) | unset — Model-Backend release gate |
 
 `verified_on` records the date the documented paths and invocations were last re-checked
 (2026-06-29 for the original targets; 2026-07-02 for `antigravity-cli`; 2026-07-14 for
-`pi-cli` and `opencode-cli`). Each
+`pi-cli` and `opencode-cli`; 2026-07-24 for `little-coder`). Each
 Participant's minimum version is one the maintainer actually saw working, and the
 maintainer re-confirms it through the
 [release verification checklist](#8-release-verification-checklist).

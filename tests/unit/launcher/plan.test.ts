@@ -116,6 +116,16 @@ describe('buildLaunchPlan', () => {
     expect(plan.client).toBe('gemini-cli');
   });
 
+  it('plans Little Coder as the homogeneous Participant executable', () => {
+    const cwd = workspace();
+    const config = mergeEffectiveConfig(parseLauncherConfig('version: 1\n', 'l'), {
+      client: 'little-coder',
+    });
+    const { plan } = buildLaunchPlan(io(cwd), 'dev', config);
+    expect(plan.client).toBe('little-coder');
+    expect(plan.executable).toBe('little-coder');
+  });
+
   it('marks task_brief present when .crew/run-task.md exists, body excluded', () => {
     const cwd = workspace();
     writeFileSync(join(cwd, '.crew', 'run-task.md'), '# Task\n\nDo the thing.\n');

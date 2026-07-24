@@ -8,6 +8,23 @@
  */
 import { type ParticipantTarget, renderSharedWorkflow, withContentHash } from './shared.js';
 
+/** Shared Pi Prompt Template bytes discovered by both Pi CLI and Little Coder. */
+export function renderPiPromptArtifact(): string {
+  return withContentHash(
+    'markdown',
+    (marker) => `---
+description: Join and coordinate through the local crew inbox and reviewed task workflow.
+argument-hint: <manager|worker|inspector> [agent-id]
+---
+
+${marker}
+
+Use the finite crew workflow below for \`$ARGUMENTS\`.
+${renderSharedWorkflow('$ARGUMENTS')}
+`,
+  );
+}
+
 export const piTarget: ParticipantTarget = {
   id: 'pi-cli',
   category: 'participant',
@@ -34,18 +51,6 @@ export const piTarget: ParticipantTarget = {
     return `/crew ${role} ${id}${options?.resume === true ? ' --resume' : ''}`;
   },
   render() {
-    return withContentHash(
-      'markdown',
-      (marker) => `---
-description: Join and coordinate through the local crew inbox and reviewed task workflow.
-argument-hint: <manager|worker|inspector> [agent-id]
----
-
-${marker}
-
-Use the finite crew workflow below for \`$ARGUMENTS\`.
-${renderSharedWorkflow('$ARGUMENTS')}
-`,
-    );
+    return renderPiPromptArtifact();
   },
 };

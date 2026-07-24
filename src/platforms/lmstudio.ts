@@ -62,6 +62,7 @@ export const lmstudioTarget: BackendTarget = {
       'Codex:       codex --oss with oss_provider = "lmstudio"  (LM Studio exposes /v1/responses)',
       'Claude Code: ANTHROPIC_BASE_URL=http://localhost:1234, ANTHROPIC_AUTH_TOKEN=lmstudio',
       '             (LM Studio exposes /v1/messages)',
+      'Little Coder: LMSTUDIO_API_KEY=noop little-coder --model lmstudio/local-model',
     ];
   },
 };

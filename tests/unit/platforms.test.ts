@@ -1,5 +1,12 @@
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -25,7 +32,7 @@ function pathWithExecutable(exe: string): string {
 }
 
 describe('registry shape', () => {
-  it('exposes the seven participants and two backends in canonical order', () => {
+  it('exposes the eight participants and two backends in canonical order', () => {
     expect(PARTICIPANT_TARGETS.map((t) => t.id)).toEqual([
       'claude-code',
       'codex-cli',
@@ -33,10 +40,11 @@ describe('registry shape', () => {
       'copilot-cli',
       'antigravity-cli',
       'pi-cli',
+      'little-coder',
       'opencode-cli',
     ]);
     expect(BACKEND_TARGETS.map((t) => t.id)).toEqual(['ollama', 'lmstudio']);
-    expect(ALL_TARGETS).toHaveLength(9);
+    expect(ALL_TARGETS).toHaveLength(10);
   });
 
   it('every participant id is a known ParticipantId; backends are not', () => {
@@ -112,6 +120,7 @@ describe('participant artifact rendering', () => {
     expect(inv('copilot-cli')).toBe('/agent (select crew), then: worker worker-2');
     expect(inv('antigravity-cli')).toBe('/crew worker worker-2');
     expect(inv('pi-cli')).toBe('/crew worker worker-2');
+    expect(inv('little-coder')).toBe('/crew worker worker-2');
     expect(inv('opencode-cli')).toBe('/crew worker worker-2');
   });
 
@@ -126,6 +135,7 @@ describe('participant artifact rendering', () => {
     expect(inv('copilot-cli')).toBe('/agent (select crew), then: worker worker-2 --resume');
     expect(inv('antigravity-cli')).toBe('/crew worker worker-2 --resume');
     expect(inv('pi-cli')).toBe('/crew worker worker-2 --resume');
+    expect(inv('little-coder')).toBe('/crew worker worker-2 --resume');
     expect(inv('opencode-cli')).toBe('/crew worker worker-2 --resume');
   });
 
@@ -142,12 +152,13 @@ describe('participant artifact rendering', () => {
     // Live probe 2026-07-02: claude's pane command is its version string
     // (setproctitle), gemini's is its `node` interpreter — exact names cannot
     // track either, so Stage 1 waits for the pane to stop being a shell instead.
-    // pi and opencode are node launchers too, so they default to not-shell until
-    // a live pane confirms an exact name (see their module comments).
+    // Pi, Little Coder, and opencode are node launchers too, so they default to
+    // not-shell until a live pane confirms an exact name (see their modules).
     const mode = (id: string) => PARTICIPANT_TARGETS.find((t) => t.id === id)!.readinessMode;
     expect(mode('claude-code')).toBe('not-shell');
     expect(mode('gemini-cli')).toBe('not-shell');
     expect(mode('pi-cli')).toBe('not-shell');
+    expect(mode('little-coder')).toBe('not-shell');
     expect(mode('opencode-cli')).toBe('not-shell');
     expect(mode('codex-cli')).toBeUndefined();
     expect(mode('copilot-cli')).toBeUndefined();
@@ -169,26 +180,33 @@ describe('participant artifact rendering', () => {
     expect(gemini.projectPath).toBe('.gemini/commands/crew.toml');
   });
 
-  it('pi and opencode use their documented markdown command paths', () => {
+  it('pi, little-coder, and opencode use their documented markdown command paths', () => {
     const pi = PARTICIPANT_TARGETS.find((t) => t.id === 'pi-cli')!;
     expect(pi.userPath).toBe('.pi/agent/prompts/crew.md');
     expect(pi.projectPath).toBe('.pi/prompts/crew.md');
     expect(pi.format).toBe('markdown');
+    const littleCoder = PARTICIPANT_TARGETS.find((t) => t.id === 'little-coder')!;
+    expect(littleCoder.userPath).toBe('.pi/agent/prompts/crew.md');
+    expect(littleCoder.projectPath).toBe('.pi/prompts/crew.md');
+    expect(littleCoder.format).toBe('markdown');
+    expect(littleCoder.render()).toBe(pi.render());
     const opencode = PARTICIPANT_TARGETS.find((t) => t.id === 'opencode-cli')!;
     expect(opencode.userPath).toBe('.config/opencode/commands/crew.md');
     expect(opencode.projectPath).toBe('.opencode/commands/crew.md');
     expect(opencode.format).toBe('markdown');
   });
 
-  it('pi and opencode define no launchArgs, so crew types the invocation after readiness', () => {
+  it('pi, little-coder, and opencode define no launchArgs, so crew types after readiness', () => {
     // Neither CLI can reliably auto-submit a startup-argv prompt (opencode --prompt
     // only pre-fills; pi's positional is unconfirmed), so both rely on the
     // paste-invocation launch path rather than launchArgs.
     const pi = PARTICIPANT_TARGETS.find((t) => t.id === 'pi-cli')!;
+    const littleCoder = PARTICIPANT_TARGETS.find((t) => t.id === 'little-coder')!;
     const opencode = PARTICIPANT_TARGETS.find((t) => t.id === 'opencode-cli')!;
     // Optional-chain call (never a bare unbound-method reference): an undefined
     // launchArgs short-circuits, so the launcher uses the paste-invocation path.
     expect(pi.launchArgs?.('worker', 'worker-2')).toBeUndefined();
+    expect(littleCoder.launchArgs?.('worker', 'worker-2')).toBeUndefined();
     expect(opencode.launchArgs?.('worker', 'worker-2')).toBeUndefined();
   });
 
@@ -214,15 +232,16 @@ describe('participant artifact rendering', () => {
     // bytes, the digest changes and this fails, forcing both an update here AND a
     // REGISTRY_REVISION bump so previously-installed artifacts read as managed-outdated.
     const expected: Record<string, string> = {
-      'claude-code': '783277135b0ba7f937929d5b3e68f5e46cfaa9946a26c880bb41c584980cebd9',
-      'codex-cli': 'ff95fded7ddeea15da00e4f0d41aeffb18e15b9bee47194ca7bd008a443bba4b',
-      'gemini-cli': '42aeff491ae088f34a44055eac618fed8966272177b691797221490afb7ea4ae',
-      'copilot-cli': '9d189910f19b0cbe992ffabfc34f13eb37c2e9588cc10eb2292437f6b2f6638b',
-      'antigravity-cli': 'ff95fded7ddeea15da00e4f0d41aeffb18e15b9bee47194ca7bd008a443bba4b',
-      'pi-cli': 'a4832ebbe8973026b0fc24a24860dc0c3b844e3e7d36359278bcf145430b6582',
-      'opencode-cli': '83c9610922e6d4f68800dc4a67f8557ac674a00bc613aaf85877d18535bbcb78',
+      'claude-code': '836139943f352f9666e8f4a571800f25d1b5a13074bd138b9e6ed364ccba9846',
+      'codex-cli': '23d654db4c2f3a9154a9dfdb73ede7205eee16b6613fd2e42adf77eb4e597163',
+      'gemini-cli': '94ff656f119473d85dfc90858584d88e7555b262b72edd7bb65552a205abdf29',
+      'copilot-cli': '7ae9e5276e6894dd5f18a8f0a6e8ba8ee767b947370acb8e3eec7a9f84d8a779',
+      'antigravity-cli': '23d654db4c2f3a9154a9dfdb73ede7205eee16b6613fd2e42adf77eb4e597163',
+      'pi-cli': '26853d7cfaafcc613c568bfa5ca07edee3914040745ab2d0e6cb8c9cef5cdd20',
+      'little-coder': '26853d7cfaafcc613c568bfa5ca07edee3914040745ab2d0e6cb8c9cef5cdd20',
+      'opencode-cli': 'dbe88df8e72e1fb719cc6d3b7667cf0fb0361a81ac0efdbb61cfbbfa4fd3541e',
     };
-    expect(REGISTRY_REVISION).toBe(4); // bump together with the digests above
+    expect(REGISTRY_REVISION).toBe(5); // bump together with the digests above
     for (const t of PARTICIPANT_TARGETS) {
       const hash = /content-hash: sha256:([0-9a-f]{64})/.exec(t.render())![1];
       expect(hash, `${t.id} artifact bytes changed`).toBe(expected[t.id]);
@@ -283,6 +302,7 @@ describe('classifyArtifact drift', () => {
 
 describe('probeVersion', () => {
   const claude = PARTICIPANT_TARGETS.find((t) => t.id === 'claude-code')!;
+  const littleCoder = PARTICIPANT_TARGETS.find((t) => t.id === 'little-coder')!;
 
   it('reports absent when the executable is not on PATH (no spawn)', async () => {
     let spawned = false;
@@ -343,6 +363,26 @@ describe('probeVersion', () => {
       process.chdir(previousCwd);
     }
   });
+
+  it('reads Little Coder package metadata because --version reports bundled Pi', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'crew-little-coder-'));
+    const bin = join(root, 'bin');
+    const shims = join(root, 'shims');
+    mkdirSync(bin);
+    mkdirSync(shims);
+    writeFileSync(join(root, 'package.json'), '{"name":"little-coder","version":"1.11.0"}\n');
+    const launcher = join(bin, 'little-coder.mjs');
+    writeFileSync(launcher, '#!/usr/bin/env node\n');
+    chmodSync(launcher, 0o755);
+    symlinkSync(launcher, join(shims, 'little-coder'));
+    const { io } = captureIo({
+      env: { PATH: shims },
+      runProcess: () => {
+        throw new Error('Little Coder metadata probing must not spawn its Pi wrapper');
+      },
+    });
+    expect(await probeVersion(io, littleCoder)).toEqual({ present: true, version: '1.11.0' });
+  });
 });
 
 describe('official sources mirror setup-integration.md', () => {
@@ -387,6 +427,7 @@ describe('backend targets', () => {
     const recipe = ollama.recipe().join('\n');
     expect(recipe).not.toContain('sk-should-not-appear');
     expect(recipe).toContain('ollama launch codex');
+    expect(recipe).toContain('little-coder --model ollama/<model>');
     // The complete official auth env per the linked integration guides.
     expect(recipe).toContain('ANTHROPIC_AUTH_TOKEN=ollama');
     expect(recipe).toContain('unset ANTHROPIC_API_KEY');
@@ -426,6 +467,7 @@ describe('backend targets', () => {
     // Uses the dedicated server-status probe, not `lms ps`.
     expect(calls.some((a) => a[0] === 'server' && a[1] === 'status')).toBe(true);
     expect(lms.recipe().join('\n')).toContain('lms server start --port 1234');
+    expect(lms.recipe().join('\n')).toContain('little-coder --model lmstudio/local-model');
   });
 
   it('lmstudio reports the server NOT running when status reports running:false', async () => {

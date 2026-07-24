@@ -83,7 +83,18 @@ afterEach(() => {
 describe('crew doctor', () => {
   it('reports a healthy workspace with only a NO_STATE_STORE info and exits 0', async () => {
     const { io, out, err } = workspace(() => 0, {
-      PATH: fakeBin('tmux', 'git', 'claude', 'codex', 'gemini', 'copilot', 'agy', 'pi', 'opencode'),
+      PATH: fakeBin(
+        'tmux',
+        'git',
+        'claude',
+        'codex',
+        'gemini',
+        'copilot',
+        'agy',
+        'pi',
+        'little-coder',
+        'opencode',
+      ),
     });
     expect(await run(['doctor', '--json'], io)).toBe(0);
     expect(err).toEqual([]);
@@ -131,6 +142,7 @@ describe('crew doctor', () => {
           'copilot',
           'agy',
           'pi',
+          'little-coder',
           'opencode',
         ),
       },
@@ -428,7 +440,17 @@ describe('crew doctor', () => {
     const binDir = mkdtempSync(join(tmpdir(), 'crew-bin-'));
     made.push(binDir);
     mkdirSync(join(binDir, 'tmux')); // a directory named like the command
-    for (const name of ['git', 'claude', 'codex', 'gemini', 'copilot', 'agy', 'pi', 'opencode']) {
+    for (const name of [
+      'git',
+      'claude',
+      'codex',
+      'gemini',
+      'copilot',
+      'agy',
+      'pi',
+      'little-coder',
+      'opencode',
+    ]) {
       const file = join(binDir, name);
       writeFileSync(file, '');
       chmodSync(file, 0o755);
@@ -487,7 +509,7 @@ describe('crew doctor', () => {
 
 describe('crew doctor — participant and setup findings (FR-K01)', () => {
   it('reports an absent Participant CLI as info DEPENDENCY_MISSING with its target', async () => {
-    // Only claude present; the other six participants are absent.
+    // Only claude present; the other seven participants are absent.
     const { io, out } = workspace(() => 0, { PATH: fakeBin('tmux', 'git', 'claude') });
     expect(await run(['doctor', '--json'], io)).toBe(0);
     const recs = records(out).filter((r) => r.code === 'DEPENDENCY_MISSING');
@@ -498,6 +520,7 @@ describe('crew doctor — participant and setup findings (FR-K01)', () => {
       'copilot-cli',
       'antigravity-cli',
       'pi-cli',
+      'little-coder',
       'opencode-cli',
     ]);
     for (const r of recs) expect(r.severity).toBe('info');
@@ -554,7 +577,18 @@ describe('crew doctor — participant and setup findings (FR-K01)', () => {
     made.push(home);
     const { io, out } = workspace(() => 0, {
       HOME: home,
-      PATH: fakeBin('tmux', 'git', 'claude', 'codex', 'gemini', 'copilot', 'agy', 'pi', 'opencode'),
+      PATH: fakeBin(
+        'tmux',
+        'git',
+        'claude',
+        'codex',
+        'gemini',
+        'copilot',
+        'agy',
+        'pi',
+        'little-coder',
+        'opencode',
+      ),
     });
     // An internally-consistent artifact from an older registry revision.
     const blanked =
@@ -576,7 +610,18 @@ describe('crew doctor — participant and setup findings (FR-K01)', () => {
     made.push(home);
     const { io, out, cwd } = workspace(() => 0, {
       HOME: home,
-      PATH: fakeBin('tmux', 'git', 'claude', 'codex', 'gemini', 'copilot', 'agy', 'pi', 'opencode'),
+      PATH: fakeBin(
+        'tmux',
+        'git',
+        'claude',
+        'codex',
+        'gemini',
+        'copilot',
+        'agy',
+        'pi',
+        'little-coder',
+        'opencode',
+      ),
     });
     // A non-crew file squats the project copilot path.
     const squat = join(cwd, '.github/agents/crew.agent.md');
@@ -600,7 +645,18 @@ describe('crew doctor — participant and setup findings (FR-K01)', () => {
 
   it('deduplicates a shared project artifact into one SETUP_DRIFT finding', async () => {
     const { io, out, cwd } = workspace(() => 0, {
-      PATH: fakeBin('tmux', 'git', 'claude', 'codex', 'gemini', 'copilot', 'agy', 'pi', 'opencode'),
+      PATH: fakeBin(
+        'tmux',
+        'git',
+        'claude',
+        'codex',
+        'gemini',
+        'copilot',
+        'agy',
+        'pi',
+        'little-coder',
+        'opencode',
+      ),
     });
     const shared = join(cwd, '.agents', 'skills', 'crew', 'SKILL.md');
     mkdirSync(join(cwd, '.agents', 'skills', 'crew'), { recursive: true });
@@ -622,6 +678,35 @@ describe('crew doctor — participant and setup findings (FR-K01)', () => {
       },
     });
     expect(projectDrifts[0]?.message).toContain('crew setup codex-cli --project --force');
+  });
+
+  it('deduplicates the Pi/Little Coder shared global artifact into one finding', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'crew-home-'));
+    made.push(home);
+    const { io, out } = workspace(() => 0, {
+      HOME: home,
+      PATH: fakeBin('tmux', 'git', 'pi', 'little-coder'),
+    });
+    expect(await run(['setup', 'pi-cli'], io)).toBe(0);
+    const shared = join(home, '.pi/agent/prompts/crew.md');
+    writeFileSync(shared, `${readFileSync(shared, 'utf8')}local edit\n`);
+    out.length = 0;
+
+    expect(await run(['doctor', '--system', '--json'], io)).toBe(0);
+    const sharedDrifts = records(out).filter(
+      (r) =>
+        r.code === 'SETUP_DRIFT' &&
+        (r.details as Record<string, unknown>).path === '~/.pi/agent/prompts/crew.md',
+    );
+    expect(sharedDrifts).toHaveLength(1);
+    expect(sharedDrifts[0]).toMatchObject({
+      details: {
+        target: 'pi-cli',
+        targets: ['pi-cli', 'little-coder'],
+        scope: 'global',
+        drift: 'managed-edited',
+      },
+    });
   });
 });
 

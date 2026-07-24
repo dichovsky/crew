@@ -11,6 +11,7 @@ export const PARTICIPANT_IDS = [
   'copilot-cli',
   'antigravity-cli',
   'pi-cli',
+  'little-coder',
   'opencode-cli',
 ] as const;
 

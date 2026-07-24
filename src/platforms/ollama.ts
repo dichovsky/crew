@@ -63,6 +63,7 @@ export const ollamaTarget: BackendTarget = {
       '            manual: COPILOT_PROVIDER_BASE_URL=http://localhost:11434/v1,',
       '                    COPILOT_PROVIDER_WIRE_API=responses, COPILOT_PROVIDER_API_KEY=,',
       '                    COPILOT_MODEL=<model>',
+      'Little Coder: OLLAMA_API_KEY=noop little-coder --model ollama/<model>',
       'Use at least a 64k context window for the Codex/Copilot paths.',
     ];
   },
