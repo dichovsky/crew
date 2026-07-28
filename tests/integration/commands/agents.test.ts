@@ -27,6 +27,21 @@ afterEach(() => {
 });
 
 describe('Agent lifecycle commands', () => {
+  it('accepts Little Coder as a Participant platform', async () => {
+    const { io, out } = workspace();
+    expect(
+      await run(
+        ['join', 'local-worker', '--role', 'worker', '--platform', 'little-coder', '--json'],
+        io,
+      ),
+    ).toBe(0);
+    expect(record(out.join(''))).toMatchObject({
+      id: 'local-worker',
+      role: 'worker',
+      platform_id: 'little-coder',
+    });
+  });
+
   it('joins and emits the complete Agent NDJSON record', async () => {
     const { io, out, err } = workspace();
     expect(

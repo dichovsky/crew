@@ -507,9 +507,9 @@ rather than restating them.
 - **FR-G06 — Force and backup on drift.** Overwriting a target file that crew did not write,
   or that someone edited since crew wrote it, shall require `--force` and a backup. *Verify:
   automated test — `tests/integration/commands/setup.test.ts`, `tests/unit/setup-fs.test.ts`.*
-- **FR-G07 — Actual invocation.** Setup output shall state the real invocation (Claude/Gemini
-  `/crew`, Codex `$crew`, Copilot `/agent` selection plus prompt). *Verify: automated test —
-  `tests/unit/platforms.test.ts`.*
+- **FR-G07 — Actual invocation.** Setup output shall state the real invocation (Claude,
+  Gemini, Pi, Little Coder, and opencode `/crew`; Codex `$crew`; Copilot `/agent` selection
+  plus prompt). *Verify: automated test — `tests/unit/platforms.test.ts`.*
 - **FR-G08 — Scoped permission guidance.** Setup guidance shall prefer permission limited to the
   `crew` command. *Verify: inspection — setup-integration.md; `src/platforms/shared.ts`.*
 - **FR-G09 — No automatic bypass flags.** Blunt permission-bypass flags shall never be enabled
@@ -1169,12 +1169,13 @@ release gates are in the product-spec
    FR-U24, FR-U26).
 3. The `node:sqlite` module remains available and stable at Node `>=24.15` (basis for
    NFR-CON-01); a change would affect FR-I01–FR-I14.
-4. The seven Participant CLIs' canonical paths and permission syntaxes are as recorded in the
+4. The eight Participant CLIs' canonical paths and permission syntaxes are as recorded in the
    registry at the verification date (FR-G12, FR-G13); setup facts are re-verified per release.
 
 **Dependencies.** Node `>=24.15`; `node:sqlite`; `tmux` (launch, Team stop, and pane peek);
 `git` (worktree launch); Participant CLIs (Claude Code, Codex CLI, Gemini CLI, Copilot CLI,
-Antigravity CLI); optional Model Backends (Ollama, LM Studio).
+Antigravity CLI, Pi CLI, Little Coder, opencode CLI); optional Model Backends (Ollama,
+LM Studio).
 
 **Open TBD items.**
 
@@ -1383,7 +1384,7 @@ requirement is therefore graded.
 |---|---|---|---|---|---|---|---|---|---|---|
 | FR-D23 | P | P | P | P | P | NE | P | P | P | Bundles deduplication + omit-the-actor + skip-archived; could split into three. |
 | FR-F01 | P | P | P | P | P | NE | P | P | P | Packages three Role prompts; could split per Role. |
-| FR-G07 | P | P | P | P | P | NE | P | P | P | Lists seven per-platform invocations; could split per platform. |
+| FR-G07 | P | P | P | P | P | NE | P | P | P | Lists eight per-platform invocations; could split per platform. |
 | FR-H11 | P | NE | P | P | P | P | P | P | P | Names the paste-buffer mechanism; state as outcome, cite architecture/ADR-0007 as the constraint. |
 | FR-I04 | P | NE | P | P | P | P | P | P | P | Specifies pragmas; justified by data-model but not solution-neutral. |
 | FR-I05 | P | NE | P | P | P | P | P | P | P | Specifies WAL/`synchronous`/timeout values; justified by data-model. |

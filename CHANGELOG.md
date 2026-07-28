@@ -8,6 +8,14 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- Little Coder 1.11.0 is now a first-class Participant CLI (`little-coder`), bringing
+  the registry to eight participants. It shares Pi's `/crew` Prompt Template paths and
+  artifact bytes, works through `setup`, `doctor`, Team display, join metadata, and the
+  tmux launcher, and is included in the Ollama / LM Studio local-model recipes. Setup
+  prints the narrow additive `LITTLE_CODER_BASH_ALLOW` opt-in and never enables
+  `accept-all`. Because Little Coder forwards `--version` to bundled Pi, crew reads the
+  adjacent installed package metadata for its 1.11.0 version floor. The registry advances
+  to revision 5.
 - Two new Participant CLI engines, `pi-cli` (Pi) and `opencode-cli` (opencode), bringing
   the registry to seven Participant CLIs. Each ships a Markdown customization artifact
   (`crew.md`) that exposes the `/crew <role> [id]` command: pi as a Prompt Template under

@@ -1,5 +1,5 @@
 /**
- * opencode CLI Setup Target (setup-integration.md §4.7). opencode discovers
+ * opencode CLI Setup Target (setup-integration.md §4.8). opencode discovers
  * custom commands as Markdown files under `~/.config/opencode/commands/` (user)
  * and `.opencode/commands/` (project); the file's basename becomes the slash
  * command, so `crew.md` exposes `/crew` and `$ARGUMENTS` interpolates the

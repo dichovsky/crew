@@ -397,7 +397,7 @@ function isReportableGlobal(state: DriftState, cliPresent: boolean): boolean {
  * and a `.crew/` workspace exists. Pure read-only classification; spawns nothing.
  */
 export function collectArtifactDrift(io: Io, includeProject: boolean): ArtifactDrift[] {
-  const drifts: ArtifactDrift[] = [];
+  const globalDrifts = new Map<string, ArtifactDrift>();
   const projectDrifts = new Map<string, ArtifactDrift>();
   let home: string | null = null;
   try {
@@ -411,13 +411,22 @@ export function collectArtifactDrift(io: Io, includeProject: boolean): ArtifactD
     if (home !== null) {
       const state = computeState(join(home, target.userPath));
       if (isReportableGlobal(state, cliPresent)) {
-        drifts.push({
-          id: target.id,
-          targets: [target.id],
-          scope: 'global',
-          path: `~/${target.userPath}`,
-          state,
-        });
+        const absPath = join(home, target.userPath);
+        const existing = globalDrifts.get(absPath);
+        if (existing === undefined) {
+          globalDrifts.set(absPath, {
+            id: target.id,
+            targets: [target.id],
+            scope: 'global',
+            path: `~/${target.userPath}`,
+            state,
+          });
+        } else {
+          globalDrifts.set(absPath, {
+            ...existing,
+            targets: [...existing.targets, target.id],
+          });
+        }
       }
     }
     if (root !== null) {
@@ -447,7 +456,7 @@ export function collectArtifactDrift(io: Io, includeProject: boolean): ArtifactD
       }
     }
   }
-  return [...drifts, ...projectDrifts.values()];
+  return [...globalDrifts.values(), ...projectDrifts.values()];
 }
 
 /** Dispatch `crew setup [target]` to detection, a Participant write, or a Backend recipe. */

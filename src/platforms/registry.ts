@@ -9,6 +9,7 @@ import { claudeTarget } from './claude.js';
 import { codexTarget } from './codex.js';
 import { copilotTarget } from './copilot.js';
 import { geminiTarget } from './gemini.js';
+import { littleCoderTarget } from './little-coder.js';
 import { lmstudioTarget } from './lmstudio.js';
 import { ollamaTarget } from './ollama.js';
 import { opencodeTarget } from './opencode.js';
@@ -23,6 +24,7 @@ export const PARTICIPANT_TARGETS: readonly ParticipantTarget[] = [
   copilotTarget,
   antigravityTarget,
   piTarget,
+  littleCoderTarget,
   opencodeTarget,
 ];
 

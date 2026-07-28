@@ -9,18 +9,23 @@
  * mirrors verbatim — a change there is a registry-revision bump here.
  */
 import { createHash } from 'node:crypto';
+import { closeSync, constants, fstatSync, openSync, readSync, realpathSync } from 'node:fs';
+import { dirname, isAbsolute, resolve } from 'node:path';
 import type { Io } from '../io.js';
 import type { ParticipantId } from '../participants.js';
 import { resolveExecutableOnPath } from '../which.js';
 
 /** Integer revision of the platform registry record set; bumped on any artifact change. */
-export const REGISTRY_REVISION = 4;
+export const REGISTRY_REVISION = 5;
 
 /** Date the documented paths/invocations were last re-verified (setup-integration.md). */
 export const VERIFIED_ON = '2026-06-29';
 
 /** Bounded timeout for a `--version` probe; a hung CLI must not stall `setup`/`doctor`. */
 export const VERSION_PROBE_TIMEOUT_MS = 5000;
+
+/** Upper bound for package metadata and package-manager shims read by a version probe. */
+const VERSION_METADATA_MAX_BYTES = 64 * 1024;
 
 export type SetupCategory = 'participant' | 'backend';
 export type BackendId = 'ollama' | 'lmstudio';
@@ -46,6 +51,12 @@ export interface ParticipantTarget {
   readonly executable: string;
   /** Argument vector for the version probe (e.g. ['--version']). */
   readonly versionArgs: readonly string[];
+  /**
+   * Optional path, relative to the resolved executable's real file, to an npm
+   * package.json whose `version` is the Participant version. Used only when a
+   * wrapper forwards `--version` to a different bundled CLI.
+   */
+  readonly versionPackageJson?: string;
   /** Home-relative path of the global artifact (joined with $HOME by the writer). */
   readonly userPath: string;
   /** Workspace-relative path of the project artifact. */
@@ -193,22 +204,105 @@ export function classifyArtifact(content: string | null): DriftState {
 }
 
 /**
- * Probe a target's version: presence is a PATH lookup (no spawn); when present,
- * spawn the bounded capture-only probe and extract the first `\d+.\d+.\d+`. A
- * missing executable or unparseable output yields `version: null`, never a throw.
- * The spawn uses the exact absolute path the presence check resolved, so execvp
- * performs no second PATH search that could pick a different (CWD) binary.
+ * Probe a target's version: presence is a PATH lookup (no spawn). Most targets
+ * use a bounded capture-only process probe and the first `\d+.\d+.\d+`; a
+ * wrapper that reports a bundled CLI's version may instead name an adjacent npm
+ * package.json. Missing or unparseable metadata/output yields `version: null`,
+ * never a throw. Process probes use the exact absolute path the presence check
+ * resolved, so execvp performs no second PATH search that could pick a different
+ * (CWD) binary.
  */
 export async function probeVersion(io: Io, target: SetupTarget): Promise<VersionProbe> {
   const executable = resolveExecutableOnPath(io.env, target.executable);
   if (executable === null) {
     return { present: false, version: null };
   }
+  if (target.category === 'participant' && target.versionPackageJson !== undefined) {
+    for (const packagePath of versionPackageJsonCandidates(
+      executable,
+      target,
+      target.versionPackageJson,
+    )) {
+      const content = readSmallRegularFile(packagePath);
+      if (content === null) continue;
+      try {
+        const parsed = JSON.parse(content) as { name?: unknown; version?: unknown };
+        if (parsed.name !== target.id || typeof parsed.version !== 'string') continue;
+        const version = /(\d+\.\d+\.\d+)/.exec(parsed.version)?.[1];
+        if (version !== undefined) return { present: true, version };
+      } catch {
+        // Try another package-manager candidate, then report an unknown version.
+      }
+    }
+    return { present: true, version: null };
+  }
   const result = await io.runProcess(executable, target.versionArgs, {
     timeoutMs: VERSION_PROBE_TIMEOUT_MS,
   });
   const match = /(\d+\.\d+\.\d+)/.exec(result.stdout);
   return { present: true, version: match ? match[1]! : null };
+}
+
+/**
+ * Read at most VERSION_METADATA_MAX_BYTES from a regular file. Opening with
+ * O_NONBLOCK prevents a malicious FIFO at a derived metadata path from hanging
+ * setup/doctor; reading only the size captured by fstat bounds memory even if
+ * the file grows concurrently.
+ */
+function readSmallRegularFile(path: string): string | null {
+  let descriptor: number | undefined;
+  try {
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK);
+    const metadata = fstatSync(descriptor);
+    if (!metadata.isFile() || metadata.size > VERSION_METADATA_MAX_BYTES) return null;
+    const bytes = Buffer.alloc(metadata.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = readSync(descriptor, bytes, offset, bytes.length - offset, null);
+      if (count === 0) break;
+      offset += count;
+    }
+    return bytes.subarray(0, offset).toString('utf8');
+  } catch {
+    return null;
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+/**
+ * Return the direct npm-launcher manifest plus manifests referenced by bounded
+ * package-manager shell shims. pnpm's global shim invokes a quoted
+ * `$basedir/../global/.../node_modules/<package>/bin/...` path instead of
+ * symlinking PATH directly to the package launcher.
+ */
+function versionPackageJsonCandidates(
+  executable: string,
+  target: ParticipantTarget,
+  relativePackageJson: string,
+): readonly string[] {
+  // resolveExecutableOnPath already verified this exact regular file
+  // synchronously; canonicalize it so npm symlinks resolve beside their package.
+  const realExecutable = realpathSync(executable);
+  const candidates = new Set<string>([resolve(dirname(realExecutable), relativePackageJson)]);
+  const shim = readSmallRegularFile(realExecutable);
+  if (shim === null) return [...candidates];
+  const packageMarker = `/node_modules/${target.id}/`;
+  for (const match of shim.matchAll(/["']([^"'\r\n]+)["']/g)) {
+    const token = match[1]!.replaceAll('\\', '/');
+    let launcher: string | null = null;
+    if (token.startsWith('$basedir/')) {
+      launcher = resolve(dirname(realExecutable), token.slice('$basedir/'.length));
+    } else if (token.startsWith('${basedir}/')) {
+      launcher = resolve(dirname(realExecutable), token.slice('${basedir}/'.length));
+    } else if (isAbsolute(token)) {
+      launcher = resolve(token);
+    }
+    if (launcher?.includes(packageMarker) === true) {
+      candidates.add(resolve(dirname(launcher), relativePackageJson));
+    }
+  }
+  return [...candidates];
 }
 
 /** The numeric value of a dotted-version component: the integer, or 0 if missing/non-numeric. */

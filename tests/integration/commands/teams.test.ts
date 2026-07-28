@@ -126,6 +126,15 @@ describe('parseTeam', () => {
     );
   });
 
+  it('accepts Little Coder as a platform hint', () => {
+    const team = parseTeam(
+      'version: 1\nname: local\nmembers:\n  - id: worker\n    role: worker\n    platform: little-coder\n',
+      'local',
+      'team "local"',
+    );
+    expect(team.members[0]?.platform).toBe('little-coder');
+  });
+
   it('rejects a member id of @all (reserved, fails the grammar)', () => {
     expectCode(
       () =>
@@ -303,6 +312,21 @@ describe('team display output', () => {
     };
     expect(first.platform).toBe('codex-cli');
     expect(first.join_command).toContain('--platform codex-cli');
+  });
+
+  it('renders Little Coder platform and invocation under --client', () => {
+    const { io, out } = captureIo({ cwd: workspace() });
+    runTeamShow(io, 'dev', { client: 'little-coder', json: true });
+    const first = JSON.parse(out.join('').trim().split('\n')[0]!) as {
+      platform: string;
+      join_command: string;
+      invocation: string;
+    };
+    expect(first).toMatchObject({
+      platform: 'little-coder',
+      join_command: 'crew join manager --role manager --platform little-coder',
+      invocation: '/crew manager manager',
+    });
   });
 
   it('rejects an invalid --client with USAGE', () => {

@@ -22,14 +22,16 @@ For each checkbox below, record the outcome (pass or fail, plus the version test
 the date) alongside the generated `artifacts-<date>.json`. If a minimum version changes,
 update the platform registry's `minimumVerifiedVersion` / `verifiedOn`.
 
-## Gate 2 — Participant CLI matrix (seven CLIs, pinned minimum versions)
+## Gate 2 — Participant CLI matrix (eight CLIs, pinned minimum versions)
 
 For each of **Claude Code**, **Codex CLI**, **Gemini CLI**, **Copilot CLI**,
-**Antigravity CLI**, **Pi CLI**, **opencode CLI**:
+**Antigravity CLI**, **Pi CLI**, **Little Coder**, **opencode CLI**:
 
 - [ ] `crew --version` matches the package version being released.
-- [ ] `<cli> --version` is at or above the registry's `minimumVerifiedVersion`
-      (`crew doctor --system` shows no `VERSION_FLOOR` warning for it).
+- [ ] crew's registry version probe is at or above `minimumVerifiedVersion`
+      (`crew doctor --system` shows no `VERSION_FLOOR` warning). Most targets use
+      `<cli> --version`; Little Coder reads its adjacent npm package metadata because its
+      wrapper reports the bundled Pi version.
 - [ ] `crew setup <id>` generates the CLI's skill/config file with no error, and the
       `content-hash` marker inside the generated file matches the recorder's
       `artifact_content_hash`.
@@ -45,8 +47,14 @@ For each of **Claude Code**, **Codex CLI**, **Gemini CLI**, **Copilot CLI**,
       commands (catch-all listed first, last-match-wins); do not enable `--auto`.
 - [ ] **Pi specifically:** pi has no permission model, so confirm scoping comes from the
       Workspace/OS boundary — there is no scoped-approval flag and no bypass flag to avoid.
-- [ ] **Pi and opencode readiness:** in a launched pane, read
-      `tmux display -p '#{pane_current_command}'`; if it cleanly reports `pi` / `opencode`,
+- [ ] **Little Coder specifically:** with any existing custom prefixes preserved, export
+      `LITTLE_CODER_BASH_ALLOW="${LITTLE_CODER_BASH_ALLOW:+$LITTLE_CODER_BASH_ALLOW,}crew "`;
+      confirm `crew doctor` is allowed while an unrelated non-whitelisted command remains
+      blocked. Confirm the installed package is 1.11.0 even though `little-coder --version`
+      prints Pi's version. Never use `LITTLE_CODER_PERMISSION_MODE=accept-all`.
+- [ ] **Pi, Little Coder, and opencode readiness:** in a launched pane, read
+      `tmux display -p '#{pane_current_command}'`; if it cleanly reports `pi`,
+      `little-coder`, or `opencode`,
       tighten that target's `readinessMode` from `not-shell` to `names`.
 
 ## Gate 3 — Model Backend recipes (Ollama, LM Studio)

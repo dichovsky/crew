@@ -15,11 +15,12 @@ None of it ships in the npm package — the package's `files` allowlist contains
   through a Participant CLI.
 - **`artifacts-<date>.json`** — the file the automated recorder writes
   (`tests/tools/release-smoke.test.ts`, run with `CREW_RELEASE_SMOKE=1`). For each
-  target in the platform registry it records the `--version` it found, whether that
-  version meets the pinned `minimumVerifiedVersion`, the `content-hash` of the generated
-  file, and a pass/absent/below-floor result; for each Model Backend it records the
-  results of its prerequisite checks. It records only registry facts that are not
-  secrets.
+  target in the platform registry it records the version its registry probe found,
+  whether that version meets the pinned `minimumVerifiedVersion`, the `content-hash` of
+  the generated file, and a pass/absent/below-floor result. Most probes run
+  `<cli> --version`; Little Coder reads its adjacent package metadata because its wrapper
+  reports bundled Pi's version. For each Model Backend the recorder stores prerequisite
+  check results. It records only registry facts that are not secrets.
 
 ## Regenerating the automated capture
 
