@@ -33,7 +33,7 @@ export const SECTIONS: readonly SectionEntry[] = [
   { id: 'modes', nav: 'Manual and launched', track: 'using', Component: Modes },
   { id: 'participants', nav: 'Supported CLIs', track: 'using', Component: Participants },
   { id: 'limits', nav: 'Limitations', track: 'using', Component: Limits },
-  { id: 'modules', nav: 'Module map', track: 'building', Component: Modules },
+  { id: 'modules', nav: 'Architecture', track: 'building', Component: Modules },
   { id: 'schema', nav: 'State Store', track: 'building', Component: Schema },
   { id: 'concurrency', nav: 'Concurrency', track: 'building', Component: Concurrency },
   { id: 'lifecycle', nav: 'Task lifecycle', track: 'building', Component: Lifecycle },

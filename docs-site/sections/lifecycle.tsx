@@ -121,23 +121,25 @@ export function Lifecycle() {
                   markerEnd="url(#arrow)"
                 />
               ))}
-              <text class="edge-label" x="185" y="76">
+              {/* Above the boxes, not level with them — at y=76 these sat inside
+                  the 60..114 band and overlapped the state borders. */}
+              <text class="edge-label" x="188" y="48">
                 start
               </text>
-              <text class="edge-label" x="371" y="76">
+              <text class="edge-label" x="374" y="48">
                 submit
               </text>
-              <text class="edge-label" x="557" y="76">
+              <text class="edge-label" x="560" y="48">
                 approve
               </text>
 
               {/* requeue: submitted (and expired in_progress) back to queued */}
               <path
                 class={`edge is-dashed${index === 4 ? ' is-live' : ''}`}
-                d="M578,114 C520,170 200,170 95,120"
+                d="M578,114 C520,166 200,166 95,120"
                 markerEnd="url(#arrow)"
               />
-              <text class={`edge-label${index === 4 ? ' is-live' : ''}`} x="330" y="164">
+              <text class={`edge-label${index === 4 ? ' is-live' : ''}`} x="336" y="184">
                 requeue (with a reason) · expired Lease recovery
               </text>
             </svg>

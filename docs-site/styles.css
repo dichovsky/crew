@@ -457,6 +457,39 @@ marker path {
   stroke-dasharray: 3 5;
 }
 
+/* Specific enough to beat `.node text`, which centres text — this label is
+   anchored at the group's left edge and would otherwise run off-canvas. */
+.node text.group-title {
+  fill: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  text-anchor: start;
+  letter-spacing: 0.04em;
+}
+
+/* Participant chips are labels inside the clickable session group, so they must
+   not swallow the click that belongs to the group behind them. */
+.chip-node {
+  pointer-events: none;
+}
+
+.chip-node rect {
+  fill: var(--chip);
+  stroke: var(--input-border);
+}
+
+.chip-node text {
+  fill: var(--strong);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  text-anchor: middle;
+}
+
+.edge-label-left {
+  text-anchor: start;
+}
+
 .layer-label {
   fill: var(--faint);
   font-family: var(--mono);
