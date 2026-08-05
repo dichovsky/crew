@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- The App applies the stored theme preference to data-theme on <html> once it
+         mounts; `light dark` here keeps native controls from flashing the wrong
+         scheme before that. Same approach as the Console shell (web/index.html). -->
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#181a1f" />
+    <title>crew — how it works</title>
+    <meta
+      name="description"
+      content="Interactive documentation for crew: local coordination for terminal coding agents."
+    />
+    <!-- Design fonts, matching the Console; the page degrades to system fonts offline. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="app"></div>
+    <!-- Relative, not root-absolute: Pages serves this project site under /crew/. -->
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

@@ -43,9 +43,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && npm run build:web",
     "build:web": "esbuild web/main.tsx --bundle --minify --format=esm --jsx=automatic --jsx-import-source=preact --loader:.css=text --outdir=dist/ui-assets && cp web/index.html dist/ui-assets/index.html",
-    "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "build:docs": "esbuild docs-site/main.tsx --bundle --minify --format=esm --jsx=automatic --jsx-import-source=preact --loader:.css=text --outdir=dist-docs && cp docs-site/index.html dist-docs/index.html",
+    "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json && tsc -p docs-site/tsconfig.json",
+    "lint": "eslint . --ignore-pattern dist-docs",
+    "lint:fix": "eslint . --ignore-pattern dist-docs --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",

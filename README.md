@@ -11,6 +11,9 @@ notes, a task workflow where finished work must pass a separate review, and an o
 launcher that opens all of them side by side. crew never contacts an AI model provider
 itself — it only passes coordination data between the sessions.
 
+**[Interactive documentation →](https://dichovsky.github.io/crew/)** — how crew works, what it is
+built from, and where its limits are, explained with diagrams you can step through.
+
 ## Why crew
 
 - **Nothing keeps running in the background, and there is no account or cloud service.**

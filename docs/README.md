@@ -13,6 +13,13 @@ lower-authority document in the same change.
 
 The domain vocabulary in [CONTEXT.md](../CONTEXT.md) applies everywhere.
 
+The [interactive documentation site](https://dichovsky.github.io/crew/) sits **outside** this
+authority order. It explains the contract visually; it never defines it. It restates no
+volatile fact — the Participant roster, the schema version, the command surface, and the ADR
+index are extracted from the authoritative modules by
+[`tests/unit/docs-facts.test.ts`](../tests/unit/docs-facts.test.ts), which fails when they
+drift. Source lives in [`docs-site/`](../docs-site/).
+
 ## Build packet
 
 | Document | Question it answers |

@@ -1,0 +1,53 @@
+name: Pages
+
+# Publishes the interactive documentation site to GitHub Pages.
+#
+# This is deliberately a separate workflow from ci.yml: Pages deployment needs
+# `pages: write` and `id-token: write`, and ci.yml keeps its least-privilege
+# `contents: read` posture. Same separation as publish.yml.
+#
+# Deployment runs only from `main`, matching the github-pages environment's
+# deployment-branch policy. A pull request proves the bundle still builds through
+# ci.yml's `build:docs` step; it does not deploy.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deployments race; queue instead of cancelling so a merged change
+# is not dropped by a later one that starts while it is still uploading.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: build and deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.18.0'
+          cache: npm
+      - run: npm ci
+      # No prior `npm run build` needed: the site reads its facts from the
+      # committed docs-site/generated/facts.json, which tests/unit/docs-facts.test.ts
+      # derives from the registry, the schema, the CLI, and the ADRs — and fails in
+      # ci.yml when it drifts. Deployment therefore never republishes stale facts.
+      - run: npm run build:docs
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist-docs
+      - id: deployment
+        uses: actions/deploy-pages@v5

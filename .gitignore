@@ -5,6 +5,9 @@ node_modules/
 
 # Build output
 dist/
+# Documentation site bundle. Deliberately outside dist/ so it can never enter the
+# npm tarball, whose contents are the `files` allowlist in package.json.
+dist-docs/
 *.tsbuildinfo
 
 # Test / coverage
