@@ -1,0 +1,391 @@
+{
+  "package": {
+    "name": "@dichovsky/crew",
+    "version": "0.1.1",
+    "nodeEngine": ">=24.15",
+    "runtimeDependencies": {
+      "commander": "^15.0.0",
+      "yaml": "^2.9.0"
+    },
+    "devDependencies": [
+      "@eslint/js",
+      "@playwright/test",
+      "@types/node",
+      "@vitest/coverage-v8",
+      "esbuild",
+      "eslint",
+      "eslint-config-prettier",
+      "execa",
+      "jsdom",
+      "preact",
+      "prettier",
+      "typescript",
+      "typescript-eslint",
+      "vitest"
+    ]
+  },
+  "registry": {
+    "revision": 5,
+    "participants": [
+      {
+        "id": "claude-code",
+        "executable": "claude",
+        "minimumVerifiedVersion": "2.1.197",
+        "verifiedOn": "2026-06-29",
+        "userPath": ".claude/skills/crew/SKILL.md",
+        "projectPath": ".claude/skills/crew/SKILL.md",
+        "format": "markdown",
+        "invocation": "/crew manager mgr",
+        "permissionNote": "allowed-tools: Bash(crew *) scopes approval to crew commands while the skill is active; a project skill needs accepted workspace trust. crew never enables --dangerously-skip-permissions.",
+        "officialSources": [
+          "https://code.claude.com/docs/en/slash-commands"
+        ]
+      },
+      {
+        "id": "codex-cli",
+        "executable": "codex",
+        "minimumVerifiedVersion": "0.142.4",
+        "verifiedOn": "2026-06-29",
+        "userPath": ".agents/skills/crew/SKILL.md",
+        "projectPath": ".agents/skills/crew/SKILL.md",
+        "format": "markdown",
+        "invocation": "$crew manager mgr",
+        "permissionNote": "crew writes only inside the Workspace, so it fits Codex’s workspace-write sandbox; do not default to --ask-for-approval never. If crew still prompts, print and review a scoped [\"crew\"] prefix rule with codex execpolicy check.",
+        "officialSources": [
+          "https://developers.openai.com/codex/skills",
+          "https://developers.openai.com/codex/rules",
+          "https://developers.openai.com/codex/custom-prompts"
+        ]
+      },
+      {
+        "id": "gemini-cli",
+        "executable": "gemini",
+        "minimumVerifiedVersion": "0.46.0",
+        "verifiedOn": "2026-06-29",
+        "userPath": ".gemini/commands/crew.toml",
+        "projectPath": ".gemini/commands/crew.toml",
+        "format": "toml",
+        "invocation": "/crew manager mgr",
+        "permissionNote": "Tool confirmation stays governed by Gemini policy; the model calls run_shell_command for crew. crew prints the narrowest version-appropriate guidance and never enables --yolo.",
+        "officialSources": [
+          "https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/custom-commands.md"
+        ]
+      },
+      {
+        "id": "copilot-cli",
+        "executable": "copilot",
+        "minimumVerifiedVersion": "1.0.67",
+        "verifiedOn": "2026-06-29",
+        "userPath": ".copilot/agents/crew.agent.md",
+        "projectPath": ".github/agents/crew.agent.md",
+        "format": "markdown",
+        "invocation": "/agent (select crew), then: manager mgr",
+        "permissionNote": "tools: [execute] exposes the shell tool; the permission grant is separate. Prefer a scoped --allow-tool='shell(crew:*)' rule once your installed version confirms the syntax; --allow-all-tools and --yolo are broad and risky.",
+        "officialSources": [
+          "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli",
+          "https://docs.github.com/en/copilot/how-tos/copilot-cli/allowing-tools"
+        ]
+      },
+      {
+        "id": "antigravity-cli",
+        "executable": "agy",
+        "minimumVerifiedVersion": "1.0.14",
+        "verifiedOn": "2026-07-02",
+        "userPath": ".gemini/antigravity-cli/skills/crew/SKILL.md",
+        "projectPath": ".agents/skills/crew/SKILL.md",
+        "format": "markdown",
+        "invocation": "/crew manager mgr",
+        "permissionNote": "crew runs bounded one-shot commands inside the Workspace, so it fits Antigravity’s default request-review approval; do not enable --dangerously-skip-permissions. If crew still prompts, add a scoped permissions.allow command rule for \"crew\" in settings.json.",
+        "officialSources": [
+          "https://antigravity.google/docs/skills",
+          "https://github.com/google-antigravity/antigravity-cli"
+        ]
+      },
+      {
+        "id": "pi-cli",
+        "executable": "pi",
+        "minimumVerifiedVersion": "0.80.6",
+        "verifiedOn": "2026-07-14",
+        "userPath": ".pi/agent/prompts/crew.md",
+        "projectPath": ".pi/prompts/crew.md",
+        "format": "markdown",
+        "invocation": "/crew manager mgr",
+        "permissionNote": "pi has no per-command approval or sandbox by design; every shell command (including crew) runs unrestricted and crew ships no gating code. Scope by running pi inside crew’s Workspace boundary — crew writes only inside the Workspace and runs bounded one-shot crew commands — plus any OS/container isolation.",
+        "officialSources": [
+          "https://pi.dev/docs/latest",
+          "https://github.com/earendil-works/pi"
+        ]
+      },
+      {
+        "id": "little-coder",
+        "executable": "little-coder",
+        "minimumVerifiedVersion": "1.11.0",
+        "verifiedOn": "2026-07-24",
+        "userPath": ".pi/agent/prompts/crew.md",
+        "projectPath": ".pi/prompts/crew.md",
+        "format": "markdown",
+        "invocation": "/crew manager mgr",
+        "permissionNote": "Little Coder blocks crew in its default Bash allowlist. Add only the crew prefix while preserving existing additions: export LITTLE_CODER_BASH_ALLOW=\"${LITTLE_CODER_BASH_ALLOW:+$LITTLE_CODER_BASH_ALLOW,}crew \". Do not use LITTLE_CODER_PERMISSION_MODE=accept-all; it bypasses the Bash gate for every command.",
+        "officialSources": [
+          "https://github.com/itayinbarr/little-coder",
+          "https://github.com/itayinbarr/little-coder#permissions"
+        ]
+      },
+      {
+        "id": "opencode-cli",
+        "executable": "opencode",
+        "minimumVerifiedVersion": "1.17.19",
+        "verifiedOn": "2026-07-14",
+        "userPath": ".config/opencode/commands/crew.md",
+        "projectPath": ".opencode/commands/crew.md",
+        "format": "markdown",
+        "invocation": "/crew manager mgr",
+        "permissionNote": "Scope shell approval with the permission.bash glob map in opencode.json (last-match-wins): { \"*\": \"ask\", \"crew *\": \"allow\" } with the catch-all listed first, so only crew commands auto-approve. Do not enable --auto; it approves everything not explicitly denied and defeats the crew-only scope.",
+        "officialSources": [
+          "https://opencode.ai/docs",
+          "https://github.com/anomalyco/opencode"
+        ]
+      }
+    ],
+    "backends": [
+      {
+        "id": "ollama",
+        "executable": "ollama",
+        "minimumVerifiedVersion": null,
+        "verifiedOn": "2026-06-29",
+        "officialSources": [
+          "https://docs.ollama.com/integrations/codex",
+          "https://docs.ollama.com/integrations/claude-code",
+          "https://docs.ollama.com/integrations/copilot-cli"
+        ]
+      },
+      {
+        "id": "lmstudio",
+        "executable": "lms",
+        "minimumVerifiedVersion": null,
+        "verifiedOn": "2026-06-29",
+        "officialSources": [
+          "https://lmstudio.ai/docs/integrations/codex",
+          "https://lmstudio.ai/docs/integrations/claude-code",
+          "https://lmstudio.ai/docs/cli/local-models/load"
+        ]
+      }
+    ]
+  },
+  "schema": {
+    "version": 7,
+    "tables": [
+      "agent_mutations",
+      "agents",
+      "messages",
+      "observable_mutations",
+      "review_worktrees",
+      "task_events",
+      "tasks"
+    ]
+  },
+  "coverageThresholds": {
+    "statements": 95,
+    "branches": 95,
+    "functions": 95,
+    "lines": 95
+  },
+  "commands": [
+    {
+      "name": "agents",
+      "description": "List active Agents",
+      "subcommands": []
+    },
+    {
+      "name": "clean",
+      "description": "Remove the State Store files (refused while Agents are active)",
+      "subcommands": []
+    },
+    {
+      "name": "doctor",
+      "description": "Run read-only diagnostics on the system and Workspace",
+      "subcommands": []
+    },
+    {
+      "name": "history",
+      "description": "List Message history, including read and unread rows",
+      "subcommands": []
+    },
+    {
+      "name": "init",
+      "description": "Create or update the .crew workspace in the current directory",
+      "subcommands": []
+    },
+    {
+      "name": "join",
+      "description": "Join the Crew as an Agent",
+      "subcommands": []
+    },
+    {
+      "name": "leave",
+      "description": "Archive an active Agent",
+      "subcommands": []
+    },
+    {
+      "name": "pending",
+      "description": "Inspect unread Messages without consuming them",
+      "subcommands": []
+    },
+    {
+      "name": "prune",
+      "description": "Delete old read Messages and completed or abandoned Tasks",
+      "subcommands": []
+    },
+    {
+      "name": "receive",
+      "description": "Atomically receive unread Messages for an Agent",
+      "subcommands": []
+    },
+    {
+      "name": "relay",
+      "description": "internal: service a launched tmux session with Inbox nudges",
+      "subcommands": []
+    },
+    {
+      "name": "role",
+      "description": "Inspect and export Roles",
+      "subcommands": [
+        "export",
+        "show"
+      ]
+    },
+    {
+      "name": "roles",
+      "description": "List available Roles (packaged and project overrides)",
+      "subcommands": []
+    },
+    {
+      "name": "send",
+      "description": "Send a direct Message or broadcast to @all",
+      "subcommands": []
+    },
+    {
+      "name": "setup",
+      "description": "Detect Setup Targets, or install one Participant artifact / print a Backend recipe",
+      "subcommands": []
+    },
+    {
+      "name": "task",
+      "description": "Create and drive reviewed Tasks",
+      "subcommands": [
+        "abandon",
+        "approve",
+        "create",
+        "land",
+        "list",
+        "requeue",
+        "review",
+        "show",
+        "start",
+        "submit"
+      ]
+    },
+    {
+      "name": "team",
+      "description": "Display a Team roster, or build a deterministic launch plan with --launch",
+      "subcommands": []
+    },
+    {
+      "name": "teams",
+      "description": "List available Teams (packaged and project overrides)",
+      "subcommands": []
+    },
+    {
+      "name": "ui",
+      "description": "Start the optional local Console server (foreground; Ctrl-C stops it)",
+      "subcommands": []
+    }
+  ],
+  "adrs": [
+    {
+      "id": "0001",
+      "slug": "0001-one-shot-core-session-relay",
+      "title": "Keep the core one-shot and make wake-up an optional session Relay"
+    },
+    {
+      "id": "0002",
+      "slug": "0002-local-sqlite-state-store",
+      "title": "Use one local SQLite State Store"
+    },
+    {
+      "id": "0003",
+      "slug": "0003-separate-config-from-runtime-state",
+      "title": "Track Crew configuration and ignore only runtime state"
+    },
+    {
+      "id": "0004",
+      "slug": "0004-reviewed-task-lifecycle",
+      "title": "Separate Submission from accepted Task completion"
+    },
+    {
+      "id": "0005",
+      "slug": "0005-at-most-once-message-receive",
+      "title": "Use bounded at-most-once Message receive in v1"
+    },
+    {
+      "id": "0006",
+      "slug": "0006-platform-registry-is-authoritative",
+      "title": "Generate setup and launch behavior from one platform registry"
+    },
+    {
+      "id": "0007",
+      "slug": "0007-deterministic-launch-plan-and-print-contract",
+      "title": "Deterministic launch plan with a side-effect-free `--print`"
+    },
+    {
+      "id": "0008",
+      "slug": "0008-relay-process-model-and-live-launch",
+      "title": "The Relay is an internal node subcommand; the live launch owns one tmux session"
+    },
+    {
+      "id": "0009",
+      "slug": "0009-fault-injection-and-concurrency-hardening",
+      "title": "Fault injection rides the Io seam; the clean guard guarantees no silent loss, not linearizability"
+    },
+    {
+      "id": "0010",
+      "slug": "0010-launch-token-provenance-and-scoped-reap",
+      "title": "Launch-token provenance and the scoped teardown reap"
+    },
+    {
+      "id": "0011",
+      "slug": "0011-worktree-store-location",
+      "title": "A launched Crew inside a git worktree uses the worktree's own ephemeral State Store"
+    },
+    {
+      "id": "0012",
+      "slug": "0012-optional-local-ui-server",
+      "title": "Optional local UI server"
+    },
+    {
+      "id": "0013",
+      "slug": "0013-console-redesign",
+      "title": "Console redesign: five-view IA, one-click confirm, owned-session listing"
+    },
+    {
+      "id": "0014",
+      "slug": "0014-worker-context-clear-signoff",
+      "title": "Worker context-clear sign-off"
+    },
+    {
+      "id": "0015",
+      "slug": "0015-per-worker-task-worktrees",
+      "title": "Each Worker gets its own opt-in, per-Task git worktree while sharing one State Store"
+    },
+    {
+      "id": "0016",
+      "slug": "0016-structured-clear-safe-signoff-and-relay-reset",
+      "title": "Structured clear_safe Sign-off and relay-delivered context reset"
+    },
+    {
+      "id": "0017",
+      "slug": "0017-console-now-view-theme-and-agent-archive",
+      "title": "Console v2: Now view, light/dark theme, and Operator Agent archive/restore"
+    }
+  ]
+}

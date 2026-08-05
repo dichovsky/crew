@@ -50,6 +50,19 @@ export default defineConfig({
           include: ['web/**/*.test.ts', 'web/**/*.test.tsx'],
         },
       },
+      // Documentation-site interaction tests (routing, steppers, diagram
+      // selection). Same jsdom arrangement, same exclusion from the coverage
+      // gate. The facts drift guard is deliberately NOT here: it reads the
+      // filesystem, so it runs in the node-environment 'main' project as
+      // tests/unit/docs-facts.test.ts.
+      {
+        extends: true,
+        test: {
+          name: 'docs',
+          environment: 'jsdom',
+          include: ['docs-site/**/*.test.ts', 'docs-site/**/*.test.tsx'],
+        },
+      },
     ],
   },
 });

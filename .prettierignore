@@ -1,4 +1,5 @@
 dist
+dist-docs
 coverage
 node_modules
 package-lock.json
@@ -9,3 +10,7 @@ package-lock.json
 # Stable launch-plan fixture: byte-identical to the canonical JSON serializer
 # (JSON.stringify, 2-space indent), which prettier would reformat.
 tests/fixtures/launch-plan.dev.json
+
+# Documentation-site facts, written by tests/unit/docs-facts.test.ts with the same
+# canonical serializer for the same reason.
+docs-site/generated/facts.json
