@@ -431,7 +431,7 @@ describe('renderTeamStopResult (FR-U29)', () => {
   });
 });
 
-describe('renderTeamResumeResult (FR-U32)', () => {
+describe('renderTeamResumeResult (FR-U49)', () => {
   const result = { sessionName: 'crew-demo', panes: 4, relay: true, attached: false };
 
   it('emits exactly one resume_result NDJSON record with the contract fields', () => {
