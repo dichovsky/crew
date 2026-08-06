@@ -85,7 +85,7 @@ requires one process that stays alive for as long as the tmux session does.
 - Authentication or authorization between agents that do not trust each other.
 - Exactly-once Message delivery (a guarantee that every Message arrives exactly one time).
 - Windows tmux launch/Relay support in v1.
-- Per-Agent worktrees, or mixing different Participant CLIs in one automatic launch.
+- Mixing different Participant CLIs in one automatic launch.
 - Automatic lease reassignment without an explicit Task transition.
 
 ## Success criteria
