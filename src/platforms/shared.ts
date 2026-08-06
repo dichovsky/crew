@@ -6,7 +6,9 @@
  * (ADR-0006). `setup`, `doctor`, Team display, and the Launcher read these
  * records; they never keep parallel path/invocation tables. Official platform
  * facts and sources live in docs/design/setup-integration.md, which this module
- * mirrors verbatim — a change there is a registry-revision bump here.
+ * mirrors verbatim; REGISTRY_REVISION is bumped whenever a change alters a
+ * generated artifact's rendered bytes (setup-integration.md §7) — a doc-only
+ * edit that changes no rendered byte must not bump it.
  */
 import { createHash } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync, readSync, realpathSync } from 'node:fs';
