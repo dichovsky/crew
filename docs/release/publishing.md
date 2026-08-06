@@ -47,8 +47,10 @@ and the canonical gate list in
    tool-call smokes.
 4. **Commit the evidence:** `docs/release/artifacts-<date>.json`, and update the gate
    statuses in the [release-gate table](../design/product-spec.md#release-gates).
-5. **Bump the version** in `package.json` and add a dated `CHANGELOG.md` entry (move
-   items out of `[Unreleased]`). Merge to `main`.
+5. **Update release status in the same commit:** bump the version in `package.json`, add a
+   dated `CHANGELOG.md` entry (move items out of `[Unreleased]`), and update
+   `docs/README.md`'s "Current readiness" release-status paragraph so its feature claims
+   match the dated changelog. Merge to `main`.
 6. **Publish the GitHub Release** with tag `vX.Y.Z` at the release commit (release notes
    from the changelog). This triggers `publish.yml`:
    - it verifies the tag matches `package.json`, runs the full gate, then
