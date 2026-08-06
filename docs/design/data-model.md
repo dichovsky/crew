@@ -352,11 +352,12 @@ each entity.
   to be gone — otherwise a Task whose owner left could never be recovered;
 - `submitted` may be requeued immediately; `in_progress` may be requeued only after the
   Lease has expired;
-- abandon requires the actor to be an active Agent and the Task's creator or reviewer; when
-  the creator and the reviewer are *both* archived, the plain `operator` identity may abandon
-  on their behalf (FR-E22) — meaning an `active` Agent row whose id is `operator`, whose Role
-  is `operator`, and whose `platform_id` is `NULL`, so a row that merely holds the id
-  `operator` with a different Role or a platform set is refused;
+- abandon requires the Task to be `queued`, `in_progress`, or `submitted` (a `completed` or
+  already-`abandoned` Task is refused) and the actor to be an active Agent and the Task's
+  creator or reviewer; when the creator and the reviewer are *both* archived, the plain
+  `operator` identity may abandon on their behalf (FR-E22) — meaning an `active` Agent row
+  whose id is `operator`, whose Role is `operator`, and whose `platform_id` is `NULL`, so a
+  row that merely holds the id `operator` with a different Role or a platform set is refused;
 - abandon always clears `worktree_path`, `worktree_branch`, and `worktree_base_ref` as part
   of the status change itself; whether the later removal of the worktree from disk (which
   happens outside the transaction) succeeds does not change that;
@@ -364,12 +365,12 @@ each entity.
   Task Event carrying the same revision;
 - a completed Task can never be modified in v1;
 - `land` requires the actor to be an active Agent and the Task's creator or reviewer, plus
-  `status = 'completed'` and a non-null `worktree_path`. When the worktree
-  has uncommitted changes, or its branch is not yet contained in ("an ancestor of")
-  `worktree_base_ref`, land refuses and changes nothing — unless `--force` is given.
-  Otherwise it removes the worktree and branch, and clears `worktree_path`,
-  `worktree_branch`, and `worktree_base_ref` in the same all-or-nothing step that sends the
-  Sign-off (ADR-0014) to the assignee as a structured `clear_safe` Message (ADR-0016).
+  `status = 'completed'` and a non-null `worktree_path`. When the worktree has uncommitted
+  changes, or its branch is not yet contained in ("an ancestor of") `worktree_base_ref`, land
+  refuses and changes nothing — unless `--force` is given. Otherwise it removes the worktree
+  and branch, and clears `worktree_path`, `worktree_branch`, and `worktree_base_ref` in the
+  same all-or-nothing step that sends the Sign-off (ADR-0014) to the assignee as a structured
+  `clear_safe` Message (ADR-0016).
 
 ### Review worktrees
 
@@ -515,10 +516,10 @@ and upgrade, rather than a best-effort attempt to change it in place.
 - `prune --messages-before <duration>` deletes only Messages that are already read and older
   than the cutoff (`read_at IS NOT NULL AND created_at < now − seconds`, using strict `<`).
   The default is 30 days.
-- `prune --tasks-before <duration>` deletes only Tasks that have reached a terminal status
-  older than the cutoff — a completed Task judged by `completed_at < now − seconds` and an
-  abandoned Task by `abandoned_at < now − seconds`, each using strict `<` — and only when
-  every linked Message is already read. The default is 90 days.
+- `prune --tasks-before <duration>` deletes only Tasks in a final state older than the cutoff
+  — a completed Task judged by `completed_at < now − seconds`, an abandoned Task by
+  `abandoned_at < now − seconds`, each using strict `<` — and only when every linked Message
+  is already read. The default is 90 days.
 - Durations are `<integer><s|m|h|d|w>`. A `0`, a fraction, a compound form (`1d12h`), or a
   value so large that `now − seconds` would leave the range of safely representable integers
   is rejected as `USAGE`.
