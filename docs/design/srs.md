@@ -50,7 +50,7 @@ is expanded here into consecutive ids, tracked in
 
 crew is a command-line tool that runs on your own machine and coordinates terminal coding
 agents (Claude Code, Codex CLI, Gemini CLI, Copilot CLI). This SRS specifies **all v1 software
-requirements**, plus the post-v1 additions for the Console and for stopping a Team —
+requirements**, plus the post-v1 additions for the Console and for stopping and resuming a Team —
 functional and non-functional — in enough detail to design and test against. crew coordinates
 Participant CLIs (the AI command-line apps that act as Agents) that are already running; they
 share one State Store, an SQLite database file inside the project's Workspace. crew **never
@@ -65,10 +65,10 @@ calls a model provider** and runs no AI model itself.
   Task Events that are never edited afterwards; reusable Role and Team configuration; explicit
   setup for Participant CLIs and Model Backends; an optional tmux Launcher and session Relay;
   and safe maintenance commands (`doctor`, `prune`, `clean`). The post-v1 additions include an
-  optional local Console that runs in the foreground, stopping a Team that crew itself
-  launched, a `task abandon` verb that retires a Task that will never complete, and a
-  stale-Lease change signal that alerts a Task's creator and the Console alike instead of
-  relying on a human to keep running `doctor`.
+  optional local Console that runs in the foreground, stopping — and cleanly resuming — a Team
+  that crew itself launched, a `task abandon` verb that retires a Task that will never
+  complete, and a stale-Lease change signal that alerts a Task's creator and the Console alike
+  instead of relying on a human to keep running `doctor`.
 - **What it does not do:** call an AI model, check identity or permissions between Agents, run
   a daemon (a background process that keeps running on its own) or any required or background
   server, run a hosted service, guarantee that a Message is delivered exactly once, or launch
@@ -102,8 +102,8 @@ In summary, crew performs: Workspace initialization (§B); the Agent lifecycle (
 (§D); reviewed Tasks (§E); Role/Team configuration (§F); Setup Target generation (§G);
 optional tmux launch and Relay (§H); storage and safe concurrent access (§I); the two output
 formats and the error-code scheme (§J); and maintenance and trust reporting (§K). The full
-list, one rule per requirement, is in [§3.2](#32-functions). The local Console and Team-stop
-requirements, added after v1, form group U.
+list, one rule per requirement, is in [§3.2](#32-functions). The local Console and owned-Team
+stop/resume requirements, added after v1, form group U.
 
 #### 1.3.3 User characteristics (§9.5.5)
 
@@ -121,10 +121,10 @@ operating-system user account whose processes all trust each other (see
 #### 1.3.4 Limitations (§9.5.6)
 
 crew depends on Node `>=24.15` (for `node:sqlite`) and a POSIX shell environment. Launch,
-Team stop, and pane peek additionally depend on `tmux`; launching into a worktree (a separate
-working copy of the repository that shares the same history) depends on `git`. crew cannot
-verify which Agent is really talking to it (there is no authentication between Agents), does
-not work on network filesystems, and offers no Windows tmux launch in v1. These limitations
+Team stop, Team resume, and pane peek additionally depend on `tmux`; launching into a worktree
+(a separate working copy of the repository that shares the same history) depends on `git`. crew
+cannot verify which Agent is really talking to it (there is no authentication between Agents),
+does not work on network filesystems, and offers no Windows tmux launch in v1. These limitations
 drive the requirements in [§3.6](#36-design-constraints) and [§3.7](#37-system-attributes).
 
 ### 1.4 Definitions (§9.2.3)
@@ -731,7 +731,7 @@ rather than restating them.
   by default and the receive crash window (FR-D14), so users know this before relying on crew
   for irreplaceable records. *Verify: inspection — README; doctor output.*
 
-#### U. Local Console and owned-Team stop
+#### U. Local Console and owned-Team stop/resume
 
 - **FR-U01 — Explicit foreground Console.** `crew ui` shall start a foreground HTTP server only
   when explicitly invoked by the Operator. *Verify: automated test —
@@ -939,6 +939,67 @@ rather than restating them.
   browser storage) across reloads of the same browser; the default is light. The choice affects
   presentation only — no Store data, authority, or action behavior changes with it. *Verify:
   automated test — `web/app.test.tsx`.*
+- **FR-U39 — Clean-stop marker on stop.** A record-producing owned-Team stop shall write that
+  session's clean-stop marker under `.crew/generated/<session>/` — the artifact `crew team
+  resume` consumes (FR-U41). *Verify: inspection — `src/launcher/stop.ts` (the marker is written
+  after the mapped Agents are archived and before the ownership proof is retired),
+  `src/launcher/artifacts.ts` (`writeResumeMarker`, and the marker fields `readResumeMarker`
+  validates); no automated test asserts the written marker today.*
+- **FR-U40 — Resume requires tmux.** `crew team resume <session>` shall fail with
+  `DEPENDENCY_MISSING` when tmux is not present. *Verify: automated test —
+  `tests/unit/launcher/resume.test.ts` (tmux absent).*
+- **FR-U41 — Resume artifacts present.** A resume shall proceed only when both the session's
+  clean-stop marker and its stored launch plan are present under `.crew/generated/<session>/`,
+  failing with `NOT_FOUND` — in a message naming only the requested session, never a filesystem
+  path — when either is absent. *Verify: automated test — `tests/unit/launcher/resume.test.ts`
+  (a missing marker, with the path-free message asserted verbatim; a missing plan behind a
+  present marker).*
+- **FR-U42 — Resume artifacts well-formed.** A clean-stop marker or stored launch plan that is
+  present but is not valid JSON, or is not a valid marker for that session, shall fail the resume
+  with `INVALID_CONFIG`; unlike FR-U41's absent-artifact message, this message may name the
+  workspace-relative artifact. *Verify: inspection — `src/launcher/artifacts.ts`
+  (`readResumeMarker` rejects unparsable JSON and a marker whose fields do not match the
+  session), `src/launcher/resume.ts` (only `ENOENT` is mapped to `NOT_FOUND`, so a parse failure
+  surfaces as `INVALID_CONFIG`).*
+- **FR-U43 — Resume plan names its session.** A resume shall proceed only when the stored launch
+  plan's session name equals the requested session, failing with `INVALID_CONFIG` otherwise.
+  *Verify: automated test — `tests/unit/launcher/resume.test.ts` (a plan stored under a different
+  generated-session directory).*
+- **FR-U44 — Resume never adopts a live session.** A resume shall proceed only when no tmux
+  session of the requested name is live, failing with `ALREADY_EXISTS` otherwise. *Verify:
+  automated test — `tests/unit/launcher/resume.test.ts` (a live tmux session of the same name).*
+- **FR-U45 — Strict resume plan match.** A resume shall proceed only when the stored launch plan
+  is identical — apart from its creation timestamp — to a plan built fresh from the current Team
+  and effective configuration, failing with `TEAM_DRIFT` before any tmux mutation otherwise.
+  *Verify: automated test — `tests/unit/launcher/resume.test.ts` (a changed `reminder_seconds`
+  refuses the resume against an adapter that rejects every tmux operation but presence and
+  session lookup; the same drift omits the session from the resumable listing).*
+- **FR-U46 — Archived-exact resume gate.** A resume shall proceed only when every Agent named by
+  the stored plan is still the archived row it left behind — same id, same Role, same platform —
+  failing with `TEAM_DRIFT` otherwise. *Verify: automated test —
+  `tests/unit/launcher/resume.test.ts` (a still-active roster entry refuses the resume; the
+  listing cases cover never-joined, still-active, wrong-Role, and wrong-platform entries).*
+- **FR-U47 — Resume reactivates the planned ids.** A successful resume shall bring the Agent ids
+  named by the stored plan back to active rather than allocating new ones. *Note: crew never runs
+  the join itself — each resumed pane's Participant CLI is invited to `crew join <id> --resume`
+  and the roster gate is what enforces the outcome, failing the relaunch with `LAUNCH_FAILED`
+  when those exact ids never register. Verify: inspection and automated test —
+  `tests/unit/platforms.test.ts` (the exact `--resume` invocation for all eight Participant
+  CLIs), `tests/integration/commands/team-launch-live.test.ts` (the shared roster gate fails with
+  `LAUNCH_FAILED` when the planned ids never register); the resume-specific wiring — the resume
+  flag set in `src/launcher/resume.ts` reaching `paneLaunch` and `awaitRoster` in
+  `src/launcher/session.ts` — has no end-to-end success test yet.*
+- **FR-U48 — Best-effort marker retirement.** A resume shall not depend on retiring the session's
+  clean-stop marker: removal is attempted only after the relaunched session releases the
+  foreground, is skipped when that attachment ends in failure, and a removal that fails leaves
+  the resume successful. *Verify: inspection — `src/launcher/resume.ts` (`retireResumeMarker`
+  swallows every error and is called only after `runLiveLaunch` returns),
+  `src/launcher/session.ts` (the default attach blocks that return, and a non-zero attach throws
+  `LAUNCH_FAILED` before the marker is touched).*
+- **FR-U49 — Team-resume record.** A record-producing Team resume shall emit an additive
+  `resume_result` record with `schema_version: 1`, `session_name`, `panes`, `relay`, and
+  `attached`. *Verify: automated test — `tests/unit/format.test.ts` (the single `resume_result`
+  NDJSON line with exactly those fields, plus the human summary).*
 
 #### W. Worker and review worktrees
 
@@ -1165,16 +1226,16 @@ release gates are in the product-spec
    other (the basis for NFR-SEC-01). If this changes, authentication requirements would be
    needed (the territory of FR-X02).
 2. A POSIX shell, `tmux`, and `git` are available for launched mode; `tmux` is also available
-   for Team stop and pane peek. Their absence does not fail core operations (FR-H01, FR-H02,
-   FR-U24, FR-U26).
+   for Team stop, Team resume, and pane peek. Their absence does not fail core operations
+   (FR-H01, FR-H02, FR-U24, FR-U26, FR-U40).
 3. The `node:sqlite` module remains available and stable at Node `>=24.15` (basis for
    NFR-CON-01); a change would affect FR-I01–FR-I14.
 4. The eight Participant CLIs' canonical paths and permission syntaxes are as recorded in the
    registry at the verification date (FR-G12, FR-G13); setup facts are re-verified per release.
 
-**Dependencies.** Node `>=24.15`; `node:sqlite`; `tmux` (launch, Team stop, and pane peek);
-`git` (worktree launch); Participant CLIs (Claude Code, Codex CLI, Gemini CLI, Copilot CLI,
-Antigravity CLI, Pi CLI, Little Coder, opencode CLI); optional Model Backends (Ollama,
+**Dependencies.** Node `>=24.15`; `node:sqlite`; `tmux` (launch, Team stop, Team resume, and
+pane peek); `git` (worktree launch); Participant CLIs (Claude Code, Codex CLI, Gemini CLI,
+Copilot CLI, Antigravity CLI, Pi CLI, Little Coder, opencode CLI); optional Model Backends (Ollama,
 LM Studio).
 
 **Open TBD items.**
@@ -1319,7 +1380,7 @@ that says so.
 | FR-K07 | FR-K10 | — |
 
 Counts: **98** old v1 ids → **183** new v1 single-rule ids; **66** old ids were split. The
-additive post-v1 ids `FR-U01`–`FR-U38`, `FR-E22`–`FR-E24`, `FR-H29`, and `FR-W01`–`FR-W15` did
+additive post-v1 ids `FR-U01`–`FR-U49`, `FR-E22`–`FR-E24`, `FR-H29`, and `FR-W01`–`FR-W15` did
 not exist in the retired v1 set and are intentionally excluded from those counts. Deferred
 `FR-X01`–`FR-X08` are unchanged, except `FR-X07`, which is promoted to the group W contract
 (`FR-W01`–`FR-W15`, ADR-0015); see Appendix D.
@@ -1374,7 +1435,7 @@ requirement is therefore graded.
 | I | FR-I01–FR-I14 | all nine P (except FR-I04, FR-I05, FR-I09) |
 | J | FR-J01–FR-J15 | all nine P |
 | K | FR-K01–FR-K10 | all nine P (except FR-K01) |
-| U | FR-U01–FR-U38 | all nine P |
+| U | FR-U01–FR-U49 | all nine P |
 | W | FR-W01–FR-W15 | all nine P |
 | NFR | all NFR-\* | all nine P |
 
