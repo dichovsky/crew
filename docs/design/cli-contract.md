@@ -60,14 +60,18 @@ crew doctor [--system] [--json]
   file. Before writing, crew verifies the project file path truly stays inside the workspace
   root: if a symlinked component of the repository would carry it outside, the command fails
   with `UNSAFE_PATH` and nothing is written.
-- `doctor --system` checks the machine itself — Node, the Participant CLIs, tmux (a terminal
+- `doctor --system` checks the machine itself — the Participant CLIs, tmux (a terminal
   multiplexer: a tool that splits one terminal into several independent panes), git, and the
-  setup files crew wrote at global scope — and works outside a Workspace. A Participant CLI,
-  tmux, or git that is simply not installed is an `info`-level `DEPENDENCY_MISSING` finding. A
-  setup file that was edited, was not written by crew, or is out of date — or one missing
-  entirely for a CLI that is installed — is a `SETUP_DRIFT` finding. `--system` looks only at
-  executables and global files; the default (Workspace) mode also checks the setup files
-  inside the project. A missing project file is not flagged, because project setup is opt-in.
+  setup files crew wrote at global scope — and works outside a Workspace. It reports no
+  finding about Node: the `>=24.15` runtime floor is enforced before any command runs, by the
+  installed executable shim, which refuses a too-old runtime with a plain message and exit 1.
+  A Participant CLI, tmux, or git that is simply not installed is an `info`-level
+  `DEPENDENCY_MISSING` finding; a Participant CLI that is installed but reports a version below
+  its verified minimum is a `warn`-level `VERSION_FLOOR` finding. A setup file that was edited,
+  was not written by crew, or is out of date — or one missing entirely for a CLI that is
+  installed — is a `SETUP_DRIFT` finding. `--system` looks only at executables and global
+  files; the default (Workspace) mode also checks the setup files inside the project. A missing
+  project file is not flagged, because project setup is opt-in.
 
 ### Workspace configuration
 
@@ -113,7 +117,7 @@ crew agents [--all] [--json]
 - An Agent is one named registration in the Crew, usually a single terminal AI session. Agent
   ids match `[A-Za-z0-9][A-Za-z0-9._-]{0,63}`; `@all` is reserved.
 - The Role defaults to the requested id. The platform is optional and, when given, must be a
-  Participant CLI id.
+  Participant CLI id; any other value is `UNSUPPORTED_PLATFORM`.
 - If the requested id is taken, crew reserves the first free suffixed id from `-2` through
   `-99` in a single database step, so two joins racing each other cannot claim the same id.
 - The suffix logic never hands out an archived id. `--resume` targets that exact archived id;
@@ -276,6 +280,10 @@ crew team resume <session> [--json]
   tracked `runtime.client` setting, then the default. A Team whose members hint at different
   platforms, with neither of the first two set, is a `USAGE` error that points the operator
   to `--client`, `runtime.client`, or manual mode.
+- Every launch-only flag — `--workers`, `--task-file`, `--worktree`, `--no-worktree`,
+  `--no-relay`, `--no-attach`, `--print` — implies `--launch`, so `crew team dev --print`
+  builds and prints the plan instead of rendering the roster. `--client` and `--json` do not:
+  they apply to the roster display too.
 - `--print` changes nothing: it writes no setup files, does not touch the State Store (the
   SQLite database in `.crew/state/` that the whole Crew shares), starts no subprocess, and
   creates no worktree or tmux session. It validates the full launch plan and prints it — as
@@ -348,7 +356,8 @@ crew team resume <session> [--json]
   Team and configuration (`TEAM_DRIFT` otherwise); and every Agent in the plan must still
   exist as exactly the archived row it left behind (`TEAM_DRIFT`). On success it relaunches
   the session from the matching plan, reactivates the archived Agents, and retires the
-  clean-stop marker. Like `team stop`, it introduces no new error code.
+  clean-stop marker; `--json` emits one `resume_result` record. Like `team stop`, it
+  introduces no new error code.
 - Every literal verb that follows `crew team` — today `stop` and `resume` — is a reserved
   word: a Team cannot carry such a name, because `crew team <verb> <session>` would be
   parsed first and hide `crew team <name>` for it. Team validation rejects a reserved name
@@ -376,8 +385,10 @@ crew ui [--port <n>] [--no-open] [--json]
   and terminal scrollback, and restarting `crew ui` invalidates it by generating a new token.
 - Human output prints the authenticated local URL after successful startup. By default crew
   then opens that URL in the browser; `--no-open` skips the browser opening without changing
-  how long the server runs. With `--json`, successful startup emits exactly one `ui_started`
-  line after the server is listening and before it continues serving in the foreground.
+  how long the server runs. `--json` also skips it: no browser is opened for machine output,
+  whether or not `--no-open` is given. With `--json`, successful startup emits exactly one
+  `ui_started` line after the server is listening and before it continues serving in the
+  foreground.
 - The browser-side source lives under `web/`; `npm run build` uses esbuild to bundle it into
   `dist/ui-assets/`, which ships with the package so the Console works with no internet
   access. A Team launched from the Console never attaches a terminal; attaching to that
@@ -389,8 +400,8 @@ crew ui [--port <n>] [--no-open] [--json]
   (with the same authority checks) as the equivalent CLI command. `crew ui` makes sure the
   Operator row exists at startup.
 - The Console's actions additionally cover launching a Team (always detached — attaching
-  stays terminal-only), stopping a Team crew owns, peeking at a pane, running `prune` or
-  `clean`, and archiving or restoring an Agent — and nothing else. Pane peek returns the
+  stays terminal-only), stopping or resuming a Team crew owns, peeking at a pane, running
+  `prune` or `clean`, and archiving or restoring an Agent — and nothing else. Pane peek returns the
   pane's `capture-pane` text with terminal control characters stripped, even on the JSON
   surface (the deliberate FR-U24 exception to the rule that JSON output keeps raw bytes).
   Team stop, `prune`, `clean`, and archiving an Agent each require an explicit confirmation:
@@ -462,13 +473,13 @@ check may use a documented status >=10 for “pending.”
 | `CONTENTION` | 1 | SQLite remained busy after timeout and bounded retry |
 | `INTEGRITY` | 1 | State Store health or foreign-key check failed |
 | `UNSUPPORTED_SCHEMA` | 1 | State Store is newer/too old for this binary |
-| `UNSUPPORTED_PLATFORM` | 1 | Setup Target or Launcher participant is unsupported/unverified |
+| `UNSUPPORTED_PLATFORM` | 1 | Setup Target, Launcher participant, or `crew join --platform` value is unsupported/unverified |
 | `UNSAFE_PATH` | 1 | configured path escapes its allowed root |
 | `DEPENDENCY_MISSING` | 1 | tmux, git, Participant CLI, or backend prerequisite absent |
 | `ACTIVE_AGENTS` | 1 | maintenance (`prune --vacuum` / `clean`) refused because active Agents exist |
 | `STALE_STORE` | 1 | the State Store was removed/replaced (e.g. by a concurrent `clean`) while an operation held it open; the write fails detectably instead of orphaning data |
 | `ERROR` | 1 | unexpected throwable outside the `CrewError` taxonomy, or a tmux child (the `tmux -V` probe or any control command) killed/timed out before it could prove its outcome either way |
-| `LAUNCH_FAILED` | 1 | a live launch step failed (a non-zero tmux op, pane readiness, or roster registration); the owned session is torn down |
+| `LAUNCH_FAILED` | 1 | a live launch step failed — a non-zero tmux op, pane readiness, or roster registration, in which case the owned session is torn down; a `tmux attach` that exits non-zero after the session was built (the session is left alive to reattach); or a Console server that fails to start (e.g. an unavailable explicit `crew ui --port`) |
 
 Human errors use `[CODE] message`. JSON errors use:
 
@@ -548,22 +559,30 @@ status does not change.
 
 `doctor` emits zero or more `health_finding` records (most noteworthy first) followed by
 exactly one `health_summary`. `severity` is one of `info`, `warn`, `error`; `details` is an
-optional object. The finding `code` reuses the error-code vocabulary, so findings and errors
-speak one language (`DEPENDENCY_MISSING`, `STATE_PATH`, `NETWORK_FILESYSTEM`,
-`NESTED_WORKSPACE`, `NO_STATE_STORE`, `UNSUPPORTED_SCHEMA`, `INTEGRITY`, `SCHEMA_DRIFT`,
-`STALE_LEASE`, `ARCHIVED_OWNER`, `ROLE_DRIFT`, `TEAM_DRIFT`, `SETUP_DRIFT`, `INVALID_CONFIG`,
-`UNSAFE_PATH`). `SETUP_DRIFT` reports a Participant setup file that was edited locally or not
-written by crew (`warn`), or that came from an older registry revision, or that is missing at
-global scope for a CLI that is installed (`info`). Its `details` carry the `target` to fix,
-all affected `targets` when several targets deliberately share one project file path, plus
-`scope`, `path`, and `drift`; the message includes the exact command that fixes it
-(`crew setup <target> [--project] [--force]`). A project Role or Team config file that cannot
-be read does not abort `doctor`: it becomes a `warn` finding (`INVALID_CONFIG` or
-`UNSAFE_PATH`) instead, and this softening is per file — each unreadable or invalid project
-file produces its own finding (with the file's `name` in `details`) while every remaining
-valid Role/Team config is still listed and checked for drift. If the whole listing fails
-(e.g. the `roles/` or `teams/` directory itself cannot be read), that becomes a single
-finding the same way.
+optional object. The finding `code` comes from this closed list: `DEPENDENCY_MISSING`,
+`VERSION_FLOOR`, `STATE_PATH`, `NETWORK_FILESYSTEM`, `NESTED_WORKSPACE`, `NO_STATE_STORE`,
+`UNSUPPORTED_SCHEMA`, `INTEGRITY`, `SCHEMA_DRIFT`, `STALE_LEASE`, `ARCHIVED_OWNER`,
+`ROLE_DRIFT`, `TEAM_DRIFT`, `SETUP_DRIFT`, `RESUME_DRIFT`, `INVALID_CONFIG`, `UNSAFE_PATH`.
+`DEPENDENCY_MISSING`, `UNSUPPORTED_SCHEMA`, `INTEGRITY`, `TEAM_DRIFT`, `INVALID_CONFIG`, and
+`UNSAFE_PATH` are shared with the error-code vocabulary, so findings and errors speak one
+language wherever they overlap; the remaining codes are diagnostic-only names with no
+`ErrorCode` counterpart. `VERSION_FLOOR` reports an installed Participant CLI whose detected
+version is below the registry's verified minimum (`warn`); its `details` carry the `target`
+id, the `detected` version, the `minimum` verified version, and the `verified_on` date on
+which that minimum was checked. `RESUME_DRIFT` reports a `.crew/generated/<session>/`
+directory that still holds a `resume.json` but is not currently listed as resumable (`warn`);
+its `details` carry the `session` name. `SETUP_DRIFT` reports a Participant setup file that
+was edited locally or not written by crew (`warn`), or that came from an older registry
+revision, or that is missing at global scope for a CLI that is installed (`info`). Its
+`details` carry the `target` to fix, all affected `targets` when several targets deliberately
+share one project file path, plus `scope`, `path`, and `drift`; the message includes the exact
+command that fixes it (`crew setup <target> [--project] [--force]`). A project Role or Team
+config file that cannot be read does not abort `doctor`: it becomes a `warn` finding
+(`INVALID_CONFIG` or `UNSAFE_PATH`) instead, and this softening is per file — each unreadable
+or invalid project file produces its own finding (with the file's `name` in `details`) while
+every remaining valid Role/Team config is still listed and checked for drift. If the whole
+listing fails (e.g. the `roles/` or `teams/` directory itself cannot be read), that becomes a
+single finding the same way.
 
 ```json
 {"type":"health_finding","schema_version":1,"severity":"warn","code":"STALE_LEASE","message":"Task lease expired","details":{"task_id":"uuid"}}
@@ -659,6 +678,15 @@ killed and the Agents named in the pane-map are archived. `killed` is a boolean 
 
 ```json
 {"type":"stop_result","schema_version":1,"session_name":"crew-demo","killed":true,"agents_archived":3}
+```
+
+`crew team resume <session> --json` emits exactly one `resume_result` after the stopped
+session has been rebuilt from its stored plan, before attaching. Its fields carry the same
+meaning as `launch_result`'s: `panes` counts the panes re-created, `relay` says whether a
+Relay was started, and `attached` says whether crew attached the terminal.
+
+```json
+{"type":"resume_result","schema_version":1,"session_name":"crew-demo","panes":4,"relay":true,"attached":true}
 ```
 
 `crew relay --internal --session <name>` is an internal, hidden command that crew starts
