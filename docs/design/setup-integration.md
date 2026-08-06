@@ -35,6 +35,16 @@ or locally edited, `--force` backs it up before replacing it.
 | `ollama` | Model Backend | none | none | `ollama launch <participant>` or env/profile | docs verified; live smoke required |
 | `lmstudio` | Model Backend | none | none | start server, load model, launch participant | docs verified; live smoke required |
 
+For the Participant CLI rows the Invocation column shows the plain form a human types,
+which is the invocation `setup` prints (`copilot-cli`'s cell paraphrases that string). The
+Model Backend rows have no `invocation` at all; their cells summarize the recipe `setup`
+prints alongside its read-only checks. Each Participant's `invocation` — and the optional
+`launch_args` — also takes a resume flag that appends ` --resume`, which the Launcher sets
+when a pane is recovering a clean stop (`src/launcher/resume.ts` →
+`src/launcher/session.ts`). `copilot-cli` is the one target supplying `launch_args`, so a
+resumed Copilot pane starts as `copilot --agent=crew --prompt "<role> <id> --resume"`
+rather than through the column's `/agent` form.
+
 Current facts about each platform. The file generators depend directly on these; facts
 they replaced are recorded once in
 [decisions.md](./decisions.md#superseded-design-statements):
@@ -78,7 +88,8 @@ Every generated customization file teaches the tool the same fixed, bounded work
 2. Confirm the current directory is inside a crew Workspace by running `crew doctor`; if
    it is not, report that the operator must run `crew init` in the intended root.
 3. Run `crew join <id> --role <role> --platform <target>` once, and remember the actual
-   id it prints — it may carry a suffix.
+   id it prints — it may carry a suffix. Add `--resume` when the pane is recovering a
+   clean stop.
 4. Run `crew receive <actual-id>` once.
 5. For a Task, use `task start`, do the work, then `task submit`; only the Inspector
    uses `task approve` or `task requeue`.
@@ -104,7 +115,8 @@ Parse {{ROLE_ARGS}} as `<role> [id]`; if no id is given, the id defaults to the 
 1. Confirm this is a crew Workspace: run `crew doctor`. If it is not, tell the operator to
    run `crew init` in the intended repository root, then stop.
 2. Join once: `crew join <id> --role <role> --platform <target>`. Retain the actual id it
-   prints; it may carry a `-2`..`-99` suffix after a collision.
+   prints; it may carry a `-2`..`-99` suffix after a collision. If the pane is recovering
+   a clean stop, add `--resume` to the join command.
 3. Read your inbox once: `crew receive <actual-id>`.
 4. Act only within your Role:
    - Worker: `crew task start <actual-id> <task-id>`, do the work, then
@@ -154,7 +166,7 @@ allowed-tools: Bash(crew *)
 argument-hint: <manager|worker|inspector> [agent-id]
 ---
 
-<!-- generated-by: crew setup; registry-revision: 2 -->
+<!-- generated-by: crew setup; registry-revision: 5 -->
 
 Use the finite crew workflow below for `$ARGUMENTS`.
 [shared workflow rendered here]
@@ -179,7 +191,7 @@ name: crew
 description: Join and coordinate through the local crew inbox and reviewed task workflow. Use when the user asks to start or act as a crew role.
 ---
 
-<!-- generated-by: crew setup; registry-revision: 2 -->
+<!-- generated-by: crew setup; registry-revision: 5 -->
 
 Use the finite crew workflow below for the role and optional id supplied by the user.
 [shared workflow rendered here]
@@ -212,7 +224,7 @@ Gemini custom commands are TOML files under `.gemini/commands`; a project file w
 a user file with the same name. crew generates:
 
 ```toml
-# generated-by: crew setup; registry-revision: 2
+# generated-by: crew setup; registry-revision: 5
 description = "Join and coordinate through the local crew inbox and reviewed task workflow"
 prompt = """
 Role and optional id: {{args}}
@@ -242,7 +254,7 @@ tools:
   - execute
 ---
 
-<!-- generated-by: crew setup; registry-revision: 2 -->
+<!-- generated-by: crew setup; registry-revision: 5 -->
 
 [shared finite workflow rendered here]
 ```
@@ -464,8 +476,8 @@ file's own format, with three fields separated by semicolons:
 generated-by: crew setup; registry-revision: <n>; content-hash: sha256:<64-hex>
 ```
 
-- Markdown / `SKILL.md` / `*.agent.md`: `<!-- generated-by: crew setup; registry-revision: 2; content-hash: sha256:… -->`
-- TOML (`crew.toml`): `# generated-by: crew setup; registry-revision: 2; content-hash: sha256:…`
+- Markdown / `SKILL.md` / `*.agent.md`: `<!-- generated-by: crew setup; registry-revision: 5; content-hash: sha256:… -->`
+- TOML (`crew.toml`): `# generated-by: crew setup; registry-revision: 5; content-hash: sha256:…`
 
 `content-hash` is the SHA-256 of the **rendered file with the `content-hash:` value
 replaced by an empty string**, written as lower-case hex, after line endings are
@@ -496,7 +508,7 @@ Each Participant entry supplies:
 
 ```text
 id, category, executable, user_path, project_path, format,
-invocation(role,id), launch_args?(role,id), readiness_names, readiness_mode?, render(), detect_version(),
+invocation(role,id,options?), launch_args?(role,id,options?), readiness_names, readiness_mode?, render(), detect_version(),
 version_package_json?, minimum_verified_version, verified_on, official_sources[]
 ```
 
