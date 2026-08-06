@@ -376,8 +376,9 @@ crew ui [--port <n>] [--no-open] [--json]
   keeps running on its own); Ctrl-C shuts it down. Every other crew feature works without
   this server and never requires it.
 - Without `--port`, crew chooses a random available port. `--port <n>` requires a decimal TCP
-  port from 1 through 65535 and uses that port instead; an invalid or unavailable explicit
-  port makes the command fail — crew never silently falls back to a different port.
+  port from 1 through 65535 and uses that port instead; an invalid port value fails as
+  `USAGE`, and a valid but unavailable one fails as `LAUNCH_FAILED` when the server cannot
+  bind — crew never silently falls back to a different port.
 - Every run generates a new secret token, includes it in the authenticated Console URL, and
   requires it on every HTTP request. The token is not emitted as a separate field or record.
 - The authenticated URL is a secret: anyone on the same machine who obtains it can act as the
@@ -385,10 +386,11 @@ crew ui [--port <n>] [--no-open] [--json]
   and terminal scrollback, and restarting `crew ui` invalidates it by generating a new token.
 - Human output prints the authenticated local URL after successful startup. By default crew
   then opens that URL in the browser; `--no-open` skips the browser opening without changing
-  how long the server runs. `--json` also skips it: no browser is opened for machine output,
-  whether or not `--no-open` is given. With `--json`, successful startup emits exactly one
-  `ui_started` line after the server is listening and before it continues serving in the
-  foreground.
+  how long the server runs. Crew never reports the outcome either way, and an opener that
+  fails is ignored by design: nothing is printed and the Console keeps serving. `--json`
+  also skips the opener: no browser is opened for machine output, whether or not `--no-open`
+  is given. With `--json`, successful startup emits exactly one `ui_started` line after the
+  server is listening and before it continues serving in the foreground.
 - The browser-side source lives under `web/`; `npm run build` uses esbuild to bundle it into
   `dist/ui-assets/`, which ships with the package so the Console works with no internet
   access. A Team launched from the Console never attaches a terminal; attaching to that
@@ -601,11 +603,13 @@ are only `warn` or `info` exit 0.
 ### Prune and clean results
 
 `prune` always emits exactly one `prune_result`, even when nothing was deleted.
-`messages_deleted` is the total number of Messages removed (Task-linked ones plus standalone
-read Messages); `tasks_deleted` counts the deleted completed and abandoned Tasks. With
-`--vacuum`, `vacuumed` is `true` only when the space-reclaiming `VACUUM` actually ran; if
-active Agents block it, the record is still emitted with `vacuumed:false` and the command
-then exits 1 (`ACTIVE_AGENTS`).
+`messages_deleted` is the total number of Messages removed, and it sums two deletions: the
+Messages linked to a Task that was pruned, which go with it whatever their age, plus every
+remaining read Message older than the Message cutoff — including one still linked to a Task
+that survived, so an old read Message can disappear while its Task stays. `tasks_deleted`
+counts the deleted completed and abandoned Tasks. With `--vacuum`, `vacuumed` is `true` only
+when the space-reclaiming `VACUUM` actually ran; if active Agents block it, the record is
+still emitted with `vacuumed:false` and the command then exits 1 (`ACTIVE_AGENTS`).
 
 ```json
 {"type":"prune_result","schema_version":1,"messages_deleted":12,"tasks_deleted":3,"vacuumed":false}
@@ -765,8 +769,11 @@ widths are pinned by the snapshot fixtures, not promised as an API.
   followed by `…` only when something was cut off.
 - A broadcast that reached nobody prints `Broadcast reached 0 recipients.` in human output
   and emits no JSON lines.
-- `crew ui` prints the authenticated local-only URL and whether it opened the browser, then
-  stays in the foreground until Ctrl-C. `--no-open` reports that the browser was not opened.
+- `crew ui` prints exactly two lines on successful startup: `Console listening at <url>
+  (workspace <path>)`, which carries the authenticated local-only URL, and a warning that the
+  URL embeds this run's secret token and that Ctrl-C stops the server. It then stays in the
+  foreground until Ctrl-C, and never says whether the browser was opened — `--no-open`
+  produces no output of its own.
 - Successful `crew team stop` output names the stopped session and how many Agents were
   archived, for example `Stopped crew-demo; archived 3 Agents.`
 
