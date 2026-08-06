@@ -367,17 +367,20 @@ crew ui [--port <n>] [--no-open] [--json]
   keeps running on its own); Ctrl-C shuts it down. Every other crew feature works without
   this server and never requires it.
 - Without `--port`, crew chooses a random available port. `--port <n>` requires a decimal TCP
-  port from 1 through 65535 and uses that port instead; an invalid or unavailable explicit
-  port makes the command fail — crew never silently falls back to a different port.
+  port from 1 through 65535 and uses that port instead; an invalid explicit port value fails
+  with `USAGE`, while an unavailable explicit port fails with `LAUNCH_FAILED` — crew never
+  silently falls back to a different port.
 - Every run generates a new secret token, includes it in the authenticated Console URL, and
   requires it on every HTTP request. The token is not emitted as a separate field or record.
 - The authenticated URL is a secret: anyone on the same machine who obtains it can act as the
   Operator until the server stops. Do not paste or share it; it can persist in browser history
   and terminal scrollback, and restarting `crew ui` invalidates it by generating a new token.
-- Human output prints the authenticated local URL after successful startup. By default crew
-  then opens that URL in the browser; `--no-open` skips the browser opening without changing
-  how long the server runs. With `--json`, successful startup emits exactly one `ui_started`
-  line after the server is listening and before it continues serving in the foreground.
+- Human output prints exactly two lines after successful startup: the authenticated local URL
+  and a warning that the URL embeds this run's secret token and that Ctrl-C stops the server.
+  By default crew then tries to open that URL in the browser; a failed opener is silent by
+  design and never stops the server. `--no-open` skips the browser opening without changing how
+  long the server runs. With `--json`, successful startup emits exactly one `ui_started` line
+  after the server is listening and before it continues serving in the foreground.
 - The browser-side source lives under `web/`; `npm run build` uses esbuild to bundle it into
   `dist/ui-assets/`, which ships with the package so the Console works with no internet
   access. A Team launched from the Console never attaches a terminal; attaching to that
