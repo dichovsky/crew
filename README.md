@@ -150,7 +150,8 @@ crew ui                        # start the Console; prints an authenticated loca
   the Console can also **act on** the Crew under the same rules as any other Agent: send a
   Message, create/approve/requeue a Task, launch a Team without attaching your terminal,
   stop a Team that crew can prove it started, peek at a pane, and run `prune`/`clean` after
-  you type a confirmation phrase.
+  a one-click dialog names the irreversible effect and the request carries a server-verified
+  `{ "confirm": true }` flag.
 - **The URL it prints is a secret** - anyone on the machine who has it can act as the
   Operator until the server stops. Don't paste or share it; restarting `crew ui` makes the
   old URL useless.
