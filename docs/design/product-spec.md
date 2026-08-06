@@ -134,7 +134,7 @@ stable.
 
 The optional local `crew ui` Console and the ability to stop an owned Team already ship in the
 codebase as an additive slice — nothing else depends on them — and are included from the first
-release. The Console is an interactive five-view browser app (Overview, Agents, Tasks,
+release. The Console is an interactive six-view browser app (Now, Overview, Agents, Tasks,
 Messages, Operations) that both observes crew state and drives it, acting under the same
 ordinary Store authority as any other caller — send a Message, approve or requeue a Task,
 launch or stop a Team, list the live sessions it owns, peek at a pane, and run maintenance

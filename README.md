@@ -131,15 +131,17 @@ screen:
 crew ui                        # start the Console; prints an authenticated local URL and opens it
 ```
 
-![The crew Console: a sidebar over five views - Overview, Agents, Tasks, Messages, and Operations](./docs/images/console-dashboard.png)
+![The crew Console's Overview screen: sidebar, headline counts, the live crew roster, what needs attention, and a recent-events feed](./docs/images/console-dashboard.png)
 
 - It is an HTTP server that you start yourself and that stays in the foreground of your
   terminal. It listens only on `127.0.0.1`, so it is reachable only from your own computer,
   and every request must carry a fresh secret token generated for that run. Ctrl-C stops it;
   it never detaches or keeps running in the background, and every other crew command works
   without it.
-- The dashboard is a live, interactive app with five views - **Overview** (crew activity,
-  items that need attention, recent events), **Agents**, **Tasks** (a board of the
+- The dashboard is a live, interactive app with six views - **Now** (the view you land on
+  first: one prioritized worklist of everything that needs you - stale leases, your review
+  queue, idle agents, unread messages), **Overview** (crew activity, items that need
+  attention, recent events), **Agents**, **Tasks** (a board of the
   `queued -> in_progress -> submitted -> completed` flow plus abandoned tasks, with each
   Task's detail and event timeline), **Messages**, and **Operations** (team launch, running
   sessions crew owns, a peek into any pane, health, maintenance). Looking at the dashboard

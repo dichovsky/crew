@@ -104,7 +104,7 @@ const NODES: readonly ArchNode[] = [
     label: 'Console',
     sub: 'crew ui',
     detail:
-      'The optional browser dashboard: five views, bounded non-consuming Store snapshots, and Operator actions with no authority beyond what the Store already allows. A foreground HTTP/SSE server, never a background process. Page assets are bundled at build time so it works offline.',
+      'The optional browser dashboard: six views, bounded non-consuming Store snapshots, and Operator actions with no authority beyond what the Store already allows. A foreground HTTP/SSE server, never a background process. Page assets are bundled at build time so it works offline.',
   },
   {
     id: 'db',

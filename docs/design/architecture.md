@@ -65,7 +65,7 @@ launched mode is not completely process-free.
 | Setup | install or inspect one Setup Target | asks Platforms for platform-specific facts; writes files behind guard checks |
 | Launcher | show a launch plan or create a tmux session | resolves worktrees, maps panes, waits for readiness, injects prompts, cleans up |
 | Relay | watch unread Message ids and stale Leases, type fixed reminders into panes | a polling loop over a tmux adapter; never sees Message content and never marks anything read |
-| Console | serve the optional interactive browser dashboard (five views: Overview, Agents, Tasks, Messages, Operations) and Store snapshots, and perform Operator actions with no authority beyond what the Store already allows | a foreground HTTP/SSE server reachable only from your own computer, plus page assets bundled at build time so it works offline |
+| Console | serve the optional interactive browser dashboard (six views: Now, Overview, Agents, Tasks, Messages, Operations) and Store snapshots, and perform Operator actions with no authority beyond what the Store already allows | a foreground HTTP/SSE server reachable only from your own computer, plus page assets bundled at build time so it works offline |
 | Format | render records for humans or as NDJSON (one complete JSON object per line) | strips terminal control sequences from human output; keeps the JSON envelopes stable |
 | Commands | parse one command and call a deeper Module | thin handlers containing no SQL and no hard-coded platform paths |
 
@@ -160,8 +160,8 @@ src/
 web/                            Preact + TypeScript dashboard source
   main.tsx                      browser entry point
   view-model.ts                 pure selectors + colour vocabularies (relative time, status/role/activity, review queue, attention, activity feed)
-  app.tsx                       sidebar shell + five-view router + toasts + one-click confirm modal
-  components/                  the five views + sidebar, toasts, confirm-dialog, health, peek, recovery-banner
+  app.tsx                       sidebar shell + six-view router + toasts + one-click confirm modal
+  components/                  the six views + sidebar, toasts, confirm-dialog, health, peek, recovery-banner
   index.html                    build-time page shell (loads two CDN fonts with a system fallback)
 templates/
   roles/{manager,worker,inspector}.md
