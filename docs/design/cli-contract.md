@@ -583,10 +583,10 @@ are only `warn` or `info` exit 0.
 
 `prune` always emits exactly one `prune_result`, even when nothing was deleted.
 `messages_deleted` is the total number of Messages removed (Task-linked ones plus standalone
-read Messages); `tasks_deleted` counts the deleted completed Tasks. With `--vacuum`,
-`vacuumed` is `true` only when the space-reclaiming `VACUUM` actually ran; if active Agents
-block it, the record is still emitted with `vacuumed:false` and the command then exits 1
-(`ACTIVE_AGENTS`).
+read Messages); `tasks_deleted` counts the deleted completed and abandoned Tasks. With
+`--vacuum`, `vacuumed` is `true` only when the space-reclaiming `VACUUM` actually ran; if
+active Agents block it, the record is still emitted with `vacuumed:false` and the command
+then exits 1 (`ACTIVE_AGENTS`).
 
 ```json
 {"type":"prune_result","schema_version":1,"messages_deleted":12,"tasks_deleted":3,"vacuumed":false}
