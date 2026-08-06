@@ -512,8 +512,7 @@ are recorded as [DEC-7 and DEC-8](./decisions.md); the release gate itself is de
 - Task dependencies, and queries for which Tasks are ready or grouped into phases.
 - Durable Agent memory and assembling briefings from it.
 - Approval records, and gates where a human must approve before work proceeds.
-- Automatically launching a mix of different Participant CLIs, and one worktree per
-  Agent.
+- Automatically launching a mix of different Participant CLIs.
 - ~~Browser write actions, pane peek, maintenance controls, and deleted-Workspace recovery~~ —
   since built (recovery is FR-U32). If the
   Workspace is deleted out from under it, the Console's poller broadcasts
@@ -524,4 +523,5 @@ are recorded as [DEC-7 and DEC-8](./decisions.md); the release gate itself is de
 
 None of these exist as empty placeholder interfaces in v1. A new seam is added only when
 a second implementation or a shipped use case actually needs it. The matching deferred
-requirements are FR-X01–X08 in the [software requirements specification](./srs.md).
+requirements are the FR-X series in the [software requirements specification](./srs.md),
+except FR-X07, which ADR-0015 promoted to the shipped group W contract.
