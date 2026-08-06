@@ -11,9 +11,11 @@ state-machine behavior.
 | Unit | validators, formatters, Role/Team/platform registry, launch plan | in-process | fast, exhaustive edge cases |
 | Store integration | Store domain operations against temp SQLite | in-process, real DB | schema constraints, transitions, migrations, transactions |
 | Program integration | `run(argv, io)` | in-process | parsing, exit/error/output contracts for every command |
+| Browser component | Console dashboard and documentation-site modules in jsdom | in-process, jsdom | rendering, view-model, and routing behavior without a real browser |
 | Spawn | built `crew` executable | many OS processes | locking, stdout/stderr, shebang, signals, crash behavior |
 | Launcher contract | Launcher with recording process adapter | in-process | the exact subprocess argv, call order, cleanup, no shell interpretation |
 | tmux e2e | built executable + real tmux | real processes | pane readiness, Relay nudge, session cleanup |
+| Console browser e2e | built dashboard bundle served by `crew ui` | real server + Chromium | the board renders seeded Workspace data and Operator actions apply |
 | Platform smoke | installed Participant CLI | release-only/manual or isolated job | generated artifact discovery and a finite workflow |
 | Package smoke | packed tarball in clean temp prefix | real install | published file list, templates, executable, runtime floor |
 
@@ -21,13 +23,23 @@ The spawn layer starts many real operating-system processes on purpose, so it ca
 behavior — locking, crashes, signals — that in-process tests cannot reach. "e2e" means
 end-to-end: the whole path is exercised, from the built executable to a real tmux session.
 
+The browser-component layer is two vitest projects, `web` (the Console dashboard under
+`web/`) and `docs` (the documentation site under `docs-site/`), both running in jsdom. They
+run on every PR as part of `npm run test:coverage`, but they stay outside the 95% coverage
+gate, which measures `src/**` and `bin/**` only. The Console browser e2e is deliberately off
+the PR critical path: `npm run e2e:ui` drives the Playwright specs under `e2e/ui/` against a
+real Chromium, and `.github/workflows/ui-e2e.yml` runs them nightly, on manual dispatch, and
+on a PR only when it carries the `ui-e2e` label. A flaky failure there is a release failure,
+not a candidate for a blind retry.
+
 ## Test environment matrix
 
-- Self-hosted GitHub Actions runner, Node `24.18.0`.
-- CI requires the self-hosted runner to provide tmux and runs the test suite with
-  `CREW_REQUIRE_TMUX=1`, so the real-tmux e2e always runs in CI and a missing tmux is a hard
-  failure (never a silent skip). Locally the real-tmux e2e gracefully skips when tmux is
-  absent; the recording-adapter tests remain mandatory everywhere.
+- GitHub-hosted GitHub Actions runners (`ubuntu-latest`), Node `24.18.0`.
+- The tmux-dependent workflows install tmux themselves (`apt-get install -y tmux`, then
+  `tmux -V` to prove it) and run the test suite with `CREW_REQUIRE_TMUX=1`, so the real-tmux
+  e2e always runs in CI and a missing tmux is a hard failure (never a silent skip). Locally
+  the real-tmux e2e gracefully skips when tmux is absent; the recording-adapter tests remain
+  mandatory everywhere.
 - Windows may run the core Program/Store tests as informational until officially supported.
 
 Tests use an isolated temporary `HOME`, Workspace, XDG variables, Git repo, and database. No
@@ -114,11 +126,11 @@ This suite forces many processes to hit the database at the same time. All child
 wait on a shared start barrier so their operations genuinely overlap. One knob,
 `CREW_STRESS_ITERS`, scales every statistical case together (the deterministic
 CONTENTION/lock and crash cases run once); the two CI tiers run a fast 25 iterations per case
-on every PR and the full 500 per case nightly and at release on the self-hosted runner at
-Node `24.18.0`. The local `npm run test:stress` convenience script defaults to an
-intermediate 300 per case (override via `CREW_STRESS_ITERS`) as a quick pre-push check
-between those tiers. The random retry delay is seeded per child from `CREW_STRESS_SEED`
-(default 1), so a run can be replayed, apart from OS scheduling differences.
+on every PR and the full 500 per case nightly and at release at Node `24.18.0`. The local
+`npm run test:stress` convenience script defaults to an intermediate 300 per case (override
+via `CREW_STRESS_ITERS`) as a quick pre-push check between those tiers. The random retry
+delay is seeded per child from `CREW_STRESS_SEED` (default 1), so a run can be replayed,
+apart from OS scheduling differences.
 
 1. **Same-id join:** N processes request `worker`; the result is exactly N unique ids with no
    gaps in the claimed suffix range and no claim that reported success but did not stick.
@@ -231,7 +243,8 @@ temporary prefix and verify:
 
 - `crew --version` and `crew --help`;
 - init + join + send + receive + reviewed Task flow;
-- packaged Role/Team resolution through `import.meta.url`;
+- the Role/Team templates, which ship as compiled-in string constants (`src/templates.ts`)
+  with no runtime path resolution, seed a Workspace through the packed executable's `init`;
 - the executable bit and shebang line on macOS and Linux;
 - Node below the engine floor fails with a clear message;
 - no source maps or test fixtures leak secrets or local paths.
