@@ -116,8 +116,11 @@ const MAX_REDACTED_LENGTH = 2048;
 // The value (double-quoted with spaces, single-quoted, or a bare token) is masked
 // only when the key ENDS WITH a credential word — bare or namespaced, so
 // `launch_token`, `CREW_LAUNCH_TOKEN`, `signing_key`, and `db_credential` all match
-// while `monkey`/`author` do not. The credential-word set mirrors the name-based
-// env-guardrail set documented in security.md (FR-J14).
+// while `monkey`/`author` do not. The credential-word set below is the vocabulary
+// of this keyed-pair rule alone — a free-text redaction applied to error and setup
+// output (FR-J14). It is not an environment guardrail: crew's no-credential-env
+// property (FR-J13) holds because no environment value is ever copied into a
+// record, not because any name is matched.
 const KEYED_PAIR =
   /([A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?)((\s*[=:]\s*)(?:"([^"]*)"|'([^']*)'|([^\s",;]+)))?/g;
 const CREDENTIAL_KEY =
