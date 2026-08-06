@@ -4,8 +4,9 @@ status: accepted
 
 # A launched Crew inside a git worktree uses the worktree's own ephemeral State Store
 
-> **Amended by [ADR-0015](./0015-per-worker-task-worktrees.md).** The paragraph below files
-> "several worktrees, one shared Store" as the *deferred* per-Agent-worktrees goal (FR-X07). It is
+> **Amended by [ADR-0015](./0015-per-worker-task-worktrees.md).** Two passages below — the "NOT a
+> redirect to a shared main Store" paragraph and the closing consequence — call "several worktrees,
+> one shared Store" the *deferred* per-Agent-worktrees goal (FR-X07). It is
 > no longer deferred: ADR-0015 built it as the opt-in group W contract (FR-W01–FR-W15), and
 > `docs/design/srs.md` now records FR-X07 as promoted, retaining the id only as the historical
 > source citation. This ADR's own decision — that a whole-Crew worktree launch uses the worktree's
