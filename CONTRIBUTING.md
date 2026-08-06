@@ -57,6 +57,7 @@ pushing.
   - `ui-e2e.yml` — the Console dashboard browser smoke, which builds the real dashboard
     bundle, starts `crew ui`, and drives it in Chromium with Playwright (the `ui-e2e`
     label). It is not part of `npm test`; locally you run it on demand with
+    `npx playwright install --with-deps chromium` once to get the browser, then
     `npm run e2e:ui`.
 
 If a full-tier run fails only some of the time, treat that as a release blocker. Do not
