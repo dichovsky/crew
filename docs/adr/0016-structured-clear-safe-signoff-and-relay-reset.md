@@ -12,12 +12,12 @@ Worker itself: a free-text Sign-off `note` from the Manager gave the Worker perm
 its own CLI's clear or compact command. Two assumptions behind that ADR have since turned out
 to be wrong:
 
-1. **A Worker cannot clear its own context.** Research across five of the Participant CLIs crew
-   supports (Claude Code, Codex CLI, Gemini CLI, Copilot CLI, Antigravity CLI, verified
-   mid-2026) found that every one exposes its reset only as a slash command the human user types
-   (`/clear`), and none lets the model inside the session trigger it — not as a tool, not as a
-   command the model can emit. ADR-0014's instruction "use your own CLI's clear/compact
-   mechanism" does nothing on any engine surveyed.
+1. **A Worker cannot clear its own context.** Research across all five supported engines
+   (Claude Code, Codex CLI, Gemini CLI, Copilot CLI, Antigravity CLI, verified mid-2026) found
+   that every one exposes its reset only as a slash command the human user types (`/clear`),
+   and none lets the model inside the session trigger it — not as a tool, not as a command the
+   model can emit. ADR-0014's instruction "use your own CLI's clear/compact mechanism" does
+   nothing on every engine crew supports.
 2. **A free-text convention gives tooling nothing to act on.** If crew itself must deliver the
    reset (see below), it needs a signal a machine can recognize, not wording an LLM recognizes.
    ADR-0014 explicitly deferred a structured Message kind.
@@ -52,12 +52,11 @@ Relay types the engine's reset command into the pane, followed by a fixed re-int
 (`You are crew agent <actual-id> (role <role>) in this workspace. Run: crew receive
 <actual-id>`) — both fixed templates whose only variable parts are ids, added to the FR-H15/H17
 list of allowed pane injections. The platform registry gains a per-engine reset command that
-may be null — `/clear` on each of the five Participant CLIs surveyed above, with the value for
-every other id in `src/participants.ts` settled when the field is actually built — superseding
-ADR-0014's "the registry tracks no per-CLI context-clear/compact command"; when it is null, the
-Relay types nothing and the Worker simply continues with its full history. The Relay delivery,
-the registry field, and their requirements land in a follow-up change to this one; the schema
-signal ships first so a real crew can verify it.
+may be null (for all five current engines it is `/clear`), superseding ADR-0014's "the registry
+tracks no per-CLI context-clear/compact command"; when it is null, the Relay types nothing and
+the Worker simply continues with its full history. The Relay delivery, the registry field, and
+their requirements land in a follow-up change to this one; the schema signal ships first so a
+real crew can verify it.
 
 **ADR-0014's *when* stands unchanged.** The Sign-off comes only after landing, never right
 after a Submission; abandoning is the immediate exception; and crew still cannot observe
@@ -93,3 +92,22 @@ commands are **not** uniformly `/clear`, so the follow-up per-engine reset field
 assume it: **opencode** resets with `/new` (documented alias `/clear`), but **pi** has
 **no `/clear` and no `/reset`** — its only context reset is `/new`. Record `/new` for both
 when the Relay-delivered reset lands.
+
+## Update — the roster outgrew the "five current engines" the Decision counts
+
+"All five supported engines" in the Context and "all five current engines" in the Decision were
+accurate when this ADR was written: `PARTICIPANT_IDS` held exactly those five ids. The roster has
+grown twice since — `pi-cli` and `opencode-cli` the day after (the additions the update above
+records), then `little-coder` — and `src/participants.ts` now declares **eight**. Both sentences
+should therefore be read as the roster and the survey at the time of the decision, not as a
+current count, and the follow-up building the registry field must cover all eight ids rather than
+take "five" as the set.
+
+Reset facts by engine, as far as they have been established: `/clear` for the five surveyed
+above; `/new` for `opencode-cli` and `pi-cli` per the preceding update, which already shows the
+`/clear` generalization does not extend to later engines. **`little-coder` is the one id with no
+recorded reset fact** — nothing in `src/platforms/little-coder.ts` or
+`docs/design/setup-integration.md` states one, and this ADR does not invent it; it must be
+researched when the field lands, exactly as the two engines above were. The nullable-command
+decision itself is unaffected: a command that has not been established is precisely the null case
+the Decision already provides for, and the registry field remains deferred to the follow-up.

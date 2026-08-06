@@ -1,8 +1,10 @@
 name: Stress (full forced-contention matrix)
 
 # Release-gate stress tier (testing-strategy "Forced-contention spawn suite"):
-# hundreds of iterations of every contention case at the Node floor (the bundled
-# node:sqlite governs locking behaviour).
+# hundreds of iterations of every contention case at the Node version pinned
+# below (the bundled node:sqlite governs locking behaviour). That version is
+# ABOVE the >=24.15 floor in src/node-floor.ts, and this job runs one Linux leg
+# only, so the tier does not cover the oldest supported runtime or macOS.
 # This is OFF the PR critical path: ci.yml's fast tier (25/case) is the per-PR gate.
 # This heavy tier runs nightly on main, on manual dispatch (release prep), and on a
 # PR only when explicitly opted in with the `stress-full` label. A flaky failure
@@ -28,8 +30,10 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
-          # Node floor: the lowest supported runtime, whose bundled node:sqlite is
-          # the most likely to expose least-favourable locking/retry edges.
+          # Pinned to the same Node version as ci.yml. NOT the floor: the lowest
+          # supported runtime (>=24.15, src/node-floor.ts) has the bundled
+          # node:sqlite most likely to expose least-favourable locking/retry
+          # edges, and this tier does not exercise it.
           node-version: '24.18.0'
           cache: npm
       - run: npm ci

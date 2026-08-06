@@ -7,23 +7,27 @@ status: accepted
 > **Amended by [ADR-0013](./0013-console-redesign.md) and
 > [ADR-0017](./0017-console-now-view-theme-and-agent-archive.md).** Three of the decisions below
 > have since been re-scoped. **Presentation and confirmation:** the single read-then-act page is
-> now a view-per-concern app — five views under ADR-0013, six once ADR-0017 added Now — and the
-> typed-phrase confirmation was replaced by an explicit one-click `{ confirm: true }` flag
-> (ADR-0013 `:30-37`, re-scoping FR-U25), so "run `prune` or `clean` behind a typed confirmation"
-> below no longer describes the mechanism. **Offline:** "its browser files are packed into crew at
-> build time, so the Console works without internet access" was re-scoped by ADR-0013's decorative
-> CDN fonts (`:52-57`, re-scoping FR-U08); the guarantee is now "fully usable offline", with those
-> two typefaces the single external request and a system-font fallback. **The list of approved
-> Operator actions is no longer closed:** ADR-0017 amended FR-U19 to add Operator Agent archive
-> and restore (FR-U36) and ruled that FR-U19's enumeration, not this ADR's list, is the Console's
-> actual action boundary (`:77-79`). FR-U19 today also enumerates resuming a Team — the shipped
-> `POST /api/team/resume` route — which this list predates and which, unlike every other entry,
-> still has no governing FR of its own. What this ADR decided about the server itself stands
-> unchanged: an explicitly started foreground process bound to `127.0.0.1` with a fresh per-run
-> token, the Operator as an ordinary unprivileged Agent row, every read and write through existing
-> Store domain methods, reads that never consume a Message, `team stop` acting only on a session
-> the crew-written pane-map proves crew owns, and the honest-presentation rule. The text below is
-> kept as the decision was made.
+> now a view-per-concern app — five views under ADR-0013, six once ADR-0017 added Now — and
+> ADR-0013's "confirming a destructive action takes one click, not a typed phrase" decision
+> re-scoped FR-U25, so "run `prune` or `clean` behind a typed confirmation" below no longer
+> describes the mechanism; the flag is `{ confirm: true }`. **Offline:** "its browser files are
+> packed into crew at build time, so the Console works without internet access" was re-scoped by
+> ADR-0013's "two decorative web fonts load from a CDN" decision (FR-U08). The guarantee is now
+> "fully usable offline": those typefaces are the single external request, they fall back to
+> system fonts, and nothing the Console needs to function is ever fetched. That re-scope also
+> qualifies the "a separate npm package" alternative below, whose "shipping the offline browser
+> files inside crew" reasoning still holds for the dashboard code and endpoints but no longer for
+> the typefaces. **The list of approved Operator actions is no longer closed:** ADR-0017 amended
+> FR-U19 to add Operator Agent archive and restore (FR-U36), and its Consequences rule that
+> FR-U19's enumeration, not this ADR's list, is the Console's actual action boundary. FR-U19
+> today also enumerates resuming a Team — the shipped `POST /api/team/resume` route — which this
+> list predates. `crew team resume`'s own preconditions are specified (FR-U40–FR-U45); what has
+> no requirement of its own is the Console-side action, the analogue of FR-U36. What this ADR
+> decided about the server itself stands unchanged: an explicitly started foreground process
+> bound to `127.0.0.1` with a fresh per-run token, the Operator as an ordinary unprivileged Agent
+> row, every read and write through existing Store domain methods, reads that never consume a
+> Message, `team stop` acting only on a session the crew-written pane-map proves crew owns, and
+> the honest-presentation rule. The text below is kept as the decision was made.
 
 ## Context
 

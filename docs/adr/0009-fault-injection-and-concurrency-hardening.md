@@ -48,9 +48,9 @@ and blocks the merge on failure; a separate job runs the full count (500 per cas
 manual dispatch during release prep, and on a PR only when it explicitly opts in with the
 `stress-full` label. That heavy tier keeps the failure output for inspection and never retries
 blindly — a concurrency test that fails only sometimes is treated as a release failure, not
-noise. Both tiers currently run on Linux at the CI Node version (`24.18.0`), which is above the
-`24.15` floor in `src/node-floor.ts`, so the forced-contention evidence is single-OS and
-non-floor; a macOS leg and a floor-Node leg would each widen it.
+noise. Both tiers currently run one Linux leg at the same pinned Node version as the rest of CI,
+which is above the `>=24.15` floor in `src/node-floor.ts`, so the forced-contention evidence is
+single-OS and non-floor; a macOS leg and a floor-Node leg would each widen it.
 
 The consequence: crashes, lock contention, and hostile inputs are all exercised through the real
 program with inputs that can be replayed exactly, and the one destructive maintenance command
