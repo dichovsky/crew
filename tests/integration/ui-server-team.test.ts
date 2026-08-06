@@ -139,7 +139,7 @@ function fakeTmux(
 ): FakeTmux {
   const ops: string[] = [];
   let paneCounter = 0;
-  let pendingJoin: { id: string; role: string } | null = null;
+  let pendingJoin: { id: string; role: string; resume: boolean } | null = null;
   let launchToken: string | undefined;
   let sessionOwner: string | null = null;
   // Stateful session existence: a launch creates it, a kill removes it, so a
@@ -189,9 +189,16 @@ function fakeTmux(
     },
     setBufferArg: (_b, content) => {
       ops.push('setBufferArg');
-      const parts = content.trim().split(/\s+/);
+      const tokens = content.trim().split(/\s+/);
+      // A resume launch appends `--resume` to the same invocation; drop flags
+      // before positional parsing so the role/id pair is read the same way.
+      const parts = tokens.filter((token) => !token.startsWith('-'));
       if (parts.length >= 3 && parts[0]?.includes('crew')) {
-        pendingJoin = { role: parts[parts.length - 2]!, id: parts[parts.length - 1]! };
+        pendingJoin = {
+          role: parts[parts.length - 2]!,
+          id: parts[parts.length - 1]!,
+          resume: tokens.includes('--resume'),
+        };
       }
       return Promise.resolve();
     },
@@ -208,9 +215,14 @@ function fakeTmux(
       if (pendingJoin !== null) {
         const store = openWorkspaceStore(cwd, () => 0);
         try {
+          // The real pane registers on the configured client, and a resume
+          // reactivates the archived exact row rather than allocating a suffix;
+          // both are preconditions `team resume` re-checks before relaunching.
           store.joinAgent({
             id: pendingJoin.id,
             role: pendingJoin.role,
+            platformId: 'codex-cli',
+            ...(pendingJoin.resume ? { resume: true as const } : {}),
             ...(launchToken !== undefined ? { launchToken } : {}),
           });
         } finally {
@@ -498,6 +510,27 @@ describe('POST /api/team/stop (FR-U26–U29 reused)', () => {
     // The unrelated observer's inbox was never consumed by the Console.
     expect(store.getPendingSummary('observer').unreadCount).toBe(1);
     expect(store.receiveMessages('observer').map((m) => m.content)).toEqual(['still unread']);
+  });
+});
+
+describe('POST /api/team/resume (FR-U20)', () => {
+  it('resumes a cleanly stopped session DETACHED: zero attach calls', async () => {
+    const { cwd, io } = teamWorkspace();
+    const fake = fakeTmux(cwd);
+    const { port } = await serve(io, cwd, fake);
+
+    await post(port, '/api/team/launch', { team: 'dev' });
+    await post(port, '/api/team/stop', { session: SESSION, confirm: true });
+    fake.ops.length = 0;
+
+    const reply = await post(port, '/api/team/resume', { session: SESSION });
+    expect(reply.status).toBe(200);
+    expect(envelope(reply).ok).toBe(true);
+    // Same detached proof as launch: the session was rebuilt, attach never fired.
+    // The Console server is not the Operator's terminal, so `tmux attach` must
+    // never be reachable from an HTTP request (FR-U20).
+    expect(fake.ops).toContain('newSession');
+    expect(fake.ops).not.toContain('attach');
   });
 });
 

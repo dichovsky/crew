@@ -373,6 +373,9 @@ export async function launchTeam(
  * `POST /api/team/resume` — a DETACHED recovery launch of a cleanly stopped
  * Team session. The stored launch plan must still match the current Team
  * config exactly; broken leftovers are for `doctor` to diagnose, not repair.
+ * Like {@link launchTeam}, the `noAttach` seam is passed explicitly: the
+ * resumed plan carries the same `attach: true` a terminal launch would, and
+ * this server process is not the Operator's terminal (FR-U20).
  */
 export async function resumeTeam(
   deps: TeamActionDeps,
@@ -381,7 +384,17 @@ export async function resumeTeam(
   const fields = bodyFields(body, ['session']);
   const session = requiredString(fields, 'session');
   const resume = await capturedRecord(deps.io, async (captured) => {
-    await runTeamResume(captured, session, { json: true }, deps);
+    await runTeamResume(
+      captured,
+      session,
+      { json: true },
+      {
+        adapter: deps.adapter,
+        delay: deps.delay,
+        relayBin: deps.relayBin,
+        noAttach: true,
+      },
+    );
   });
   return { resume };
 }

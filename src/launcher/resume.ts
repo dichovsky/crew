@@ -170,12 +170,17 @@ export async function listResumableSessions(
 /**
  * `crew team resume <session>`: strict recovery from a clean stop. The stored
  * launch plan must still match current tracked config exactly.
+ *
+ * `noAttach` is part of the deps slice so a caller that is NOT a terminal can
+ * force the detached recovery the resume path already describes: the Console
+ * passes it (FR-U20 — attaching stays a terminal-only action), while the CLI
+ * omits it and keeps the plan-driven attach behavior unchanged.
  */
 export async function runTeamResume(
   io: Io,
   session: string,
   opts: { readonly json: boolean },
-  deps: Pick<LiveLaunchDeps, 'adapter' | 'delay' | 'relayBin'>,
+  deps: Pick<LiveLaunchDeps, 'adapter' | 'delay' | 'relayBin' | 'noAttach'>,
 ): Promise<void> {
   const root = resolveWorkspaceRoot(io.cwd);
   if (!(await deps.adapter.isPresent())) {
