@@ -25,7 +25,7 @@
     ]
   },
   "registry": {
-    "revision": 5,
+    "revision": 6,
     "participants": [
       {
         "id": "claude-code",

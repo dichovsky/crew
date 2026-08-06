@@ -139,6 +139,27 @@ describe('participant artifact rendering', () => {
     expect(inv('opencode-cli')).toBe('/crew worker worker-2 --resume');
   });
 
+  it('teaches every artifact to read the resume signal off its own arguments (FR-U47)', () => {
+    // A Participant CLI cannot see tmux session history, so the appended `--resume`
+    // token is the pane's only evidence that it is recovering a clean stop. The
+    // workflow's parse rule must therefore admit that token, and the join step must
+    // key off it rather than off a state the pane has no way to observe.
+    const claude = PARTICIPANT_TARGETS.find((t) => t.id === 'claude-code')!;
+    expect(claude.invocation('worker', 'worker-2', { resume: true }).split(' ').at(-1)).toBe(
+      '--resume',
+    );
+    for (const t of PARTICIPANT_TARGETS) {
+      const body = t.render();
+      expect(body, `${t.id} parse rule hides the appended --resume`).toContain(
+        'as `<role> [id] [--resume]`',
+      );
+      expect(body, `${t.id} join step ignores the --resume token`).toContain(
+        'If the arguments included',
+      );
+      expect(body).toContain('add `--resume` to the join command.');
+    }
+  });
+
   it('keeps Copilot interactive guidance separate from its startup command', () => {
     const copilot = PARTICIPANT_TARGETS.find((target) => target.id === 'copilot-cli')!;
     expect(copilot.launchArgs?.('worker', 'worker-2')).toEqual([
@@ -232,16 +253,16 @@ describe('participant artifact rendering', () => {
     // bytes, the digest changes and this fails, forcing both an update here AND a
     // REGISTRY_REVISION bump so previously-installed artifacts read as managed-outdated.
     const expected: Record<string, string> = {
-      'claude-code': '836139943f352f9666e8f4a571800f25d1b5a13074bd138b9e6ed364ccba9846',
-      'codex-cli': '23d654db4c2f3a9154a9dfdb73ede7205eee16b6613fd2e42adf77eb4e597163',
-      'gemini-cli': '94ff656f119473d85dfc90858584d88e7555b262b72edd7bb65552a205abdf29',
-      'copilot-cli': '7ae9e5276e6894dd5f18a8f0a6e8ba8ee767b947370acb8e3eec7a9f84d8a779',
-      'antigravity-cli': '23d654db4c2f3a9154a9dfdb73ede7205eee16b6613fd2e42adf77eb4e597163',
-      'pi-cli': '26853d7cfaafcc613c568bfa5ca07edee3914040745ab2d0e6cb8c9cef5cdd20',
-      'little-coder': '26853d7cfaafcc613c568bfa5ca07edee3914040745ab2d0e6cb8c9cef5cdd20',
-      'opencode-cli': 'dbe88df8e72e1fb719cc6d3b7667cf0fb0361a81ac0efdbb61cfbbfa4fd3541e',
+      'claude-code': '63a59d4a434ccb72948e8dbdef60c9254e942ae7c18e102d04272036193e64e4',
+      'codex-cli': '01d9c942ba8f095d6a7853d41a91c719e45e0c558526869f4c89670f15de5e88',
+      'gemini-cli': 'e86bd4ae9a7dec4932b136105affeafedf446e07d13d5dacc89813924b099682',
+      'copilot-cli': '1ee19562275914d4ff059bfe0d1cd67696b53d4ccec07f6c4eb1ea03d8e90e87',
+      'antigravity-cli': '01d9c942ba8f095d6a7853d41a91c719e45e0c558526869f4c89670f15de5e88',
+      'pi-cli': 'daa2e6e6604eeab67b5c7a279ddf088ab92c1837b46da11bc0ffee77c6da65f4',
+      'little-coder': 'daa2e6e6604eeab67b5c7a279ddf088ab92c1837b46da11bc0ffee77c6da65f4',
+      'opencode-cli': 'b3be65a516d2ac14f90f120e23c0e86e96d1171e7bf852efe6b9693eef3366c0',
     };
-    expect(REGISTRY_REVISION).toBe(5); // bump together with the digests above
+    expect(REGISTRY_REVISION).toBe(6); // bump together with the digests above
     for (const t of PARTICIPANT_TARGETS) {
       const hash = /content-hash: sha256:([0-9a-f]{64})/.exec(t.render())![1];
       expect(hash, `${t.id} artifact bytes changed`).toBe(expected[t.id]);
