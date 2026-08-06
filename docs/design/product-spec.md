@@ -105,12 +105,12 @@ requires one process that stays alive for as long as the tmux session does.
 ## Release gates
 
 This is the **canonical release-gate list**. Other documents reference it and must not keep a
-separate copy — release status included, which [docs/README.md](../README.md) owns. crew has shipped
-to npm. Because npm's OIDC Trusted Publishing can only attach to a package that already
-exists, the first release (`0.1.0`) was published once by hand;
-from `0.1.1` on, a published GitHub Release runs `.github/workflows/publish.yml`, which
-publishes via OIDC with provenance and no stored npm secret (see
-[publishing.md](../release/publishing.md)). The
+separate copy; the **current published version** likewise lives only in
+[docs/README.md](../README.md). crew has shipped to npm. Because npm's OIDC Trusted
+Publishing can only attach to a package that already exists, the first release (`0.1.0`)
+was published once by hand; from `0.1.1` on, a published GitHub Release runs
+`.github/workflows/publish.yml`, which publishes via OIDC with provenance and no stored
+npm secret (see [publishing.md](../release/publishing.md)). The
 SQLite-stress and Security-review gates are closed, and the Relay-proof gate's full
 end-to-end test — a launch against real tmux with a fake Participant standing in for a real
 CLI — is in place. Every part of the remaining gates that a machine
