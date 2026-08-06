@@ -4,6 +4,14 @@ status: accepted
 
 # A launched Crew inside a git worktree uses the worktree's own ephemeral State Store
 
+> **Amended by [ADR-0015](./0015-per-worker-task-worktrees.md).** The paragraph below files
+> "several worktrees, one shared Store" as the *deferred* per-Agent-worktrees goal (FR-X07). It is
+> no longer deferred: ADR-0015 built it as the opt-in group W contract (FR-W01–FR-W15), and
+> `docs/design/srs.md` now records FR-X07 as promoted, retaining the id only as the historical
+> source citation. This ADR's own decision — that a whole-Crew worktree launch uses the worktree's
+> own ephemeral Store — stands unchanged; ADR-0015 is a second, independent mechanism beside it,
+> not a replacement. The text below is kept as the decision was made.
+
 ADR-0008 deferred launching live into a git worktree — a separate working copy of the
 repository that shares the same history — for exactly one reason: nobody had decided *where the
 launched Crew's State Store lives* in that case. A whole-Crew worktree checks out the tracked

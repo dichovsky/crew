@@ -558,7 +558,7 @@ rather than restating them.
 - **FR-H09 — Safe spawn.** Subprocesses shall be spawned with argument arrays and `shell:false`.
   *Verify: automated test — `tests/unit/launcher/tmux.test.ts`.*
 - **FR-H10 — Worktree containment.** Worktree containment shall be validated and unsafe paths
-  rejected. *Verify: automated test — `tests/unit/launcher/worktree.test.ts`, `tests/unit/launcher/ref.test.ts`.*
+  rejected. *Verify: automated test — `tests/unit/worktree.test.ts`, `tests/unit/launcher/ref.test.ts`.*
 - **FR-H11 — Registry launch injection.** Pane startup argv and any post-start pane paste shall
   come from the platform registry; post-start input shall use paste-buffer mechanics. *Verify:
   automated test — `tests/unit/launcher/tmux.test.ts`,
@@ -586,10 +586,10 @@ rather than restating them.
   Workspace. *Verify: automated test — `tests/unit/relay.test.ts`.*
 - **FR-H21 — Whole-Crew worktree.** Optional worktree isolation shall create or reuse one
   contained worktree — a separate working copy of the repository — shared by the entire Crew.
-  *Verify: automated test — `tests/unit/launcher/worktree.test.ts`.*
+  *Verify: automated test — `tests/unit/worktree.test.ts`.*
 - **FR-H22 — Argument-safe refs.** Worktree branch and base values shall be safe to pass as
   plain command arguments (nothing in them can be mistaken for a flag or shell syntax).
-  *Verify: automated test — `tests/unit/launcher/ref.test.ts`, `tests/unit/launcher/worktree.test.ts`.*
+  *Verify: automated test — `tests/unit/launcher/ref.test.ts`, `tests/unit/worktree.test.ts`.*
 - **FR-H23 — Launch token injection.** A live launch shall generate a per-invocation
   cryptographic token and inject it into each pane's environment as `CREW_LAUNCH_TOKEN`.
   *Verify: automated test — `tests/store/launch-token.test.ts`, `tests/unit/launcher/tmux.test.ts`.*
