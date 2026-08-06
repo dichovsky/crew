@@ -242,15 +242,13 @@ Delegate to an implementer subagent. Brief it with: the issue number and
 body, your verification findings, the plan, the constraints below, the
 verification gate, and the required output format.
 
-**Branch discipline (hard rule, from `CONTRIBUTING.md` and `CLAUDE.md`):**
+**Branch discipline (hard rule; see `CONTRIBUTING.md` and `CLAUDE.md`):**
 
-```sh
-git checkout main && git pull && git checkout -b <type>/<slug>
-```
+`git checkout main && git pull && git checkout -b feat/<slug>`
 
-Branch type follows the commit type: `fix/`, `docs/`, `feat/`, `chore/`,
-`refactor/`, `test/`, `ci/`, `perf/`. Never continue work on a merged branch.
-One unit of work, one branch, one PR.
+Before editing any code, follow `CLAUDE.md`'s baseline checks (confirm the prior work is merged; verify `git branch --show-current`).
+
+Never continue work on a merged branch. One unit of work, one branch, one PR.
 
 **Scope:** every changed line must trace to the issue. Do not improve
 adjacent code, comments, or formatting. Do not delete pre-existing dead code.
