@@ -64,6 +64,48 @@ transitions, but they do not authenticate anyone. Session tokens are deferred; t
 detect a replaced terminal, not provide authorization. Operating-system file permissions are
 the v1 control.
 
+### Console network exposure
+
+`crew ui` starts the only crew component that accepts network requests, so it is the one
+surface another process could reach without a filesystem handle. It exists only when the
+Operator asks for it: the Console is optional, runs in the foreground, and never detaches, so
+it is reachable for exactly as long as that one command runs (ADR-0012; FR-U01, FR-U06,
+FR-U07).
+
+The server binds `127.0.0.1` only — never a wildcard or an externally routable address — so
+nothing off the machine can connect (FR-U02). Each run draws a fresh secret token from
+`node:crypto` and requires it on every request, as `?token=` or an `Authorization: Bearer`
+header; the check runs before any routing, so a request that reaches it without the token gets
+401 and reaches no handler (FR-U04). The byte comparison goes through `timingSafeEqual`, so a
+same-length wrong token reveals nothing through response timing; an unequal-length token
+short-circuits to a plain miss instead of throwing, which leaks only the token's length — a
+fixed length that is already public, since the token is printed in the startup URL. The token
+lives and dies with the run; the next `crew ui` mints a new one.
+
+Loopback binding alone would not stop a page in the Operator's own browser from driving the
+port, because a hostname an attacker controls can be pointed at `127.0.0.1` (DNS rebinding).
+Every request must therefore also carry a `Host` header of exactly `127.0.0.1:<bound port>` or
+`localhost:<bound port>`; anything else is refused with 403 before the token is even examined.
+Every response the Console writes carries `Cache-Control: no-store`, so token-bearing URLs and
+Workspace content are not written to a shared HTTP cache. A request target that Node's HTTP
+parser accepts but WHATWG URL parsing rejects returns a 400 `USAGE` envelope rather than
+destroying the socket, keeping malformed input inside the ordinary error vocabulary (FR-U10).
+The Console invents no authority: every Console read and write uses an existing Store domain
+method (FR-U11), every Console action invokes the corresponding existing command or domain
+operation and preserves its authority and invariants (FR-U18), its dashboard reads do not
+consume Messages (FR-U12), pane peek is stripped of control bytes before it is returned
+(FR-U24), and destructive actions require an explicit confirmation (FR-U25).
+
+**The startup URL carries a live credential.** The token is printed inside the URL
+(`http://127.0.0.1:<port>/?token=<token>`) so the link is directly usable, and FR-U04
+deliberately scopes the token to that one place. The consequence is that the URL is a bearer
+credential for the lifetime of the run. `crew ui` prints it and, by default, hands it to the
+platform's browser opener, so it can persist in browser history and terminal scrollback; it is
+also passed as argv to that opener process, making it visible in `ps`/`/proc` to other local
+users for the life of that call; and it travels wherever the Operator pastes it. This is a
+different secret from the launch token, which FR-J15 keeps out of every surface — the Console
+token is shown by design, so treat the printed URL itself as the secret.
+
 ### Terminal/control-sequence injection
 
 Stored text is bound as a database parameter and preserved exactly. Human rendering strips
@@ -137,19 +179,32 @@ environment-derived value that does appear in output is the managed worktree bas
 location, never a credential. Generated prompts do not include the environment. Backend
 recipes use placeholders.
 
-**Redaction rule (FR-J08).** crew never dumps the whole environment, and it never emits a
-*credential* environment value: `doctor` and `setup` report only the specific things they
-probe, by name (whether an executable is present, and whether the variables they check are
-`set` or `unset`), never a value; the only environment-derived value in any output is the
-non-secret worktree base path noted above. The credential-name policy is the guardrail behind
-that property: a variable is treated as credential-like — reported as `set`/`unset`, never by
-value — when its name matches, case insensitively, any of `TOKEN`, `KEY`, `SECRET`,
-`PASSWORD`, `PASSWD`, `CREDENTIAL`, `AUTH`, `SESSION`, `COOKIE`, or `PRIVATE`, or ends with
-`_PAT`. Because no credential value is ever emitted, there is nothing to redact by name; the
-value-based redactor is an independent safety net. That redactor also masks the value of
-these credential-named keys when they appear as a `key = value` / `key: value` pair in free
-text — bare or namespaced, so `launch_token`, `db_credential`, and `signing_key` are masked —
-while preserving the key and the separator. Independently of any name, any value that would
+**Redaction rule (FR-J12–FR-J15).** crew never dumps the whole environment, and it never emits
+a *credential* environment value. `doctor` and `setup` mostly consult the environment to answer
+"is this program present?" — they read `PATH` through `isExecutableOnPath` (and, for `setup`'s
+version probe, `resolveExecutableOnPath`) and report the executable they looked for, by name,
+never a variable's value. A few messages do name a variable — `setup` fails with `cannot resolve
+the home directory (HOME unset) for global setup`, the Launcher with `cannot derive the worktree
+base: set XDG_DATA_HOME, HOME, or USERPROFILE` — but they print the variable's *name*, never its
+contents, and every path `setup` displays has a leading home directory collapsed to `~`. The
+only environment-derived value that appears in any output is the non-secret worktree base path
+noted above. One credential environment value is copied into a record: the launch token, read
+from `CREW_LAUNCH_TOKEN` in a launched pane and stored on the Agent row so a failed teardown can
+scope its reap. It stays secret through a rendering guardrail rather than through never being
+stored — FR-J15 ("the launch token shall never be rendered to any surface") and its
+launcher-side statement FR-H28. Because no credential value is ever emitted, there is nothing to
+redact by variable name; the value-based redactor is an independent safety net.
+
+The credential-name list serves a narrower purpose — the redactor masks the value of a
+credential-named key when it appears as a `key = value` / `key: value` pair in free text, while
+preserving the key and the separator. A key qualifies, case insensitively, when it ends with
+`secret`, `token`, `password`, `passwd`, `pwd`, `authorization`, `bearer`, `credential`,
+`session`, `cookie`, `private`, `auth`, `pat`, or `key`, or with one of the compound forms
+`apikey`/`api_key`/`api-key`, `accesskey`/`access_key`/`access-key`, or
+`clientsecret`/`client_secret`/`client-secret` — the two words joined directly or by a single
+`-`/`_`, never by a space. That trailing word must be either the whole key or preceded by
+`-`/`_`, so `launch_token`, `db_credential`, and `signing_key` are masked while
+`monkey` and `author` are not. Independently of any name, any value that would
 otherwise appear in error or setup output is replaced with `[REDACTED]` when it looks like a
 secret: a `sk-`/`ghp_`/`gho_`-prefixed token, an AWS `AKIA…` key, a JWT (`eyJ…`), a
 connection-string credential (`scheme://user:secret@host`), or an unbroken run of 20 or more
@@ -168,11 +223,11 @@ The value-based redactor is deliberately **not** applied to normal diagnostic *r
 (`doctor` findings, `setup` success lines): that output is stripped of control sequences but
 otherwise left intact, because it legitimately carries long values — filesystem paths,
 version strings — that a value redactor would corrupt (a path segment of 20-plus characters
-would be masked). The no-secret guarantee for that output is upheld at the source (crew never
-copies an environment value into a record) and is guarded against regressions by a
-program-level test that runs `join`/`agents`/`doctor` with the environment deliberately
-stuffed with secrets and asserts no value leaks. The redactor guards the one surface that can
-carry attacker-influenced free text: the error/setup message path.
+would be masked). The no-secret guarantee for that output is upheld at the source (it renders
+probe names and stored record fields, never a credential environment value) and is guarded
+against regressions by a program-level test that runs `join`/`agents`/`doctor` with the
+environment deliberately stuffed with secrets and asserts no value leaks. The redactor guards
+the one surface that can carry attacker-influenced free text: the error/setup message path.
 
 ## Permissions guidance
 
@@ -218,6 +273,12 @@ carry attacker-influenced free text: the error/setup message path.
 - A local user with filesystem access can edit the State Store or setup artifacts.
 - Model behavior cannot be guaranteed by prompt text; Role rules are guidance, not a policy
   enforcement engine.
+- While `crew ui` is running, every process on the machine can reach the Console port; the
+  per-run token is the only thing standing between such a process and the Workspace. Because the
+  token is printed inside the startup URL, anyone with local access to that URL — browser
+  history, terminal scrollback, the opener process's arguments — can act as the Operator for the
+  rest of that run. The exposure ends with the server: once the run stops, the leftover string is
+  a dead credential, and the next `crew ui` mints a different one.
 - A standalone base64 secret using the `+`/`/` (or base64url `-`/`_`) symbols, with no
   surrounding credential key or connection scheme, is not masked by the alphanumeric
   standalone-run rule — masking it would corrupt filesystem paths and URLs in error text;
