@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PARTICIPANT_IDS } from '../src/participants.js';
 import type {
   AgentSnapshotRecord,
   MessageSnapshotRecord,
@@ -13,6 +14,7 @@ import {
   canRequeue,
   currentTaskFor,
   describeEvent,
+  ENGINE_META,
   engineMeta,
   initials,
   isUnreadToOperator,
@@ -216,11 +218,22 @@ describe('colour vocabularies', () => {
     expect(engineMeta('copilot-cli').label).toBe('Copilot');
     expect(engineMeta('antigravity-cli').label).toBe('Antigravity');
     expect(engineMeta('pi-cli').label).toBe('Pi');
+    expect(engineMeta('little-coder').label).toBe('Little Coder');
     expect(engineMeta('opencode-cli').label).toBe('opencode');
     // Every registered engine gets a branded badge, never the neutral fallback glyph.
-    for (const id of ['pi-cli', 'opencode-cli']) {
+    for (const id of ['pi-cli', 'little-coder', 'opencode-cli']) {
       expect(engineMeta(id).glyph).not.toBe('·');
     }
+  });
+
+  /**
+   * The roster-drift guard: a Participant CLI that lands in the shared id
+   * vocabulary without a Console badge renders as an unrecognized platform.
+   * `tests/unit/docs-facts.test.ts` never reads `web/`, so this is the only
+   * place the gap can be caught.
+   */
+  it('ENGINE_META covers exactly the shared Participant id vocabulary', () => {
+    expect(Object.keys(ENGINE_META).sort()).toEqual([...PARTICIPANT_IDS].sort());
   });
 
   it('engineMeta falls back to a neutral "unknown" badge for null or unrecognized platforms', () => {

@@ -138,7 +138,13 @@ export interface EngineMeta {
   readonly fg: string;
 }
 
-const ENGINE_META: Record<string, EngineMeta> = {
+/**
+ * One badge per Participant CLI id. Exported so a test can pin its key set to
+ * `PARTICIPANT_IDS`: a missing entry is invisible at runtime (the unknown-engine
+ * fallback below renders the raw id), so only an equality guard catches the next
+ * engine landing in the shared vocabulary without a Console badge.
+ */
+export const ENGINE_META: Record<string, EngineMeta> = {
   'claude-code': {
     label: 'Claude Code',
     glyph: '✳',
@@ -157,6 +163,13 @@ const ENGINE_META: Record<string, EngineMeta> = {
     fg: '#1a7345',
   },
   'pi-cli': { label: 'Pi', glyph: 'π', color: '#c2317a', bg: '#fbe9f2', fg: '#a52868' },
+  'little-coder': {
+    label: 'Little Coder',
+    glyph: '◈',
+    color: '#0f8ba6',
+    bg: '#e4f2f6',
+    fg: '#0b6b80',
+  },
   'opencode-cli': { label: 'opencode', glyph: '❯', color: '#c9821f', bg: '#f9f0e2', fg: '#a66b12' },
 };
 
