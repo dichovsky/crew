@@ -428,14 +428,16 @@ revision the operation read — and "touch" means refreshing an Agent's `last_se
 | task submit | CAS Task, append `submitted` event, notify reviewer and creator |
 | task approve | CAS Task, append `approved` event, notify creator and assignee |
 | task requeue | CAS Task, clear work/review fields, append `requeued` event, notify assignee/creator/reviewer |
-| task abandon | CAS Task to `abandoned`, set `abandoned_at`, clear the Lease, `review_summary`, and the worktree trio, append `abandoned` event carrying the reason, notify creator/assignee/reviewer (the assignee's copy being the `clear_safe` Sign-off) |
-| task land | not a transition — `status` stays `completed` and no event is appended; clear the worktree trio and insert the assignee's `clear_safe` Sign-off (skipped if archived), CAS on the `worktree_path` just read rather than on `revision` |
+| task abandon | CAS Task, clear lease/review/worktree, append `abandoned` event, notify assignee/creator/reviewer |
+| task land | clear worktree trio, send the `clear_safe` Sign-off; no event or transition, CAS on `worktree_path` |
 | prune | select retention set, delete in referential order, commit; vacuum separately |
 | launch-teardown reap | delete only untouched Agent rows matching this launch's token in one immediate transaction |
 
 Task transactions use `BEGIN IMMEDIATE` (the transaction claims the right to write up front
 instead of failing later). The operation clock is read once per operation, so the Task, its
-Event, and its notifications all carry the same timestamp.
+Event, and its notifications all carry the same timestamp. In the two terminal rows the
+assignee's notification is the structured `clear_safe` Sign-off, and `land` is the one
+transaction that skips it — only when the assignee is archived.
 
 The Console detects change through `Store.getChangeSignature()` (FR-U22), a read-only query
 that gathers a set of counters: the highest (`MAX()`) Message id, Task-Event id, Task

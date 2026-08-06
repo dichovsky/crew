@@ -149,6 +149,6 @@ model inside the session reset itself (the Relay-delivery half lands in a follow
 
 Claim/acknowledge Messages, session displacement, memory/brief, approvals, Task dependencies,
 launching mixed Participant CLIs, and removing generated setup artifacts by marker remain
-candidates. See requirements FR-X01–X08, except FR-X07, which ADR-0015 promoted to the opt-in
-group W contract — one per-Task worktree per Worker, plus one persistent review worktree per
-reviewing Agent.
+candidates. See the deferred FR-X requirements, except FR-X07, which ADR-0015 promoted to
+the opt-in group W contract — one per-Task worktree per Worker, plus one persistent review
+worktree per reviewing Agent.

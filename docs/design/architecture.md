@@ -11,9 +11,9 @@ crew is a tool that runs on your own machine and helps terminal coding agents �
 assistants that each run in their own terminal session — coordinate their work. The
 `crew` executable never calls an AI model provider itself. Every core command does a
 fixed amount of work and then stops: it finds the Workspace (the nearest directory
-containing a `.crew/` folder), opens that Workspace's State Store (the shared SQLite
-database that holds all coordination data), does its job, prints the result, closes the
-database, and exits.
+containing a `.crew/` folder, or the root that folder's `workspace-pointer` names),
+opens that Workspace's State Store (the shared SQLite database that holds all
+coordination data), does its job, prints the result, closes the database, and exits.
 
 There are two operating modes:
 
@@ -57,7 +57,7 @@ launched mode is not completely process-free.
 | Module | Interface and leverage | Implementation locality |
 |---|---|---|
 | Program | `run(argv, io): Promise<number>` — one consistent entry point for argument parsing, output mode, and errors | builds the commander CLI and maps top-level exceptions to exit codes |
-| Workspace | find or initialize the `.crew/` paths and load validated project config | walks up the directory tree, writes files safely, maintains the Git-ignore file, keeps every path inside the workspace |
+| Workspace | find or initialize the `.crew/` paths and load validated project config | walks up the directory tree and follows a `workspace-pointer` when the `.crew/` it finds carries one, writes files safely, maintains the Git-ignore file, keeps every path inside the workspace |
 | Store | named operations for Agents, Messages, Tasks, history, prune, and health | the only module that imports SQLite; owns the schema, migrations, SQL, transactions, and retries |
 | Roles | resolve/list/export a Role | packaged templates, with project files taking precedence over them |
 | Teams | resolve/list/render a Team | safe YAML parsing, schema validation, and expanding replicas (how many copies of a member to start) |
@@ -133,7 +133,7 @@ src/
   task-id.ts                    Task-id grammar and argument validation
   workspace.ts                  discovery (walk up, then pointer redirect), init, paths
   fs-safe.ts                    path-contained safe writes inside .crew/
-  worktree.ts                   git worktree primitives (whole-Crew and per-Task)
+  worktree.ts                   git worktree primitives (whole-Crew, per-Task, review)
   config.ts                     strict .crew/config.yaml parsing (worktree opt-in)
   yaml-load.ts                  strict, safe YAML loader for tracked config
   templates.ts                  packaged Role/Team templates as embedded string constants
@@ -141,6 +141,9 @@ src/
   version.ts                    runtime lookup of the crew package version
   node-floor.ts                 Node floor check, run before the app graph is imported
   delay.ts                      the real wall-clock delay for the Launcher/Relay loops
+  process.ts                    real Io.runProcess (capture-only) + runInteractive (tmux attach)
+  which.ts                      PATH executable lookup (doctor + registry)
+  relay.ts                      internal `crew relay` Relay loop (tick-driver + reducer wiring)
   store/
     index.ts                    Store interface
     connection.ts               retry jitter, busy classification, open-settings readback
@@ -168,9 +171,6 @@ src/
   setup/
     index.ts                    setup detection/install/recipe flow + records
     fs.ts                       setup-owned guarded writes (home/project, outside .crew/)
-  process.ts                    real Io.runProcess (capture-only) + runInteractive (tmux attach)
-  which.ts                      PATH executable lookup (doctor + registry)
-  relay.ts                      internal `crew relay` Relay loop (tick-driver + reducer wiring)
   launcher/
     index.ts                    launch orchestration: --print plan, or the live tmux launch
     config.ts                   strict .crew/launcher.yaml parsing + precedence merge
@@ -198,10 +198,16 @@ web/                            Preact + TypeScript dashboard source
   app.tsx                       sidebar shell + six-view router + toasts + one-click confirm modal
   components/                   the six views + sidebar, toasts, confirm-dialog, message modal, health, peek, recovery-banner
   styles.css                    stylesheet, bundled inside the authenticated JS bundle
+  styles.d.ts                   ambient declaration that makes styles.css importable
+  tsconfig.json                 the web/ typecheck project
   index.html                    build-time page shell (loads two CDN fonts with a system fallback)
 tests/{unit,integration,spawn,store,fixtures,helpers,tools}/
 e2e/ui/                         Playwright Console specs and their own config
 ```
+
+Tests for `src/` and `bin/` live under `tests/`, but the Console's own tests do not: each
+`web/` and `web/components/` module keeps its `*.test.ts`/`*.test.tsx` beside it, so the
+dashboard's unit tests are not under `tests/` at all.
 
 ### 4.2 Workspace layout
 
@@ -435,8 +441,8 @@ to the repository can edit it.
 
 - It can only choose a platform id from the registry; it can never supply an arbitrary
   shell command.
-- A custom executable is accepted only from an explicit command-line flag, and crew
-  prints it for you to confirm before running it.
+- The executable itself is never selectable. It is looked up from the platform registry
+  for the chosen id, so no configuration file and no flag can substitute one.
 - Child processes are started with argument arrays and `shell: false`, so no shell ever
   parses any of the values.
 - Worktree paths are resolved and checked to stay inside their allowed location; branch
@@ -572,7 +578,7 @@ are recorded as [DEC-7 and DEC-8](./decisions.md); the release gate itself is de
 
 None of these exist as empty placeholder interfaces in v1. A new seam is added only when
 a second implementation or a shipped use case actually needs it. The matching deferred
-requirements are FR-X01–X08 in the [software requirements specification](./srs.md),
+requirements are the FR-X series in the [software requirements specification](./srs.md),
 except FR-X07: ADR-0015 promoted it to the opt-in group W contract, which gives each
 Worker its own per-Task worktree and each reviewing Agent one persistent review
 worktree of its own, only where `worker_worktrees.enabled` is set. That is separate
