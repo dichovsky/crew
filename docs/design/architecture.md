@@ -523,5 +523,8 @@ are recorded as [DEC-7 and DEC-8](./decisions.md); the release gate itself is de
 
 None of these exist as empty placeholder interfaces in v1. A new seam is added only when
 a second implementation or a shipped use case actually needs it. The matching deferred
-requirements are the FR-X series in the [software requirements specification](./srs.md),
-except FR-X07, which ADR-0015 promoted to the shipped group W contract.
+requirements are FR-X01–X08 in the [software requirements specification](./srs.md),
+except FR-X07: ADR-0015 promoted it to the opt-in group W contract, which gives each
+Worker its own per-Task worktree only where `worker_worktrees.enabled` is set. That is
+separate from, and does not replace, ADR-0011's single worktree shared by a whole
+launched Crew.

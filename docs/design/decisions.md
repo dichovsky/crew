@@ -74,8 +74,7 @@ Manual display can show a roster that mixes different Participant CLIs. The auto
 launch runs one Participant CLI for every pane and works only on Unix with tmux, with
 optional isolation of the whole launched Crew in one git worktree (a separate working copy of
 the repository sharing the same history). Repo config selects a registry id, never an
-executable or shell arguments. Launching mixed Participant CLIs and per-Agent worktrees are
-deferred.
+executable or shell arguments. Launching mixed Participant CLIs is deferred.
 
 ### DEC-13 — Setup safety
 
@@ -146,5 +145,5 @@ model inside the session reset itself (the Relay-delivery half lands in a follow
 ## Deferred product decisions
 
 Claim/acknowledge Messages, session displacement, memory/brief, approvals, Task dependencies,
-launching mixed Participant CLIs, and per-Agent worktrees remain candidates. See requirements
-FR-X*.
+and launching mixed Participant CLIs remain candidates. See requirements FR-X01–X08, except
+FR-X07, which ADR-0015 promoted to the opt-in group W contract.
