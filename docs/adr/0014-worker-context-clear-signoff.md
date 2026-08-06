@@ -4,15 +4,20 @@ status: accepted
 
 # Worker context-clear sign-off
 
-> **Amended by [ADR-0016](./0016-structured-clear-safe-signoff-and-relay-reset.md).** Two of the
-> decisions below no longer hold. The Sign-off no longer rides the existing `note` kind and adds no
-> new one: it is a structured `clear_safe` Message kind (schema v6), minted only by `task land` and
-> `task abandon`. And the platform registry no longer records no per-CLI reset command: it gains a
-> per-engine reset command, and crew's Relay — not the Worker — types that reset into the pane,
-> because no supported engine lets the model inside the session reset itself. What this ADR decided
-> about *when* clearing is safe — only once a Task has fully landed, never right after a Submission,
-> with an abandoned Task as the immediate exception — stands unchanged. The text below is kept as
-> the decision was made.
+> **Amended by [ADR-0015](./0015-per-worker-task-worktrees.md) and
+> [ADR-0016](./0016-structured-clear-safe-signoff-and-relay-reset.md).** The Sign-off's mechanics
+> have moved on, and the Consequences bullet below ("No schema change, no new crew command, and no
+> new Message kind") no longer holds in any of its three claims. ADR-0015 added `crew task land` and
+> made it send the Sign-off itself, replacing the ordinary `crew send` Message from the Manager
+> described below. ADR-0016 made the Sign-off a structured `clear_safe` Message kind (introduced in
+> schema v6), minted only by `task land` and `task abandon`. ADR-0016 further decided that the
+> platform registry gains a per-Participant-CLI reset command and that crew's Relay — not the
+> Worker — types that reset into the pane, because none of the Participant CLIs ADR-0016 surveyed
+> lets the model inside the session reset itself; **that half has not landed yet** — the registry
+> records no reset command and the Relay types none — so on that point the text below still
+> describes the code. What this ADR decided about *when* clearing is safe — only once a Task has
+> fully landed, never right after a Submission, with an abandoned Task as the immediate
+> exception — stands unchanged. The text below is kept as the decision was made.
 
 ## Context
 
