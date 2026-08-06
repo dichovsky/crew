@@ -718,11 +718,16 @@ rather than restating them.
   `VERSION_FLOOR` finding and its absence above every floor), `tests/unit/doctor.test.ts`,
   `tests/integration/commands/doctor-edge.test.ts` (`RESUME_DRIFT` warned for a stopped
   session that is no longer resumable, and not reported for one that still is).*
-- **FR-K02 — Prune eligibility (widened by FR-E24).** Prune shall delete read Messages,
-  completed Tasks, and — per FR-E24 — abandoned Tasks, and nothing else, each older than the
-  explicit or default retention cutoff for its kind (`abandonedAt` supplying the abandoned
-  Task's age exactly as `completedAt` supplies a completed one). *Verify: automated test —
-  `tests/integration/commands/prune.test.ts`, `tests/store/maintenance.test.ts`.*
+- **FR-K02 — Prune eligibility (widened by FR-E24).** Prune shall delete read Messages past
+  the explicit or default Message cutoff, completed Tasks past the Task cutoff, and — per
+  FR-E24 — abandoned Tasks past that same Task cutoff on `abandonedAt`, plus every Message
+  linked to a Task it deletes; nothing else shall be deleted. A linked Message goes with its
+  Task whatever its own age: the Message cutoff never applies to it (it is necessarily already
+  read, since FR-K03 makes an unread linked Message block the Task's eligibility outright).
+  *Verify: automated test — `tests/integration/commands/prune.test.ts`,
+  `tests/store/maintenance.test.ts` ("deletes a completed Task and folds its cascaded Messages
+  into one count" prunes five linked Messages under a Message window so wide that the
+  standalone step deletes nothing).*
 - **FR-K03 — Task prune cascade.** A Task shall be prune-eligible only when all its linked
   Messages are read, and its deletion shall cascade its Task Events and notifications. *Verify:
   automated test — `tests/store/maintenance.test.ts`.*
@@ -1033,11 +1038,14 @@ rather than restating them.
   (POST success and failure), `tests/integration/ui-server-assets.test.ts` (each served
   asset); inspection — `src/ui/server.ts` for the 405 (`respondMethodNotAllowed`) and SSE
   (`openEventStream`) paths, which set the header but on which no test asserts it today.*
-- **FR-U52 — Constant-time token comparison.** The FR-U04 token check shall compare the
-  presented and expected tokens in constant time, folding a length mismatch into an ordinary
-  miss rather than returning early, so a same-length wrong token reveals nothing through
-  response timing. *Verify: inspection — `src/ui/server.ts` (`tokenEquals` compares through
-  `node:crypto` `timingSafeEqual`, with the byte-length check ANDed into the returned boolean);
+- **FR-U52 — Constant-time token comparison.** The FR-U04 token check shall compare a presented
+  token of the expected byte length against the expected token in constant time, so a
+  same-length wrong token reveals nothing through response timing. The guarantee is
+  deliberately scoped to that case: a length mismatch short-circuits to an ordinary miss
+  *before* the constant-time compare, which leaks only the token's length — a fixed length the
+  startup URL already publishes ([security.md](./security.md)). *Verify: inspection —
+  `src/ui/server.ts` (`tokenEquals` returns the byte-length equality ANDed with `node:crypto`
+  `timingSafeEqual`, so `&&` short-circuits past `timingSafeEqual` on a length mismatch);
   automated test — `tests/integration/ui-server.test.ts` (equal-length and different-length
   wrong tokens are both a plain 401, never a throw); no test measures timing.*
 
@@ -1253,8 +1261,8 @@ test*, *inspection*, *analysis*, or *demonstration*, matching the requirement ca
 (§9.5.18). The overall verification approach — behavior tests, race tests, packaging tests,
 and integration tests — is defined by [testing-strategy.md](./testing-strategy.md); the
 release gates are in the product-spec
-[release-gate table](./product-spec.md#release-gates). The automated gate is the six steps of
-CI's `build-test` job, in that order: `npm run typecheck`, `npm run lint`,
+[release-gate table](./product-spec.md#release-gates). The automated gate is these six
+commands, in the order CI's `build-test` job runs them: `npm run typecheck`, `npm run lint`,
 `npm run format:check`, `npm run build`, `npm run build:docs`, and `npm run test:coverage` —
 the last being the step that enforces NFR-MNT-01's 95% threshold on statements, branches,
 functions, and lines, which plain `npm test` does not. `npm run build:docs` is part of the gate
@@ -1474,7 +1482,8 @@ Unambiguous, **C** Consistent, **Cm** Complete, **S** Singular, **F** Feasible, 
 every requirement in that section grades **P** on all nine characteristics, followed by
 explicit override rows for any requirement with a non-P cell. A requirement's grade is its
 override row if it has one, otherwise its section default. Every v1 and additive post-v1
-requirement is therefore graded.
+requirement that states a rule is therefore graded. The one exception is the retired FR-H08,
+which states no rule and so has nothing to grade; its group-H row records that.
 
 #### Section defaults (all nine = P unless overridden below)
 

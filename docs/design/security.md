@@ -43,7 +43,7 @@ resolves the program to run from that registry entry alone. There is no flag tha
 executable path or an arbitrary command — no route, tracked or typed, selects one. Every
 subprocess is spawned with an argument array and `shell:false`, so no shell ever interprets
 its values. Worktree refs are validated and passed as plain arguments. See FR-H07, FR-H09,
-and FR-H10.
+and FR-H22.
 
 Version and backend probes resolve a Participant or system executable to an absolute path
 using a `PATH` rule that considers only absolute entries — an empty, `.`, or relative element
