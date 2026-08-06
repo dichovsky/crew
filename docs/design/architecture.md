@@ -152,7 +152,7 @@ src/
     artifacts.ts                generated-artifact writer (fs-safe)
     sessions.ts                 live owned-session listing (pane-map proof + tmux) for GET /api/sessions
   ui/
-    server.ts                   token-guarded loopback HTTP/SSE server + static assets; routes GET /api/snapshot,/api/health,/api/sessions,/api/resumable-sessions,/api/peek and the action POSTs
+    server.ts                   token-guarded loopback HTTP/SSE server + static assets; routes GET /api/snapshot,/api/events,/api/health,/api/sessions,/api/resumable-sessions,/api/peek and the action POSTs
     snapshot.ts                 bounded, non-consuming Store snapshot projection
     actions.ts                  Operator action handlers (send/create/approve/requeue, launch/stop, prune/clean, listSessions)
   format.ts

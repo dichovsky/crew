@@ -280,9 +280,10 @@ crew team resume <session> [--json]
   tracked `runtime.client` setting, then the default. A Team whose members hint at different
   platforms, with neither of the first two set, is a `USAGE` error that points the operator
   to `--client`, `runtime.client`, or manual mode.
-- Every launch flag — `--workers`, `--task-file`, `--worktree`, `--no-worktree`, `--no-relay`,
-  `--no-attach`, `--print` — implies `--launch`, so `crew team dev --print` builds and prints
-  the plan instead of rendering the roster.
+- Every launch-only flag — `--workers`, `--task-file`, `--worktree`, `--no-worktree`,
+  `--no-relay`, `--no-attach`, `--print` — implies `--launch`, so `crew team dev --print`
+  builds and prints the plan instead of rendering the roster. `--client` and `--json` do not:
+  they apply to the roster display too.
 - `--print` changes nothing: it writes no setup files, does not touch the State Store (the
   SQLite database in `.crew/state/` that the whole Crew shares), starts no subprocess, and
   creates no worktree or tmux session. It validates the full launch plan and prints it — as
@@ -399,8 +400,8 @@ crew ui [--port <n>] [--no-open] [--json]
   (with the same authority checks) as the equivalent CLI command. `crew ui` makes sure the
   Operator row exists at startup.
 - The Console's actions additionally cover launching a Team (always detached — attaching
-  stays terminal-only), stopping a Team crew owns, peeking at a pane, running `prune` or
-  `clean`, and archiving or restoring an Agent — and nothing else. Pane peek returns the
+  stays terminal-only), stopping or resuming a Team crew owns, peeking at a pane, running
+  `prune` or `clean`, and archiving or restoring an Agent — and nothing else. Pane peek returns the
   pane's `capture-pane` text with terminal control characters stripped, even on the JSON
   surface (the deliberate FR-U24 exception to the rule that JSON output keeps raw bytes).
   Team stop, `prune`, `clean`, and archiving an Agent each require an explicit confirmation:
@@ -478,7 +479,7 @@ check may use a documented status >=10 for “pending.”
 | `ACTIVE_AGENTS` | 1 | maintenance (`prune --vacuum` / `clean`) refused because active Agents exist |
 | `STALE_STORE` | 1 | the State Store was removed/replaced (e.g. by a concurrent `clean`) while an operation held it open; the write fails detectably instead of orphaning data |
 | `ERROR` | 1 | unexpected throwable outside the `CrewError` taxonomy, or a tmux child (the `tmux -V` probe or any control command) killed/timed out before it could prove its outcome either way |
-| `LAUNCH_FAILED` | 1 | a live launch step failed (a non-zero tmux op, pane readiness, or roster registration); the owned session is torn down; also a Console server that fails to start (e.g. an unavailable explicit `crew ui --port`) |
+| `LAUNCH_FAILED` | 1 | a live launch step failed — a non-zero tmux op, pane readiness, or roster registration, in which case the owned session is torn down; a `tmux attach` that exits non-zero after the session was built (the session is left alive to reattach); or a Console server that fails to start (e.g. an unavailable explicit `crew ui --port`) |
 
 Human errors use `[CODE] message`. JSON errors use:
 
