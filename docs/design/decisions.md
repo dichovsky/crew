@@ -24,10 +24,11 @@ restate them.
 The executable is `crew`, the Workspace directory `.crew/`, and the State Store
 `.crew/state/crew.db`. The unscoped npm package name `crew` is taken, so the package
 publishes under the maintainer's namespace as `@dichovsky/crew`
-(`npm install -g @dichovsky/crew`; the installed command is still `crew`). `0.1.0` is
-published: the first publish was a one-time manual `npm publish` (npm OIDC Trusted
-Publishing can only attach to a package that already exists), and from `0.1.1` a
-published GitHub Release publishes via OIDC through `.github/workflows/publish.yml`.
+(`npm install -g @dichovsky/crew`; the installed command is still `crew`). The package is
+published to npm: the first publish (`0.1.0`) was a one-time manual `npm publish` (npm
+OIDC Trusted Publishing can only attach to a package that already exists), and from
+`0.1.1` a published GitHub Release publishes via OIDC through
+`.github/workflows/publish.yml`.
 (`1.0.0` is reserved for a later stability milestone.)
 
 ### DEC-8 — Runtime and build

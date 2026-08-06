@@ -105,8 +105,9 @@ requires one process that stays alive for as long as the tmux session does.
 ## Release gates
 
 This is the **canonical release-gate list**. Other documents reference it and must not keep a
-separate copy. The first publish (`0.1.0`) has shipped to npm. Because npm's OIDC Trusted Publishing
-can only attach to a package that already exists, `0.1.0` was published once by hand;
+separate copy — release status included, which [docs/README.md](../README.md) owns. crew has shipped
+to npm. Because npm's OIDC Trusted Publishing can only attach to a package that already
+exists, the first release (`0.1.0`) was published once by hand;
 from `0.1.1` on, a published GitHub Release runs `.github/workflows/publish.yml`, which
 publishes via OIDC with provenance and no stored npm secret (see
 [publishing.md](../release/publishing.md)). The
