@@ -46,7 +46,7 @@ crew requires **Node.js `>=24.15`**. Its State Store — the single database fil
 keeps all shared state — uses the built-in `node:sqlite` module, which only ships with
 Node 24 and later.
 
-`0.1.0` is published to npm. Install it globally:
+crew is published to npm. Install it globally:
 
 ```sh
 npm install -g @dichovsky/crew

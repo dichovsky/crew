@@ -26,7 +26,7 @@ subcommand that nudges idle panes from the content-free Inbox summary without co
 Messages (ADR-0008). The live launch is worktree-enabled, with per-Worker isolated Task
 worktrees (ADR-0015).
 
-`0.1.0` is published to npm. The first publish was a one-time manual `npm publish`
+The package is published to npm. The first publish was a one-time manual `npm publish`
 (npm OIDC Trusted Publishing can only attach to a package that already exists); from
 `0.1.1`, a published GitHub Release runs `.github/workflows/publish.yml` and publishes
 via OIDC with provenance — no long-lived npm secret ever enters CI. `docs/README.md`

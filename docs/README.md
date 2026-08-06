@@ -59,10 +59,10 @@ the same plan), the live tmux Launcher and Relay with per-Worker isolated git wo
 concurrent use and security attacks, and the `crew ui` Console — a dashboard reachable
 only from your own computer, with live updates (SSE) and Operator actions.
 
-`0.1.0` is published to npm as the first release. Because npm's OIDC Trusted Publishing
-can only attach to a package that already exists, that first publish was a one-time
-manual `npm publish` (so `0.1.0` carries no CI provenance); from `0.1.1` onward,
-publishing a GitHub Release runs
+`0.1.1` is the current published release on npm and the first published through the OIDC
+pipeline, so it carries build provenance. `0.1.0` does not: npm's OIDC Trusted Publishing
+can only attach to a package that already exists, so the first publish was a one-time
+manual `npm publish`. From `0.1.1` onward, publishing a GitHub Release runs
 [`.github/workflows/publish.yml`](../.github/workflows/publish.yml), which publishes to
 npm via OIDC — no long-lived npm secret ever enters CI — with provenance. The canonical
 [release-gate table](./design/product-spec.md#release-gates) records the six gates that
