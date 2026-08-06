@@ -34,12 +34,17 @@ Fields:
 | Field | Type | Rules |
 |---|---|---|
 | `version` | integer | required, exactly `1` |
-| `name` | string | required; filename stem must match; 1-64 lower-case letters, digits, `-` |
+| `name` | string | required; filename stem must match; 1-64 lower-case letters, digits, `-`; not a reserved name |
 | `members` | sequence | required; 1-32 templates after expansion at most 64 Agents |
 | `members[].id` | string | required Agent id; serves as replica base |
 | `members[].role` | string | required resolvable Role name |
 | `members[].replicas` | integer | optional, default 1, range 1-32 |
 | `members[].platform` | enum | optional Participant CLI id; display hint only in v1 |
+
+Every literal verb that follows `crew team` — today `stop` and `resume` — is a reserved
+name: it is parsed before `crew team <name>`, so a Team carrying such a name could never be
+addressed. Validation rejects a reserved name with a `USAGE` error, and `crew teams` never
+lists a project file whose filename stem is a reserved word.
 
 When a member has replicas (`replicas` says how many copies of that member to start),
 the ids expand as the base id, then `-2`, `-3`, and so on. Expansion must find id
@@ -144,6 +149,46 @@ never starts a subprocess. Two different branches that produce the same slug (fo
 example `Feature/X` and `feature-x`) still get **distinct** worktrees, because the
 appended `<ref-hash>` differs. On top of that, crew refuses to reuse a worktree whose
 checked-out branch does not match the requested ref.
+
+## Workspace settings schema v1
+
+`.crew/config.yaml`:
+
+```yaml
+version: 1
+worker_worktrees:
+  enabled: false
+  base_ref: HEAD
+```
+
+The file is optional, and unlike `launcher.yaml` it is not tied to a launch: it applies to
+every Worker in the Workspace, whether that Worker came up in a pane created by `--launch`
+or from a `crew join` run by hand. An absent file, or an absent key, leaves every feature
+below off and changes no existing behavior. When the file is present, `version: 1` is
+required and is the only accepted value.
+
+| Field | Type/default | Rules |
+|---|---|---|
+| `version` | integer | required, exactly `1` |
+| `worker_worktrees.enabled` | `false` | boolean |
+| `worker_worktrees.base_ref` | `HEAD` | git branch name, validated when the file is loaded |
+
+`worker_worktrees.enabled` switches on per-Worker Task worktrees (ADR-0015): with it on,
+`task start`, `task review`, and `task land` create, check out, and remove one worktree per
+Task and one per reviewing Agent (see Reviewed Tasks in [cli-contract.md](./cli-contract.md)
+for the other commands that act on them), so one Task's file changes cannot disturb
+another's. This setting is separate from, and does not affect, the whole-Crew
+`--worktree`/`--no-worktree` launch flags specified there under Roles and Teams (ADR-0011),
+which create a single worktree shared by an entire launched Crew.
+
+`worker_worktrees.base_ref` names the branch each new Task or review worktree is created
+from. It is resolved to a concrete branch name at that moment, so a Task never records the
+literal `HEAD`. A git revision expression — anything that is not a plain branch name, such
+as `main~1` — is rejected while the file is being loaded, instead of surfacing later as a
+failed `task start` or `task review`.
+
+A document that breaks one of the parsing rules stated at the top of this page is
+`INVALID_CONFIG`.
 
 ## Task brief
 
@@ -305,6 +350,29 @@ From lowest to highest:
 2. tracked `.crew/launcher.yaml`;
 3. explicit CLI flags.
 
-In v1, environment variables never change project behavior. The only exceptions are the
-standard `HOME` and `PATH` variables and the platform-specific way each tool finds its
-home directory — all used only by the explicit `setup` command.
+Tracked `.crew/config.yaml` sits at the same layer as `launcher.yaml`, with no third layer
+above it: no CLI flag overrides `worker_worktrees`, so it is decided by the tracked file and
+the built-in defaults alone.
+
+In v1, the environment never overrides that order: what a project does is decided by the
+tracked configuration and the flags you type, and no variable can replace a tracked value
+or choose which tool crew runs. Tracked configuration can never name an executable at all;
+`PATH` only decides which file on disk supplies a tool crew has already chosen. The
+environment is still read in three narrow places that decide nothing about a project:
+
+- `XDG_DATA_HOME`, `HOME`, and `USERPROFILE` derive the crew-managed worktree base
+  described in the Launcher section, wherever a launch plan is built or one of crew's own
+  worktrees is created — including `--print`, which derives the path without touching the
+  filesystem. They say where those worktrees live; with all three unset there is no base to
+  derive and the operation fails with `NOT_FOUND`, but no variable ever causes a worktree to
+  be created.
+- `CREW_LAUNCH_TOKEN` is set by a live launch into each pane's environment and read by the
+  `crew join` running in that pane, which stamps the token onto the Agent it creates. Only
+  after a teardown crew could confirm does that token scope the cleanup to the untouched
+  rows this launch created; an unconfirmed teardown skips the cleanup entirely. It is
+  reserved and internal: operators do not set it.
+- `PATH` is read by `setup` and `doctor` to find the executables they report on, and by
+  crew's lookup of an executable it is about to probe or run; the lookup itself only decides
+  whether a name is present and starts nothing. `HOME` (or `USERPROFILE`) gives `setup` and
+  `doctor` your own home directory, under which each target's global artifact sits at a
+  fixed relative path.
