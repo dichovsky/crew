@@ -38,15 +38,25 @@ crew team dev --launch --client claude-code --workers 3
   invocation created and reports `LAUNCH_FAILED` — it never leaves a half-built session
   behind. A session with the same derived name that is already running is left alone
   (`ALREADY_EXISTS`).
-- Add `--worktree <branch>` to plan the whole Team against a dedicated git worktree — a
+- Add `--worktree <branch>` to run the whole Team in a dedicated git worktree — a
   separate working copy of the repository, on its own branch, so the Team's file changes
-  stay out of your main checkout. A **live** launch with a worktree isn't supported yet and
-  is refused with `USAGE` (re-run with `--no-worktree`, or use `--print`, which still shows
-  the path the worktree would use).
-- After you disconnect and end the tmux session, crew removes only the Agent rows this
-  launch created that never did anything — no Task, no Message, no Task Event history. That
-  frees their ids so `dev` can be launched again immediately. Any Agent that already did
-  something stays active until you run `crew leave` for it or run `crew clean`.
+  stay out of your main checkout. A **live** launch creates or reuses that worktree as its
+  last preparation step — after every read-only check has passed, and before anything
+  touches tmux — and then runs the whole launched Crew inside it: its State Store, its
+  generated files, and every pane's working directory. `--no-worktree` overrides a worktree
+  recorded in your tracked configuration.
+- Disconnecting and ending the tmux session yourself deletes nothing: the Agent rows this
+  launch created stay active and keep their ids. Wind the Team down with
+  `crew team stop <session>`, which kills a session crew can prove it owns and *archives*
+  the Agents named in its pane map — `crew team resume` later reactivates exactly those
+  rows. `crew leave` archives a single Agent, and `crew clean` resets the whole Workspace.
+  An archived id is never handed out to a later `crew join`; `crew join <id> --resume` is how
+  you claim it back.
+- Only a launch that **fails** partway deletes anything. Once crew has confirmed it tore
+  down the session it created, it removes the untouched Agent rows carrying this launch's
+  token — those with no Task, Task Event, or Message attached — which frees their ids so
+  `dev` can be launched again immediately. That cleanup is best-effort and is skipped when
+  the teardown could not be confirmed.
 
 ## 2. A rejected task gets requeued and reassigned
 
@@ -227,10 +237,14 @@ crew ui --json --no-open        # emit one ui_started record, then keep serving 
   can prove it started, peek at a pane's text (cleaned of terminal control characters), and
   run `prune`/`clean`. The server always decides who is acting from the session itself — a
   request body cannot name a different actor.
-- The three destructive actions — **Team stop, `prune`, and `clean`** — each require you to
-  type a confirmation phrase in the browser before the request is sent:
+- The three destructive actions — **Team stop, `prune`, and `clean`** — each take one extra
+  click to confirm: the browser puts up a dialog naming the irreversible effect, and the
+  request it then sends carries a `{ "confirm": true }` flag the server checks for itself. A
+  POST without that flag fails with `USAGE`, so a bare request can never fire one of them.
+- The Tasks view is the reviewed-work board — Tasks grouped by status, with the selected
+  Task's detail beside them, where you approve a Submission or requeue its Task:
 
-![The Console's typed-confirmation dialog for a destructive prune action](./docs/images/console-action.png)
+![The Console's Tasks view: the task board beside a task's detail panel, with its approve and requeue actions](./docs/images/console-action.png)
 
 - With `--json`, a successful start prints exactly one `ui_started` record (`url`, `port`,
   `workspace`) once the server is listening, then keeps serving; running `clean` from the

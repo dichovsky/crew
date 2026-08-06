@@ -16,7 +16,7 @@
  * each handled by `./actions.js` with the actor derived from the
  * authenticated Operator session (FR-U13/U14), guarded by the same
  * token/Host/no-store posture as every GET, and the destructive three gated
- * by the FR-U25 typed confirmation.
+ * by the FR-U25 one-click confirmation flag.
  *
  * Change detection is one server-side poller over the monotonic cursors of
  * `Store.getChangeSignature()` (FR-U22); connected browsers are notified with
