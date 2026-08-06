@@ -143,6 +143,48 @@ const TERMS = [
     detail:
       'A separate working copy of the git repository, managed by crew on its own branch, keeping one Task’s — or one launched Crew’s — changes apart from the Workspace.',
   },
+  {
+    id: 'review-worktree',
+    label: 'Review Worktree',
+    group: 'Runtime',
+    detail:
+      'A persistent Worktree owned by one Inspector. Instead of getting a fresh copy for every Task, the Inspector reuses this one across Reviews by switching branches.',
+  },
+  {
+    id: 'launcher',
+    label: 'Launcher',
+    group: 'Runtime',
+    detail:
+      'The setup path that builds a tmux session, creates a pane for each participant, and types each platform’s start command into its pane. It runs once, does its job, and exits — nothing stays running.',
+  },
+  {
+    id: 'relay',
+    label: 'Relay',
+    group: 'Runtime',
+    detail:
+      'An optional helper tied to one tmux session. It notices when an Inbox has changed and types a short, fixed wake-up nudge into the matching pane; it never consumes the Messages themselves.',
+  },
+  {
+    id: 'console',
+    label: 'Console',
+    group: 'Runtime',
+    detail:
+      'The optional web interface served by crew ui. You start it explicitly, it runs in the foreground of your terminal, and it is reachable only from your own computer. No other crew feature needs it; it is neither a background process nor a remote dashboard.',
+  },
+  {
+    id: 'setup-target',
+    label: 'Setup Target',
+    group: 'Runtime',
+    detail:
+      'Something crew setup knows how to configure: either a customization for a Participant CLI or a recipe for a local Model Backend.',
+  },
+  {
+    id: 'model-backend',
+    label: 'Model Backend',
+    group: 'Runtime',
+    detail:
+      'A server that runs an AI model and answers a Participant CLI’s requests. crew itself never contacts it.',
+  },
 ] as const;
 
 const GROUPS = ['Collaboration', 'Roles', 'Work', 'Runtime'] as const;
@@ -153,9 +195,10 @@ export function Concepts() {
       title="Concepts and vocabulary"
       lede={
         <>
-          These twenty terms are binding. Each one is used with exactly the meaning below across the
-          requirements, the architecture, the commands, and the tests — so reading them is the
-          fastest way to understand everything else. Select a term to see its definition.
+          These {TERMS.length} terms are binding — every term CONTEXT.md defines, and no others.
+          Each one is used with exactly the meaning below across the requirements, the architecture,
+          the commands, and the tests — so reading them is the fastest way to understand everything
+          else. Select a term to see its definition.
         </>
       }
       sources={[{ path: 'CONTEXT.md', label: 'CONTEXT.md — the domain vocabulary' }]}
