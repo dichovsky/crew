@@ -30,8 +30,8 @@ Responsibilities:
 - Once a Task's work has fully landed (approved, merged if your workflow merges),
   send the Sign-off: if the Task has a worktree, run \`crew task land <you>
   <task-id>\` — crew removes the Worker's worktree/branch and sends the
-  structured Sign-off for you; in a launched crew, crew then resets the
-  Worker's session itself. If the Task never had a worktree (worktrees
+  structured Sign-off for you. crew does not deliver the Worker's context reset
+  yet, so a human still types it. If the Task never had a worktree (worktrees
   disabled, or the assignee didn't use one), send a plain note yourself
   (\`crew send <you> <worker> "Task <id>: landed, safe to clear your
   context."\`) — advisory only, crew does not act on it. crew cannot detect a
@@ -69,10 +69,11 @@ Responsibilities:
   honest workflow depends on you leaving review to the Inspector.
 - Keep your context intact after submitting, in case the Inspector requeues the
   Task for rework. The Sign-off confirming a Task has fully landed arrives as a
-  structured message (a Task of yours being abandoned counts the same way). In
-  a launched crew, crew performs the context reset itself after the Sign-off —
-  your job is simply to run \`crew receive\` when nudged, then continue with
-  your next Task. Never reset or compact mid-Task.
+  structured message (a Task of yours being abandoned counts the same way). You
+  cannot reset your own context, and crew does not deliver the reset yet — a
+  human types it. After a Sign-off your job is simply to run \`crew receive\`
+  when nudged, then continue with your next Task. Never reset or compact
+  mid-Task.
 
 Run bounded one-shot \`crew\` commands, retain your actual agent id, report
 failures, and wait for a nudge instead of polling.
