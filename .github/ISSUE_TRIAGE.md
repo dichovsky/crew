@@ -168,7 +168,7 @@ An open issue is eligible only if **all** of these hold:
   `wontfix`, `duplicate`, or `invalid`.
 - It has **no linked open pull request**. Check with
   `gh issue view <n> --json closedByPullRequestsReferences` and
-  `gh pr list --state open --search "<n>"`; treat any open PR whose body or
+  `gh pr list --state open --search 'in:title,body "#<n>"'`; treat any open PR whose body or
   title references the issue as a link.
 - The routine's own most recent comment on it is **not** newer than the
   newest human (non-bot) comment. In other words: once a human replies after
