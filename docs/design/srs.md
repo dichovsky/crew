@@ -152,8 +152,9 @@ Model Backend, Operator, Console, Worktree, Review Worktree.** See
   [setup integration](./setup-integration.md), [testing strategy](./testing-strategy.md),
   [decision index](./decisions.md).
 - [CONTEXT.md](../../CONTEXT.md) — binding domain vocabulary.
-- Accepted [ADRs](../adr/README.md) (ADR-0001…ADR-0011) and
-  [ADR-0012](../adr/0012-optional-local-ui-server.md).
+- Every ADR the [ADR index](../adr/README.md) records as `accepted`. The set is deliberately
+  not restated as a numeric range here — the index is the current list, and a hardcoded range
+  goes stale the next time an ADR is added.
 
 **Compliance (requirements imported by citation):** the CLI contract fixes the exact command
 syntax and JSON output shapes; the data model fixes the database schema and the rules the
@@ -553,8 +554,15 @@ rather than restating them.
 - **FR-H07 — Registry-id executable.** Tracked config shall select a registry id and never an
   arbitrary command or path. *Verify: automated test — `tests/unit/launcher/config.test.ts`,
   `tests/unit/launcher/plan.test.ts`.*
-- **FR-H08 — Confirmed custom executable.** A custom executable shall require an explicit CLI
-  flag and confirmation output. *Verify: automated test — `tests/unit/launcher/plan.test.ts`.*
+- **FR-H08 — Confirmed custom executable (retired; deferred as FR-X09).** *This id states no
+  v1 rule.* It required a custom executable to come from an explicit CLI flag with
+  confirmation output. No such flag was ever built: the launch command registers only
+  `--client <platform>` and `--launch` (`src/cli.ts`), and the program to run is always
+  resolved from the platform registry (`participantExecutable`, `src/launcher/plan.ts`).
+  FR-H07 alone now governs executable selection, and the capability is deferred as **FR-X09**
+  in [Appendix D](#appendix-d--future--out-of-scope-requirements). The id is retained here,
+  and in [Appendix C](#appendix-c--oldnew-requirement-crosswalk), so it is never reused.
+  *Verify: inspection — `src/cli.ts` (no custom-executable flag exists); `src/launcher/plan.ts`.*
 - **FR-H09 — Safe spawn.** Subprocesses shall be spawned with argument arrays and `shell:false`.
   *Verify: automated test — `tests/unit/launcher/tmux.test.ts`.*
 - **FR-H10 — Worktree containment.** Worktree containment shall be validated and unsafe paths
@@ -703,12 +711,17 @@ rather than restating them.
 
 #### K. Maintenance and trust
 
-- **FR-K01 — Doctor diagnostics.** `doctor` shall provide read-only system, setup, Workspace,
-  exported built-in drift, schema, integrity, dependency, expired-Lease, and archived-owner
-  diagnostics. *Verify: automated test — `tests/integration/commands/doctor.test.ts`,
-  `tests/unit/doctor.test.ts`.*
-- **FR-K02 — Prune eligibility.** Prune shall delete only read Messages and completed Tasks
-  older than the explicit or default retention cutoffs. *Verify: automated test —
+- **FR-K01 — Doctor diagnostics.** `doctor` shall provide read-only system, setup,
+  Participant-version-floor, Workspace, exported built-in drift, schema, integrity,
+  dependency, expired-Lease, archived-owner, and stopped-session resume-drift diagnostics.
+  *Verify: automated test — `tests/integration/commands/doctor.test.ts` (including the
+  `VERSION_FLOOR` finding and its absence above every floor), `tests/unit/doctor.test.ts`,
+  `tests/integration/commands/doctor-edge.test.ts` (`RESUME_DRIFT` warned for a stopped
+  session that is no longer resumable, and not reported for one that still is).*
+- **FR-K02 — Prune eligibility (widened by FR-E24).** Prune shall delete read Messages,
+  completed Tasks, and — per FR-E24 — abandoned Tasks, and nothing else, each older than the
+  explicit or default retention cutoff for its kind (`abandonedAt` supplying the abandoned
+  Task's age exactly as `completedAt` supplies a completed one). *Verify: automated test —
   `tests/integration/commands/prune.test.ts`, `tests/store/maintenance.test.ts`.*
 - **FR-K03 — Task prune cascade.** A Task shall be prune-eligible only when all its linked
   Messages are read, and its deletion shall cascade its Task Events and notifications. *Verify:
@@ -942,7 +955,7 @@ rather than restating them.
   browser storage) across reloads of the same browser; the default is light. The choice affects
   presentation only — no Store data, authority, or action behavior changes with it. *Verify:
   automated test — `web/app.test.tsx`.*
-- **FR-U39 — Clean-stop marker on stop.** A record-producing owned-Team stop shall write that
+- **FR-U39 — Clean-stop marker on stop.** A successful owned-Team stop shall write that
   session's clean-stop marker under `.crew/generated/<session>/` — the artifact `crew team
   resume` consumes (FR-U41). *Verify: inspection — `src/launcher/stop.ts` (the marker is written
   after the mapped Agents are archived and before the ownership proof is retired),
@@ -993,16 +1006,40 @@ rather than restating them.
   flag set in `src/launcher/resume.ts` reaching `paneLaunch` and `awaitRoster` in
   `src/launcher/session.ts` — has no end-to-end success test yet.*
 - **FR-U48 — Best-effort marker retirement.** A resume shall not depend on retiring the session's
-  clean-stop marker: removal is attempted only after the relaunched session releases the
-  foreground, is skipped when that attachment ends in failure, and a removal that fails leaves
-  the resume successful. *Verify: inspection — `src/launcher/resume.ts` (`retireResumeMarker`
+  clean-stop marker: removal shall be attempted only after `runLiveLaunch` returns successfully,
+  shall be skipped when the relaunch fails, and a removal that itself fails shall leave the
+  resume successful. *Verify: inspection — `src/launcher/resume.ts` (`retireResumeMarker`
   swallows every error and is called only after `runLiveLaunch` returns),
-  `src/launcher/session.ts` (the default attach blocks that return, and a non-zero attach throws
-  `LAUNCH_FAILED` before the marker is touched).*
+  `src/launcher/session.ts` (a non-zero `tmux attach` throws `LAUNCH_FAILED` before the marker
+  is touched; with `relay.attach` false there is no attach at all and the call returns straight
+  into the retirement).*
 - **FR-U49 — Team-resume record.** A record-producing Team resume shall emit an additive
   `resume_result` record with `schema_version: 1`, `session_name`, `panes`, `relay`, and
   `attached`. *Verify: automated test — `tests/unit/format.test.ts` (the single `resume_result`
   NDJSON line with exactly those fields, plus the human summary).*
+- **FR-U50 — Host allowlist checked before the token.** Every Console request whose `Host`
+  header is not exactly `127.0.0.1:<bound port>` or `localhost:<bound port>` shall be refused
+  with 403, and that check shall run before the FR-U04 token check. Loopback binding (FR-U02)
+  does not cover this case: a page in the Operator's own browser can reach the port through a
+  hostname the attacker resolves to `127.0.0.1`, so this is the DNS-rebinding guard. *Verify:
+  automated test — `tests/integration/ui-server.test.ts` (a foreign `Host` refused even when
+  the request carries a valid token; the exact `localhost:<port>` form accepted),
+  `tests/integration/ui-server-assets.test.ts`.*
+- **FR-U51 — No-store on every response.** Every response the Console writes shall carry
+  `Cache-Control: no-store`, so a URL carrying the FR-U04 token — and the Workspace content
+  behind it — is never written to a shared HTTP cache. *Verify: automated test —
+  `tests/integration/ui-server.test.ts` (the header, and the absence of any cookie, on the
+  page, a JSON read, a 404, a 401, and a 403), `tests/integration/ui-server-actions.test.ts`
+  (POST success and failure), `tests/integration/ui-server-assets.test.ts` (each served
+  asset); inspection — `src/ui/server.ts` for the 405 (`respondMethodNotAllowed`) and SSE
+  (`openEventStream`) paths, which set the header but on which no test asserts it today.*
+- **FR-U52 — Constant-time token comparison.** The FR-U04 token check shall compare the
+  presented and expected tokens in constant time, folding a length mismatch into an ordinary
+  miss rather than returning early, so a same-length wrong token reveals nothing through
+  response timing. *Verify: inspection — `src/ui/server.ts` (`tokenEquals` compares through
+  `node:crypto` `timingSafeEqual`, with the byte-length check ANDed into the returned boolean);
+  automated test — `tests/integration/ui-server.test.ts` (equal-length and different-length
+  wrong tokens are both a plain 401, never a throw); no test measures timing.*
 
 #### W. Worker and review worktrees
 
@@ -1170,15 +1207,18 @@ rather than restating the obligation.
   and every child process shall be started with an argument array and `shell:false`, with
   probe executables run at the exact absolute `PATH` location the presence check found.
   Enforced by FR-B14, FR-B15,
-  FR-H07–FR-H12. *Verify: automated test — `tests/unit/fs-safe.test.ts`,
+  FR-H07, FR-H09–FR-H12. *Verify: automated test — `tests/unit/fs-safe.test.ts`,
   `tests/unit/setup-fs.test.ts`, `tests/unit/which.test.ts`,
   `tests/integration/commands/setup.test.ts`, `tests/unit/launcher/tmux.test.ts`.*
 
 #### Maintainability (§9.5.17 d)
 
 - **NFR-MNT-01 — Coverage ≥ 95%.** The test suite shall maintain at least 95% coverage on
-  statements, branches, functions, and lines over `src/**` and `bin/**`. *Verify: automated —
-  `npm run test:coverage`.*
+  statements, branches, functions, and lines over `src/**` and `bin/**`, excluding
+  `src/io.ts`. That one exclusion is deliberate and is not a waiver: `src/io.ts` declares the
+  Io seam as two interfaces (`ProcessResult` and `Io`) and contains no runtime code at all, so
+  it emits nothing to execute and a coverage figure over it would measure nothing. Any file
+  that does carry runtime code is in scope. *Verify: automated — `npm run test:coverage`.*
 - **NFR-MNT-02 — Strict-typed, linted, formatted.** The codebase shall compile under
   maximally strict TypeScript and pass lint and format checks. *Verify: automated — `npm run
   typecheck`, `npm run lint`, `npm run format:check`.*
@@ -1213,9 +1253,13 @@ test*, *inspection*, *analysis*, or *demonstration*, matching the requirement ca
 (§9.5.18). The overall verification approach — behavior tests, race tests, packaging tests,
 and integration tests — is defined by [testing-strategy.md](./testing-strategy.md); the
 release gates are in the product-spec
-[release-gate table](./product-spec.md#release-gates). The automated gate is
-`npm run typecheck && npm run lint && npm run format:check && npm run build && npm test`, with a
-`test:coverage` threshold of 95% on statements, branches, functions, and lines.
+[release-gate table](./product-spec.md#release-gates). The automated gate is the six steps of
+CI's `build-test` job, in that order: `npm run typecheck`, `npm run lint`,
+`npm run format:check`, `npm run build`, `npm run build:docs`, and `npm run test:coverage` —
+the last being the step that enforces NFR-MNT-01's 95% threshold on statements, branches,
+functions, and lines, which plain `npm test` does not. `npm run build:docs` is part of the gate
+even though the documentation site ships in no package: a broken docs bundle must fail the pull
+request rather than first surfacing in the Pages deployment after merge.
 
 ---
 
@@ -1382,18 +1426,22 @@ that says so.
 | FR-K06 | FR-K09 | — |
 | FR-K07 | FR-K10 | — |
 
-Counts: **98** old v1 ids → **183** new v1 single-rule ids; **66** old ids were split. The
-additive post-v1 ids `FR-U01`–`FR-U49`, `FR-E22`–`FR-E24`, `FR-H29`, and `FR-W01`–`FR-W15` did
-not exist in the retired v1 set and are intentionally excluded from those counts. Deferred
-`FR-X01`–`FR-X08` are unchanged, except `FR-X07`, which is promoted to the group W contract
-(`FR-W01`–`FR-W15`, ADR-0015); see Appendix D.
+Counts: **98** old v1 ids → **183** new v1 single-rule ids; **66** old ids were split. Those
+counts describe the renumbering this table records and are not a live count of in-scope
+requirements: `FR-H08` was later retired (deferred as `FR-X09`), so 182 of the 183 still state
+a rule. The additive post-v1 ids `FR-U01`–`FR-U52`, `FR-E22`–`FR-E24`, `FR-H29`, and
+`FR-W01`–`FR-W15` did not exist in the retired v1 set and are intentionally excluded from those
+counts. Deferred `FR-X01`–`FR-X09` are unchanged, except `FR-X07`, which is promoted to the
+group W contract (`FR-W01`–`FR-W15`, ADR-0015), and `FR-X09`, which is new — the retired
+`FR-H08`; see Appendix D.
 
 ### Appendix D — Future / out-of-scope requirements
 
 These are **deferred** and **not part of v1**. They are kept for planning only; promoting one
 into scope requires a documentation and plan update (see
 [product-spec Non-goals](./product-spec.md#non-goals) and [decisions.md](./decisions.md)). Ids
-are unchanged from the former specification.
+are unchanged from the former specification, except `FR-X09`, which is new here — the retired
+group-H id `FR-H08`, which specified a capability that was never built.
 
 - **FR-X01 — Claim/ack Messages.** Add delivery claims, expiry, and consumer acknowledgement for
   at-least-once behavior if field evidence demands it.
@@ -1408,6 +1456,11 @@ are unchanged from the former specification.
   ADR-0015. This id is retained here only as the historical source citation; it is no longer
   deferred or unscheduled.*
 - **FR-X08 — Cleanup setup artifacts.** Remove generated Participant CLI artifacts by marker.
+- **FR-X09 — Confirmed custom executable.** Accept a custom executable from an explicit
+  command-line flag, print it for confirmation before use, and spawn it with an argument array
+  and `shell:false`. *Note: retired from group H (FR-H08), which specified the capability but
+  which nothing ever implemented — no `--executable` flag exists. Tracked configuration must
+  never name an executable even if this is built (FR-H07).*
 
 ### Appendix E — Quality-grading matrix
 
@@ -1434,11 +1487,11 @@ requirement is therefore graded.
 | E | FR-E01–FR-E24 | all nine P |
 | F | FR-F01–FR-F14 | all nine P (except FR-F01) |
 | G | FR-G01–FR-G13 | all nine P (except FR-G07) |
-| H | FR-H01–FR-H29 | all nine P (except FR-H11) |
+| H | FR-H01–FR-H29 | all nine P (except FR-H11; the retired FR-H08 is not graded) |
 | I | FR-I01–FR-I14 | all nine P (except FR-I04, FR-I05, FR-I09) |
 | J | FR-J01–FR-J15 | all nine P |
 | K | FR-K01–FR-K10 | all nine P (except FR-K01) |
-| U | FR-U01–FR-U49 | all nine P |
+| U | FR-U01–FR-U52 | all nine P (except FR-U48) |
 | W | FR-W01–FR-W15 | all nine P |
 | NFR | all NFR-\* | all nine P |
 
@@ -1453,7 +1506,8 @@ requirement is therefore graded.
 | FR-I04 | P | NE | P | P | P | P | P | P | P | Specifies pragmas; justified by data-model but not solution-neutral. |
 | FR-I05 | P | NE | P | P | P | P | P | P | P | Specifies WAL/`synchronous`/timeout values; justified by data-model. |
 | FR-I09 | P | P | P | P | P | NE | P | P | P | Bundles STRICT + constraint kinds + indexes; could split. |
-| FR-K01 | P | P | P | P | P | NE | P | P | P | Enumerates nine diagnostics; could split per diagnostic. |
+| FR-K01 | P | P | P | P | P | NE | P | P | P | Enumerates eleven diagnostics; could split per diagnostic. |
+| FR-U48 | P | P | P | P | P | NE | P | P | P | Bundles a timing rule (retire only after a successful relaunch) with a tolerance rule (a failed removal still succeeds); could split into two. |
 
 All other in-scope requirements grade **P** on all nine per their section default. Deferred
 `FR-X*` requirements are out of scope and are not graded here.
@@ -1478,6 +1532,9 @@ All other in-scope requirements grade **P** on all nine per their section defaul
 - **FR-I04 / FR-I05** (IF): restate as the required integrity/durability outcome and cite
   data-model.md as the source of the specific pragma values.
 - **FR-I09** (S): split STRICT-tables / constraint-kinds / indexes if per-rule tests are wanted.
-- **FR-K01** (S): split the nine `doctor` diagnostics into individual requirements if desired.
+- **FR-K01** (S): split the eleven `doctor` diagnostics into individual requirements if desired.
+- **FR-U48** (S): split into a timing requirement (retirement is attempted only after a
+  successful relaunch, and skipped otherwise) and a tolerance requirement (a failed removal
+  leaves the resume successful) if per-rule verification is wanted.
 - **NFR-PERF-01** (Cm, U, V): **resolved** — latency is declared out of contract for v1 (a
   deliberate non-constraint with rationale), rather than committing a measurable figure.

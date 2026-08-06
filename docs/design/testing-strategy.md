@@ -26,11 +26,12 @@ end-to-end: the whole path is exercised, from the built executable to a real tmu
 The browser-component layer is two vitest projects, `web` (the Console dashboard under
 `web/`) and `docs` (the documentation site under `docs-site/`), both running in jsdom. They
 run on every PR as part of `npm run test:coverage`, but they stay outside the 95% coverage
-gate, which measures `src/**` and `bin/**` only. The Console browser e2e is deliberately off
-the PR critical path: `npm run e2e:ui` drives the Playwright specs under `e2e/ui/` against a
-real Chromium, and `.github/workflows/ui-e2e.yml` runs them nightly, on manual dispatch, and
-on a PR only when it carries the `ui-e2e` label. Like the other full-tier suites, an
-intermittent failure there is investigated rather than blindly retried.
+gate, which measures `src/**` and `bin/**` only — less `src/io.ts`, which declares the Io seam
+as two interfaces and emits no runtime code to cover (NFR-MNT-01). The Console browser e2e is
+deliberately off the PR critical path: `npm run e2e:ui` drives the Playwright specs under
+`e2e/ui/` against a real Chromium, and `.github/workflows/ui-e2e.yml` runs them nightly, on
+manual dispatch, and on a PR only when it carries the `ui-e2e` label. Like the other
+full-tier suites, an intermittent failure there is investigated rather than blindly retried.
 
 ## Test environment matrix
 

@@ -37,10 +37,13 @@ controls automatically.
 ### Arbitrary execution through launcher config
 
 Config tracked in the repository can select only a platform registry id. It cannot set
-executable paths, arguments, environment variables, or fragments of shell commands. Custom
-executables can be named only on the command line, are printed before use, and are spawned
-with `shell:false`, so no shell ever interprets them. Worktree refs are validated and passed
-as plain arguments. See FR-H05/FR-H06.
+executable paths, arguments, environment variables, or fragments of shell commands. Nothing
+you type can either: the launch command takes `--client <platform>`, a registry id, and crew
+resolves the program to run from that registry entry alone. There is no flag that names an
+executable path or an arbitrary command — no route, tracked or typed, selects one. Every
+subprocess is spawned with an argument array and `shell:false`, so no shell ever interprets
+its values. Worktree refs are validated and passed as plain arguments. See FR-H07, FR-H09,
+and FR-H10.
 
 Version and backend probes resolve a Participant or system executable to an absolute path
 using a `PATH` rule that considers only absolute entries — an empty, `.`, or relative element
@@ -79,17 +82,18 @@ header; the check runs before any routing, so a request that reaches it without 
 401 and reaches no handler (FR-U04). The byte comparison goes through `timingSafeEqual`, so a
 same-length wrong token reveals nothing through response timing; an unequal-length token
 short-circuits to a plain miss instead of throwing, which leaks only the token's length — a
-fixed length that is already public, since the token is printed in the startup URL. The token
-lives and dies with the run; the next `crew ui` mints a new one.
+fixed length that is already public, since the token is printed in the startup URL (FR-U52).
+The token lives and dies with the run; the next `crew ui` mints a new one.
 
 Loopback binding alone would not stop a page in the Operator's own browser from driving the
 port, because a hostname an attacker controls can be pointed at `127.0.0.1` (DNS rebinding).
 Every request must therefore also carry a `Host` header of exactly `127.0.0.1:<bound port>` or
-`localhost:<bound port>`; anything else is refused with 403 before the token is even examined.
-Every response the Console writes carries `Cache-Control: no-store`, so token-bearing URLs and
-Workspace content are not written to a shared HTTP cache. A request target that Node's HTTP
-parser accepts but WHATWG URL parsing rejects returns a 400 `USAGE` envelope rather than
-destroying the socket, keeping malformed input inside the ordinary error vocabulary (FR-U10).
+`localhost:<bound port>`; anything else is refused with 403 before the token is even examined
+(FR-U50). Every response the Console writes carries `Cache-Control: no-store`, so token-bearing
+URLs and Workspace content are not written to a shared HTTP cache (FR-U51). A request target
+that Node's HTTP parser accepts but WHATWG URL parsing rejects returns a 400 `USAGE` envelope
+rather than destroying the socket, keeping malformed input inside the ordinary error
+vocabulary (FR-U10).
 The Console invents no authority: every Console read and write uses an existing Store domain
 method (FR-U11), every Console action invokes the corresponding existing command or domain
 operation and preserves its authority and invariants (FR-U18), its dashboard reads do not
