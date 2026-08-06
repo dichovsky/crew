@@ -44,11 +44,13 @@ send/receive race, the two-receivers race, and the Task races; the deterministic
 CONTENTION/lock and crash cases always run exactly once, because their outcome never varies.
 
 **Stress tests run in two CI tiers.** Every PR runs a fast fixed count (25 iterations per case)
-and blocks the merge on failure; a job that runs nightly, on release, and whenever
-concurrency-critical paths change runs the full count (500 per case) on both operating systems
-at the minimum supported Node version, keeps the failure output for inspection, and never
-retries blindly — a concurrency test that fails only sometimes is treated as a release failure,
-not noise.
+and blocks the merge on failure; a separate job runs the full count (500 per case) nightly, on
+manual dispatch during release prep, and on a PR only when it explicitly opts in with the
+`stress-full` label. That heavy tier keeps the failure output for inspection and never retries
+blindly — a concurrency test that fails only sometimes is treated as a release failure, not
+noise. Both tiers currently run on Linux at the CI Node version (`24.18.0`), which is above the
+`24.15` floor in `src/node-floor.ts`, so the forced-contention evidence is single-OS and
+non-floor; a macOS leg and a floor-Node leg would each widen it.
 
 The consequence: crashes, lock contention, and hostile inputs are all exercised through the real
 program with inputs that can be replayed exactly, and the one destructive maintenance command

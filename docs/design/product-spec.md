@@ -129,7 +129,7 @@ stable.
 | Participant CLI matrix | the CLIs' install paths and permission models change quickly | a live smoke test in a clean home directory for each of the eight Participant CLIs at their pinned minimum versions, including the Copilot scoped shell-rule syntax (`--allow-tool='shell(crew:*)'`) and Little Coder's scoped `LITTLE_CODER_BASH_ALLOW` prefix confirmed against the installed versions |
 | Model Backend recipes | the Ollama and LM Studio integration paths change independently and are unverified until actually run | an Ollama and an LM Studio tool-call smoke test through a supported Participant CLI |
 | Relay proof | launched autonomy depends on wake-up actually working | a tmux end-to-end test with an idle pane, a nudge, a receive, and proof that no Message is consumed twice |
-| SQLite stress | the product depends on staying correct when several processes write at once | a repeatable forced-contention suite on Linux and macOS proving the documented contention and delivery behavior |
+| SQLite stress | the product depends on staying correct when several processes write at once | a repeatable forced-contention suite on Linux proving the documented contention and delivery behavior |
 | Security review | repo config and text from other agents are untrusted inputs | all controls in [security.md](./security.md) covered by tests |
 
 ## Post-v1 direction

@@ -12,12 +12,12 @@ Worker itself: a free-text Sign-off `note` from the Manager gave the Worker perm
 its own CLI's clear or compact command. Two assumptions behind that ADR have since turned out
 to be wrong:
 
-1. **A Worker cannot clear its own context.** Research across all five supported engines
-   (Claude Code, Codex CLI, Gemini CLI, Copilot CLI, Antigravity CLI, verified mid-2026) found
-   that every one exposes its reset only as a slash command the human user types (`/clear`),
-   and none lets the model inside the session trigger it — not as a tool, not as a command the
-   model can emit. ADR-0014's instruction "use your own CLI's clear/compact mechanism" does
-   nothing on every engine crew supports.
+1. **A Worker cannot clear its own context.** Research across five of the Participant CLIs crew
+   supports (Claude Code, Codex CLI, Gemini CLI, Copilot CLI, Antigravity CLI, verified
+   mid-2026) found that every one exposes its reset only as a slash command the human user types
+   (`/clear`), and none lets the model inside the session trigger it — not as a tool, not as a
+   command the model can emit. ADR-0014's instruction "use your own CLI's clear/compact
+   mechanism" does nothing on any engine surveyed.
 2. **A free-text convention gives tooling nothing to act on.** If crew itself must deliver the
    reset (see below), it needs a signal a machine can recognize, not wording an LLM recognizes.
    ADR-0014 explicitly deferred a structured Message kind.
@@ -52,11 +52,12 @@ Relay types the engine's reset command into the pane, followed by a fixed re-int
 (`You are crew agent <actual-id> (role <role>) in this workspace. Run: crew receive
 <actual-id>`) — both fixed templates whose only variable parts are ids, added to the FR-H15/H17
 list of allowed pane injections. The platform registry gains a per-engine reset command that
-may be null (for all five current engines it is `/clear`), superseding ADR-0014's "the registry
-tracks no per-CLI context-clear/compact command"; when it is null, the Relay types nothing and
-the Worker simply continues with its full history. The Relay delivery, the registry field, and
-their requirements land in a follow-up change to this one; the schema signal ships first so a
-real crew can verify it.
+may be null — `/clear` on each of the five Participant CLIs surveyed above, with the value for
+every other id in `src/participants.ts` settled when the field is actually built — superseding
+ADR-0014's "the registry tracks no per-CLI context-clear/compact command"; when it is null, the
+Relay types nothing and the Worker simply continues with its full history. The Relay delivery,
+the registry field, and their requirements land in a follow-up change to this one; the schema
+signal ships first so a real crew can verify it.
 
 **ADR-0014's *when* stands unchanged.** The Sign-off comes only after landing, never right
 after a Submission; abandoning is the immediate exception; and crew still cannot observe

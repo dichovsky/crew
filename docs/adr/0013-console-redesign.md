@@ -4,6 +4,19 @@ status: accepted
 
 # Console redesign: five-view IA, one-click confirm, owned-session listing
 
+> **Extended by [ADR-0017](./0017-console-now-view-theme-and-agent-archive.md).** The five-view
+> count in the heading and in "the Console is a five-view app, not a single page" below is the
+> count as of this decision, not the Console's current information architecture: ADR-0017 added a
+> sixth view, Now, as the new **first** view and updated FR-U34 accordingly (`:20-28`, `:75-76`),
+> so the nav rail today reads Now, Overview, Agents, Tasks, Messages, Operations. ADR-0017 also
+> layers on a light/dark presentation toggle (FR-U38) and Operator Agent archive/restore on the
+> Agents view (FR-U36, widening FR-U19), and it replaced the "jump to the Messages tab" flow with
+> an inline compose modal. Everything this ADR decided stands unchanged and ADR-0017 says so
+> explicitly (`:15-16`, `:75`): one view per concern rather than one scrolling page, the one-click
+> `{ confirm: true }` confirmation that re-scoped FR-U25, the owned-session listing FR-U35 built
+> on the same pane-map ownership proof as `team stop`, pane peek living in Operations, and the
+> FR-U08 CDN-font re-scope. The text below is kept as the decision was made.
+
 ## Context
 
 [ADR-0012](./0012-optional-local-ui-server.md) established the optional local Console: a web
