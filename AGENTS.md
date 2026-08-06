@@ -54,8 +54,8 @@ branch, stop: branch off `main` instead.
 ## Commands
 
 ```sh
-npm run build          # tsc -p tsconfig.build.json → dist/ (the publishable artifact)
-npm run typecheck      # tsc -p tsconfig.json (noEmit, includes tests)
+npm run build          # tsc -p tsconfig.build.json + build:web → dist/ (the publishable artifact)
+npm run typecheck      # 3 projects: root tsconfig.json (noEmit, includes tests), web/, docs-site/
 npm run lint           # eslint . (type-checked rules; lint:fix to autofix)
 npm run format         # prettier --write . (format:check in CI)
 npm test               # vitest run
@@ -67,8 +67,9 @@ npx vitest run tests/unit/format.test.ts
 npx vitest run -t "rejects a non-empty version-0 database"
 ```
 
-CI (`.github/workflows/ci.yml`) runs typecheck → lint → format:check → build → test:coverage
-on GitHub-hosted runners at Node `24.18.0`. All five must pass — the test step enforces the
+CI (`.github/workflows/ci.yml`) runs typecheck → lint → format:check → build →
+build:docs → test:coverage on GitHub-hosted runners at Node `24.18.0`. All six must
+pass — `build:docs` fails the PR on a broken docs bundle, and the test step enforces the
 95% coverage thresholds — so match them locally (`npm run test:coverage`, not plain
 `npm test`) before pushing.
 
@@ -82,10 +83,13 @@ which only exists in Node 24+. There is no SQLite dependency in `package.json`.
 The whole CLI is testable in-process because the process environment is injected, not
 reached for directly:
 
-- **`src/io.ts`** — the `Io` interface: `cwd`, `env`, `stdin`, `stdout`, `stderr`, and
-  `clock` (epoch seconds, the single source of "now" for an operation). Everything crew
-  touches in the environment is one of these fields. Tests use `tests/helpers/io.ts`
-  (`captureIo`) to capture output and control the clock.
+- **`src/io.ts`** — the `Io` interface: `cwd`, `env`, `stdin`, `stdout`, `stderr`,
+  `clock` (epoch seconds, the single source of "now" for an operation), `random` (the
+  single source of nondeterminism, seeded in tests), `runProcess` (capture-only,
+  timeout-bounded subprocess), `runInteractive` (one foreground stdio-inheriting child,
+  reserved for `tmux attach`), and the optional test-only `onTransactionStep` fault hook.
+  Everything crew touches in the environment is one of these fields. Tests use
+  `tests/helpers/io.ts` (`captureIo`) to capture output and control the clock.
 - **`src/run.ts`** — `run(argv, io): Promise<number>` is the single Program seam. It
   drives commander and maps every outcome to an exit code plus crew-owned output. It
   **never calls `process.exit`** (the bin shim sets `process.exitCode` so Node can drain
@@ -173,7 +177,7 @@ shared-memory sidecars make NFS/SMB-backed workspaces unsupported.
 Vitest, organized by layer under `tests/`: `unit/` (pure modules), `integration/`
 (`commands/`, `program/`, `package/` pack-smoke), `store/` (schema + persistence),
 `spawn/` (subprocess). Coverage gate is **95%** (statements, branches, functions, and
-lines) over `src/**` and `bin/**`.
+lines) over `src/**` and `bin/**`, excluding `src/io.ts`.
 
 ## Docs are the contract
 
