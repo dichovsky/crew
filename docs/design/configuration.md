@@ -372,6 +372,7 @@ environment is still read in three narrow places that decide nothing about a pro
   rows this launch created; an unconfirmed teardown skips the cleanup entirely. It is
   reserved and internal: operators do not set it.
 - `PATH` is read by `setup` and `doctor` to find the executables they report on, and by
-  crew's lookup of an executable it is about to probe or run; `doctor` only reports what is
-  missing and spawns nothing. `HOME` (or `USERPROFILE`) also gives `setup` crew's own home
-  directory, under which each target's global artifact sits at a fixed relative path.
+  crew's lookup of an executable it is about to probe or run; the lookup itself only decides
+  whether a name is present and starts nothing. `HOME` (or `USERPROFILE`) gives `setup` and
+  `doctor` your own home directory, under which each target's global artifact sits at a
+  fixed relative path.
