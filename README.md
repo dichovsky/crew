@@ -131,7 +131,7 @@ screen:
 crew ui                        # start the Console; prints an authenticated local URL and opens it
 ```
 
-![The crew Console showing its Overview screen: a left sidebar, headline counts for active agents, in-progress Tasks, Tasks awaiting review, and health, beside a live crew roster and a recent-events feed](./docs/images/console-dashboard.png)
+![The crew Console's Overview screen: sidebar, headline counts, the live crew roster, what needs attention, and a recent-events feed](./docs/images/console-dashboard.png)
 
 - It is an HTTP server that you start yourself and that stays in the foreground of your
   terminal. It listens only on `127.0.0.1`, so it is reachable only from your own computer,
