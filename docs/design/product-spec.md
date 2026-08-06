@@ -106,7 +106,8 @@ requires one process that stays alive for as long as the tmux session does.
 
 This is the **canonical release-gate list**. Other documents reference it and must not keep a
 separate copy; the **current published version** likewise lives only in
-[docs/README.md](../README.md). crew has shipped to npm. Because npm's OIDC Trusted
+[docs/README.md](../README.md) — `CHANGELOG.md` records version history, not release
+status. crew has shipped to npm. Because npm's OIDC Trusted
 Publishing can only attach to a package that already exists, the first release (`0.1.0`)
 was published once by hand; from `0.1.1` on, a published GitHub Release runs
 `.github/workflows/publish.yml`, which publishes via OIDC with provenance and no stored
