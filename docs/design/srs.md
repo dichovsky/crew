@@ -805,8 +805,8 @@ rather than restating them.
   as the CLI; non-consumption re-proven after every POST).*
 - **FR-U19 — Console action scope.** The Console action surface shall be limited to sending a
   Message, creating a Task, approving or sending back a Submission, launching a Team, stopping
-  a Team, peeking at a pane, running `prune` or `clean`, and archiving or restoring an Agent
-  (FR-U36). *Verify: inspection — Console route inventory in
+  a Team, resuming a Team, peeking at a pane, running `prune` or `clean`, and archiving or
+  restoring an Agent (FR-U36). *Verify: inspection — Console route inventory in
   `src/ui/server.ts`/`src/ui/actions.ts`, unknown routes and methods rejected in
   `tests/integration/ui-server-actions.test.ts`, `tests/integration/ui-server-team.test.ts`.*
 - **FR-U20 — Detached browser launch.** A Team launch from the Console shall be detached, and
