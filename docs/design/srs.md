@@ -49,12 +49,14 @@ is expanded here into consecutive ids, tracked in
 ### 1.1 Purpose (§9.5.1)
 
 crew is a command-line tool that runs on your own machine and coordinates terminal coding
-agents (Claude Code, Codex CLI, Gemini CLI, Copilot CLI). This SRS specifies **all v1 software
-requirements**, plus the post-v1 additions for the Console and for stopping and resuming a Team —
-functional and non-functional — in enough detail to design and test against. crew coordinates
-Participant CLIs (the AI command-line apps that act as Agents) that are already running; they
-share one State Store, an SQLite database file inside the project's Workspace. crew **never
-calls a model provider** and runs no AI model itself.
+agents (the eight Participant CLIs named in
+[Appendix A](#appendix-a--assumptions-dependencies-and-tbd-items), as recorded in the platform
+registry). This SRS specifies **all v1 software requirements**, plus the post-v1 additions for
+the Console and for stopping and resuming a Team — functional and non-functional — in enough
+detail to design and test against. crew coordinates Participant CLIs (the AI command-line apps
+that act as Agents) that are already running; they share one State Store, an SQLite database
+file inside the project's Workspace. crew **never calls a model provider** and runs no AI model
+itself.
 
 ### 1.2 Scope (§9.5.2)
 
@@ -82,7 +84,8 @@ calls a model provider** and runs no AI model itself.
 crew is a standalone command-line program that other software (Participant CLIs) and a human
 operator invoke. Its boundaries with the outside world:
 
-- **System interface** — Participant CLIs (Claude Code, Codex CLI, Gemini CLI, Copilot CLI)
+- **System interface** — Participant CLIs (the eight named in
+  [Appendix A](#appendix-a--assumptions-dependencies-and-tbd-items))
   invoke `crew` subcommands; crew never invokes a model provider.
 - **User interface** — a text CLI with two equally supported output formats (a human
   table/line format, and `--json` output where each line is one complete JSON object —
@@ -508,8 +511,8 @@ rather than restating them.
   or that someone edited since crew wrote it, shall require `--force` and a backup. *Verify:
   automated test — `tests/integration/commands/setup.test.ts`, `tests/unit/setup-fs.test.ts`.*
 - **FR-G07 — Actual invocation.** Setup output shall state the real invocation (Claude,
-  Gemini, Pi, Little Coder, and opencode `/crew`; Codex `$crew`; Copilot `/agent` selection
-  plus prompt). *Verify: automated test — `tests/unit/platforms.test.ts`.*
+  Gemini, Antigravity, Pi, Little Coder, and opencode `/crew`; Codex `$crew`; Copilot
+  `/agent` selection plus prompt). *Verify: automated test — `tests/unit/platforms.test.ts`.*
 - **FR-G08 — Scoped permission guidance.** Setup guidance shall prefer permission limited to the
   `crew` command. *Verify: inspection — setup-integration.md; `src/platforms/shared.ts`.*
 - **FR-G09 — No automatic bypass flags.** Blunt permission-bypass flags shall never be enabled

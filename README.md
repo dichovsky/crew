@@ -5,11 +5,12 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D24.15-brightgreen.svg)](https://nodejs.org)
 
 crew is a command-line tool that coordinates AI coding assistants running in a terminal.
-Tools such as Claude Code, Codex CLI, Gemini CLI, GitHub Copilot CLI, and Little Coder each
-run as their own independent terminal session; crew gives those sessions a shared inbox for
-notes, a task workflow where finished work must pass a separate review, and an optional
-launcher that opens all of them side by side. crew never contacts an AI model provider
-itself — it only passes coordination data between the sessions.
+The eight supported tools — Claude Code, Codex CLI, Gemini CLI, GitHub Copilot CLI,
+Antigravity CLI, Pi CLI, Little Coder, and opencode CLI — each run as their own independent
+terminal session; crew gives those sessions a shared inbox for notes, a task workflow where
+finished work must pass a separate review, and an optional launcher that opens all of them
+side by side. crew never contacts an AI model provider itself — it only passes coordination
+data between the sessions.
 
 **[Interactive documentation →](https://dichovsky.github.io/crew/)** — how crew works, what it is
 built from, and where its limits are, explained with diagrams you can step through.
@@ -22,9 +23,10 @@ built from, and where its limits are, explained with diagrams you can step throu
 - **A task isn't done because the agent says so.** The Worker (the agent assigned the work)
   finishing and the reviewer accepting the result are two separate, enforced steps
   (`submitted` then `completed`), so a Worker can't mark its own work accepted.
-- **Not locked to one vendor.** Claude Code, Codex CLI, Gemini CLI, Copilot CLI, Little
-  Coder, and locally hosted models can all join the same Crew — the group of agents sharing
-  one project's state. crew coordinates them; it doesn't replace them.
+- **Not locked to one vendor.** Claude Code, Codex CLI, Gemini CLI, Copilot CLI, Antigravity
+  CLI, Pi CLI, Little Coder, opencode CLI, and locally hosted models can all join the same
+  Crew — the group of agents sharing one project's state. crew coordinates them; it doesn't
+  replace them.
 - **Both a human and a script can drive it.** Every command has a plain-text form for
   reading and a `--json` form that prints one complete JSON object per line for scripts to
   parse — there is no separate API to learn.
@@ -188,7 +190,10 @@ flowchart TB
         A2["Codex CLI"]
         A3["Gemini CLI"]
         A4["Copilot CLI"]
-        A5["Little Coder"]
+        A5["Antigravity CLI"]
+        A6["Pi CLI"]
+        A7["Little Coder"]
+        A8["opencode CLI"]
     end
 
     subgraph crewcli["crew CLI - one-shot process, exits after every command"]
@@ -208,7 +213,7 @@ flowchart TB
     TMUX["tmux session<br/>one pane per Agent + Relay window"]
     BROWSER["Browser dashboard<br/>127.0.0.1 - token-auth - SSE"]
 
-    A1 & A2 & A3 & A4 -- "crew join / send / receive / task ..." --> BIN
+    A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 -- "crew join / send / receive / task ..." --> BIN
     BIN --> RUN --> CMD
     CMD --> FMT
     CMD --> WS
