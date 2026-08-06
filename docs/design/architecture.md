@@ -154,7 +154,7 @@ src/
   ui/
     server.ts                   token-guarded loopback HTTP/SSE server + static assets; routes GET /api/snapshot,/api/events,/api/health,/api/sessions,/api/resumable-sessions,/api/peek and the action POSTs
     snapshot.ts                 bounded, non-consuming Store snapshot projection
-    actions.ts                  Operator action handlers (send/create/approve/requeue, launch/stop, prune/clean, listSessions)
+    actions.ts                  Operator action handlers (send/create/approve/requeue, launch/stop, prune/clean, listSessions, listResumableTeamSessions, peekPane, archiveAgent, restoreAgent)
   format.ts
   errors.ts
 web/                            Preact + TypeScript dashboard source
