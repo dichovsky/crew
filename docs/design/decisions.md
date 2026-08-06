@@ -13,9 +13,8 @@ match).
 ## Structural decisions
 
 The hard-to-reverse structural choices are recorded as ADRs. See the
-[ADR index](../adr/README.md) for the current set (ADR-0001…ADR-0015), their status, and
-one-line summaries; the ADR bodies carry the reasoning and consequences. This index does not
-restate them.
+[ADR index](../adr/README.md) for the current set, their status, and one-line summaries; the
+ADR bodies carry the reasoning and consequences. This index does not restate them.
 
 ## Product and implementation decisions
 
@@ -125,9 +124,12 @@ version), Model Backend recipes, Relay proof, SQLite stress, and security review
 The hard-to-reverse choices for the optional `crew ui` Console live in ADRs:
 [ADR-0012](../adr/0012-optional-local-ui-server.md) (a foreground server, reachable only from
 your own computer, requiring a token on every request, and working only through the Store's
-domain reads and actions) and [ADR-0013](../adr/0013-console-redesign.md) (the five-view
+domain reads and actions), [ADR-0013](../adr/0013-console-redesign.md) (the five-view
 redesign: the one-click destructive confirmation that re-scoped FR-U25, the owned-session
-listing FR-U35, and the CDN-font re-scope of FR-U08). Two honesty features were lost in the
+listing FR-U35, and the CDN-font re-scope of FR-U08), and
+[ADR-0017](../adr/0017-console-now-view-theme-and-agent-archive.md) (Console v2, extending
+ADR-0013: the Now triage view FR-U37, the light/dark theme toggle FR-U38, and Operator Agent
+archive/restore FR-U36). Two honesty features were lost in the
 redesign: the visible note about gaps in Message history (since restored) and the browser
 create-Task form (still open as deferred work).
 

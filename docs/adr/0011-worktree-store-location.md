@@ -36,7 +36,7 @@ between worktrees. A worktree Crew is as disposable as the worktree itself.
 
 **Update: the wiring has landed.** `preflightLaunch`
 (`src/launcher/session.ts`) resolves the single whole-Crew worktree — through the existing
-`resolveWorktree` (`src/launcher/worktree.ts`) — as the very last step of preflight, after
+`resolveWorktree` (`src/worktree.ts`) — as the very last step of preflight, after
 every read-only check and strictly before anything touches tmux. Everything downstream in the
 live launch (each pane's working directory, `openWorkspaceStore`,
 `writePlanArtifacts`/`writePaneMap`) then runs against the resolved worktree path instead of

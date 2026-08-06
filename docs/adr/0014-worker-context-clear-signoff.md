@@ -4,6 +4,16 @@ status: accepted
 
 # Worker context-clear sign-off
 
+> **Amended by [ADR-0016](./0016-structured-clear-safe-signoff-and-relay-reset.md).** Two of the
+> decisions below no longer hold. The Sign-off no longer rides the existing `note` kind and adds no
+> new one: it is a structured `clear_safe` Message kind (schema v6), minted only by `task land` and
+> `task abandon`. And the platform registry no longer records no per-CLI reset command: it gains a
+> per-engine reset command, and crew's Relay — not the Worker — types that reset into the pane,
+> because no supported engine lets the model inside the session reset itself. What this ADR decided
+> about *when* clearing is safe — only once a Task has fully landed, never right after a Submission,
+> with an abandoned Task as the immediate exception — stands unchanged. The text below is kept as
+> the decision was made.
+
 ## Context
 
 A Worker — the Agent that does the assigned work — runs inside a Participant CLI process that
