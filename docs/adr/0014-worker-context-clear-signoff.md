@@ -4,6 +4,26 @@ status: accepted
 
 # Worker context-clear sign-off
 
+> **Amended by [ADR-0015](./0015-per-worker-task-worktrees.md) and
+> [ADR-0016](./0016-structured-clear-safe-signoff-and-relay-reset.md).** The Sign-off's mechanics
+> have moved on, and the Consequences bullet below ("No schema change, no new crew command, and no
+> new Message kind") no longer holds in any of its three claims. ADR-0015 added `crew task land` and
+> made it send the Sign-off itself, so a Task that used a worktree no longer needs the separate
+> `crew send` described below; a Task that never had one still takes the manual Sign-off, and `land`
+> refuses it with `TASK_CONFLICT`. That is the common case, because per-Task worktrees are opt-in
+> and off by default. ADR-0016 made the Sign-off a structured `clear_safe` Message kind (introduced
+> in schema v6), minted only by `task land` and `task abandon`. ADR-0016 further decided that the
+> platform registry gains a per-Participant-CLI reset command and that crew's Relay — not the
+> Worker — types that reset into the pane, because none of the Participant CLIs ADR-0016 surveyed
+> lets the model inside the session reset itself; **that half has not landed yet** — the registry
+> records no reset command and the Relay types none. The Worker Role half of that same paragraph
+> has already gone, though: `WORKER_ROLE` (`src/templates.ts`) now tells a Worker that crew performs
+> the reset itself and never to reset or compact mid-Task. One further detail below was never
+> accurate: `ParticipantTarget` (`src/platforms/shared.ts`) also exposes an optional `launchArgs()`
+> beside `invocation()`. What this ADR decided about *when* clearing is safe — only once a Task has
+> fully landed, never right after a Submission, with an abandoned Task as the immediate
+> exception — stands unchanged. The text below is kept as the decision was made.
+
 ## Context
 
 A Worker — the Agent that does the assigned work — runs inside a Participant CLI process that
