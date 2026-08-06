@@ -12,7 +12,7 @@
  * It is a gated vitest test rather than a standalone `scripts/*.mjs` only because the
  * repo's lint/typecheck project cannot include a loose script; the required properties hold — unshipped, registry-reused, committed artifact, no new CLI surface.
  *
- * Run it (with the five Participant CLIs / backends installed):
+ * Run it (with all ten targets installed — the eight Participant CLIs and the two Model Backends):
  *   npm run build && CREW_RELEASE_SMOKE=1 npx vitest run tests/tools/release-smoke.test.ts
  * The default per-PR run SKIPS it (a visible skip).
  */

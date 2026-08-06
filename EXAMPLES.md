@@ -188,10 +188,12 @@ crew clean --force
 ```
 
 - `prune` with these flags overrides the defaults (Messages older than 30 days, Tasks older
-  than 90) for a Workspace that fills up faster than usual. A completed Task is kept
-  regardless of age while any notification linked to it is still unread. `prune` always
-  prints exactly one `prune_result`, even when nothing was deleted, so a script can read
-  `messages_deleted`/`tasks_deleted` without special-casing "nothing to prune."
+  than 90) for a Workspace that fills up faster than usual. The Task window covers both final
+  states — a completed Task is measured from `completed_at`, an abandoned one from
+  `abandoned_at` — and a Task of either kind is kept regardless of age while any notification
+  linked to it is still unread. `prune` always prints exactly one `prune_result`, even when
+  nothing was deleted, so a script can read `messages_deleted`/`tasks_deleted` without
+  special-casing "nothing to prune."
 - `--vacuum` gives the freed disk space back to the operating system, but refuses
   (`ACTIVE_AGENTS`) while any Agent is still active — run it after everyone has left, for
   example as a weekly maintenance job.

@@ -22,11 +22,22 @@ The database path must be on a local filesystem; network shares are unsupported.
 statement passes user input as bound parameters, never by pasting it into the SQL text.
 
 `<workspace>` is found by walking up from the working directory to the nearest folder that
-contains `.crew/` — every command and every launched pane discovers it the same way. A Crew
-launched inside a git worktree (a separate working copy of the repository sharing the same
-history) therefore resolves the *worktree's* own `.crew/` and opens a fresh Store that is
-**local to that worktree and lives only as long as it does**; this is deliberate — it does not
-redirect to a store shared with the main repository (ADR-0011).
+contains `.crew/`, and then — when that `.crew/` holds a `workspace-pointer` file — following
+that pointer to the root it names, but only when the pointed-to root independently passes the
+same real-`.crew/`-directory check. A missing or invalid pointer target fails as
+`NOT_WORKSPACE` and never silently opens a disconnected local Store (FR-W04). Every command
+and every launched pane discovers `<workspace>` the same way. The two git worktree mechanisms
+(a worktree being a separate working copy of the repository sharing the same history) differ
+in exactly this step:
+
+- a Crew launched inside a **whole-Crew worktree** writes no pointer, so it resolves the
+  *worktree's* own `.crew/` by the plain walk and opens a fresh Store that is **local to that
+  worktree and lives only as long as it does**; this is deliberate — it does not redirect to a
+  store shared with the main repository (ADR-0011);
+- a Worker's per-Task **Task worktree** and a reviewing Agent's **Review Worktree** are each
+  given a `workspace-pointer` back to the shared Workspace when they are created, so a command
+  run inside one redirects to the shared Store (ADR-0015). The two mechanisms are independent;
+  neither replaces the other.
 
 ## Schema version 7 (current)
 
@@ -368,9 +379,17 @@ each entity.
   `status = 'completed'` and a non-null `worktree_path`. When the worktree has uncommitted
   changes, or its branch is not yet contained in ("an ancestor of") `worktree_base_ref`, land
   refuses and changes nothing — unless `--force` is given. Otherwise it removes the worktree
-  and branch, and clears `worktree_path`, `worktree_branch`, and `worktree_base_ref` in the
-  same all-or-nothing step that sends the Sign-off (ADR-0014) to the assignee as a structured
-  `clear_safe` Message (ADR-0016).
+  and branch **on disk with git, before and outside the transaction** — a database transaction
+  cannot prove a directory is gone — and only then runs the atomic database step, which clears
+  `worktree_path`, `worktree_branch`, and `worktree_base_ref` and sends the Sign-off (ADR-0014)
+  to the assignee as a structured `clear_safe` Message (ADR-0016) in one all-or-nothing unit.
+  Two consequences follow from that split. A branch git declines to delete does not block the
+  clear: the worktree itself is gone, so land warns on stderr and proceeds. And a crash
+  between the two halves leaves the worktree removed on disk while the Task still carries its
+  trio — a state no transaction can roll back, and one a later `land` cannot repair on its own,
+  because its pre-checks run git inside the directory that is no longer there. The Sign-off is
+  sent even when the assignee is the landing actor — it is the durable unread signal the Relay
+  keys on, not a courtesy note — and is skipped only when the assignee is archived.
 
 ### Review worktrees
 
@@ -409,6 +428,8 @@ revision the operation read — and "touch" means refreshing an Agent's `last_se
 | task submit | CAS Task, append `submitted` event, notify reviewer and creator |
 | task approve | CAS Task, append `approved` event, notify creator and assignee |
 | task requeue | CAS Task, clear work/review fields, append `requeued` event, notify assignee/creator/reviewer |
+| task abandon | CAS Task to `abandoned`, set `abandoned_at`, clear the Lease, `review_summary`, and the worktree trio, append `abandoned` event carrying the reason, notify creator/assignee/reviewer (the assignee's copy being the `clear_safe` Sign-off) |
+| task land | not a transition — `status` stays `completed` and no event is appended; clear the worktree trio and insert the assignee's `clear_safe` Sign-off (skipped if archived), CAS on the `worktree_path` just read rather than on `revision` |
 | prune | select retention set, delete in referential order, commit; vacuum separately |
 | launch-teardown reap | delete only untouched Agent rows matching this launch's token in one immediate transaction |
 
