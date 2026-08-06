@@ -1,5 +1,5 @@
 /**
- * Left navigation rail (design "aside"): brand, the five view links with their
+ * Left navigation rail (design "aside"): brand, the six view links with their
  * live badges (agent count, review-queue count, unread count, attention dot),
  * the "listening for changes" indicator, and the operator identity card. Pure
  * render — the App owns the active view and the counts.
