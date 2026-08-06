@@ -102,8 +102,8 @@ In summary, crew performs: Workspace initialization (§B); the Agent lifecycle (
 (§D); reviewed Tasks (§E); Role/Team configuration (§F); Setup Target generation (§G);
 optional tmux launch and Relay (§H); storage and safe concurrent access (§I); the two output
 formats and the error-code scheme (§J); and maintenance and trust reporting (§K). The full
-list, one rule per requirement, is in [§3.2](#32-functions). The local Console and Team-stop
-requirements, added after v1, form group U.
+list, one rule per requirement, is in [§3.2](#32-functions). The local Console and owned-Team
+stop/resume requirements, added after v1, form group U.
 
 #### 1.3.3 User characteristics (§9.5.5)
 
@@ -731,7 +731,7 @@ rather than restating them.
   by default and the receive crash window (FR-D14), so users know this before relying on crew
   for irreplaceable records. *Verify: inspection — README; doctor output.*
 
-#### U. Local Console and owned-Team stop
+#### U. Local Console and owned-Team stop/resume
 
 - **FR-U01 — Explicit foreground Console.** `crew ui` shall start a foreground HTTP server only
   when explicitly invoked by the Operator. *Verify: automated test —
@@ -939,6 +939,29 @@ rather than restating them.
   browser storage) across reloads of the same browser; the default is light. The choice affects
   presentation only — no Store data, authority, or action behavior changes with it. *Verify:
   automated test — `web/app.test.tsx`.*
+- **FR-U39 — Resume eligibility proof.** `crew team resume <session>` shall relaunch a session
+  only when tmux is present (`DEPENDENCY_MISSING` otherwise), the session's clean-stop marker and
+  its stored launch plan both exist under `.crew/generated/<session>/` (`NOT_FOUND` otherwise,
+  worded so it leaks no filesystem path), that stored plan names the requested session
+  (`INVALID_CONFIG` otherwise), and no tmux session of that name is live (`ALREADY_EXISTS`
+  otherwise). *Verify: automated test — `tests/unit/launcher/resume.test.ts` (tmux absent,
+  missing marker, missing plan, session-name mismatch, live session of the same name).*
+- **FR-U40 — Strict resume plan match.** A resume shall proceed only when the stored launch plan
+  is identical — apart from its creation timestamp — to a plan built fresh from the current Team
+  and effective configuration; any difference shall fail with `TEAM_DRIFT` and relaunch nothing.
+  *Verify: automated test — `tests/unit/launcher/resume.test.ts` (a changed `reminder_seconds`
+  refuses the resume; the same drift omits the session from the resumable listing).*
+- **FR-U41 — Archived-exact reactivation.** A resume shall proceed only when every Agent named by
+  the stored plan is still the archived row it left behind — same id, same Role, same platform —
+  failing with `TEAM_DRIFT` otherwise; on success the relaunched panes rejoin those exact ids
+  rather than allocating new ones, and the clean-stop marker is retired. *Verify: automated test —
+  `tests/unit/launcher/resume.test.ts` (a roster entry that is not the archived exact match
+  refuses the resume; the listing cases cover never-joined, still-active, wrong-Role, and
+  wrong-platform entries); inspection — `src/launcher/resume.ts` (resumed panes join with
+  `--resume`, and the marker is retired after a successful relaunch).*
+- **FR-U42 — Team-resume record.** A record-producing Team resume shall emit an additive
+  `resume_result` record with `schema_version: 1`, `session_name`, `panes`, `relay`, and
+  `attached`. *Verify: automated test — `tests/unit/format.test.ts`.*
 
 #### W. Worker and review worktrees
 
@@ -1319,7 +1342,7 @@ that says so.
 | FR-K07 | FR-K10 | — |
 
 Counts: **98** old v1 ids → **183** new v1 single-rule ids; **66** old ids were split. The
-additive post-v1 ids `FR-U01`–`FR-U38`, `FR-E22`–`FR-E24`, `FR-H29`, and `FR-W01`–`FR-W15` did
+additive post-v1 ids `FR-U01`–`FR-U42`, `FR-E22`–`FR-E24`, `FR-H29`, and `FR-W01`–`FR-W15` did
 not exist in the retired v1 set and are intentionally excluded from those counts. Deferred
 `FR-X01`–`FR-X08` are unchanged, except `FR-X07`, which is promoted to the group W contract
 (`FR-W01`–`FR-W15`, ADR-0015); see Appendix D.
@@ -1374,7 +1397,7 @@ requirement is therefore graded.
 | I | FR-I01–FR-I14 | all nine P (except FR-I04, FR-I05, FR-I09) |
 | J | FR-J01–FR-J15 | all nine P |
 | K | FR-K01–FR-K10 | all nine P (except FR-K01) |
-| U | FR-U01–FR-U38 | all nine P |
+| U | FR-U01–FR-U42 | all nine P |
 | W | FR-W01–FR-W15 | all nine P |
 | NFR | all NFR-\* | all nine P |
 
