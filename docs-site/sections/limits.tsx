@@ -38,7 +38,7 @@ const LIMITS = [
     label: 'One Participant CLI per launched Crew',
     kind: 'v1',
     detail:
-      'The automatic launcher starts every pane with the same single Participant CLI. Mixed Crews are possible, but you start them by hand — the team display prints the manual commands for doing so. Automatically launching a mix, and one worktree per Agent, are deferred.',
+      'The automatic launcher starts every pane with the same single Participant CLI. Mixed Crews are possible, but you start them by hand — the team display prints the manual commands for doing so. Automatically launching a mix is deferred.',
   },
   {
     id: 'untrusted-config',
@@ -63,10 +63,10 @@ const LIMITS = [
   },
   {
     id: 'deferred',
-    label: 'Eight deferred seams',
+    label: 'Seven deferred seams',
     kind: 'v1',
     detail:
-      'Not built, and deliberately not stubbed: at-least-once delivery, session tokens detecting a displaced session, Task dependencies and readiness queries, durable Agent memory, approval records and human gates, automatic mixed-CLI launch, and one worktree per Agent. A seam is added when a second implementation or a shipped use case actually needs it — none exist as empty placeholder interfaces.',
+      'Not built, and deliberately not stubbed: at-least-once delivery, session tokens detecting a displaced session, Task dependencies and readiness queries, durable Agent memory, approval records and human gates, automatic mixed-CLI launch, and removing generated setup artifacts by marker. A seam is added when a second implementation or a shipped use case actually needs it — none exist as empty placeholder interfaces.',
   },
 ] as const;
 

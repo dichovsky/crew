@@ -513,6 +513,7 @@ are recorded as [DEC-7 and DEC-8](./decisions.md); the release gate itself is de
 - Durable Agent memory and assembling briefings from it.
 - Approval records, and gates where a human must approve before work proceeds.
 - Automatically launching a mix of different Participant CLIs.
+- Removing generated Participant CLI setup artifacts by marker.
 - ~~Browser write actions, pane peek, maintenance controls, and deleted-Workspace recovery~~ —
   since built (recovery is FR-U32). If the
   Workspace is deleted out from under it, the Console's poller broadcasts
@@ -525,6 +526,6 @@ None of these exist as empty placeholder interfaces in v1. A new seam is added o
 a second implementation or a shipped use case actually needs it. The matching deferred
 requirements are FR-X01–X08 in the [software requirements specification](./srs.md),
 except FR-X07: ADR-0015 promoted it to the opt-in group W contract, which gives each
-Worker its own per-Task worktree only where `worker_worktrees.enabled` is set. That is
-separate from, and does not replace, ADR-0011's single worktree shared by a whole
-launched Crew.
+Worker its own per-Task worktree and each reviewing Agent one persistent review
+worktree of its own, only where `worker_worktrees.enabled` is set. That is separate
+from, and does not replace, ADR-0011's single worktree shared by a whole launched Crew.
