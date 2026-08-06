@@ -352,18 +352,25 @@ each entity.
   to be gone — otherwise a Task whose owner left could never be recovered;
 - `submitted` may be requeued immediately; `in_progress` may be requeued only after the
   Lease has expired;
+- abandon requires the Task to be `queued`, `in_progress`, or `submitted` (a `completed` or
+  already-`abandoned` Task is refused) and the actor to be an active Agent and the Task's
+  creator or reviewer; when the creator and the reviewer are *both* archived, the plain
+  `operator` identity may abandon on their behalf (FR-E22) — meaning an `active` Agent row
+  whose id is `operator`, whose Role is `operator`, and whose `platform_id` is `NULL`, so a
+  row that merely holds the id `operator` with a different Role or a platform set is refused;
 - abandon always clears `worktree_path`, `worktree_branch`, and `worktree_base_ref` as part
   of the status change itself; whether the later removal of the worktree from disk (which
   happens outside the transaction) succeeds does not change that;
 - each successful transition increments `revision` exactly once and appends the matching
   Task Event carrying the same revision;
 - a completed Task can never be modified in v1;
-- `land` requires `status = 'completed'` and a non-null `worktree_path`. When the worktree
-  has uncommitted changes, or its branch is not yet contained in ("an ancestor of")
-  `worktree_base_ref`, land refuses and changes nothing — unless `--force` is given.
-  Otherwise it removes the worktree and branch, and clears `worktree_path`,
-  `worktree_branch`, and `worktree_base_ref` in the same all-or-nothing step that sends the
-  Sign-off (ADR-0014) to the assignee as a structured `clear_safe` Message (ADR-0016).
+- `land` requires the actor to be an active Agent and the Task's creator or reviewer, plus
+  `status = 'completed'` and a non-null `worktree_path`. When the worktree has uncommitted
+  changes, or its branch is not yet contained in ("an ancestor of") `worktree_base_ref`, land
+  refuses and changes nothing — unless `--force` is given. Otherwise it removes the worktree
+  and branch, and clears `worktree_path`, `worktree_branch`, and `worktree_base_ref` in the
+  same all-or-nothing step that sends the Sign-off (ADR-0014) to the assignee as a structured
+  `clear_safe` Message (ADR-0016).
 
 ### Review worktrees
 
@@ -466,7 +473,20 @@ released `1 -> 2` step adds the nullable `agents.launch_token` column and its pa
 (an index that covers only the rows where the column is set) via `ALTER TABLE ADD COLUMN`,
 after confirming the live v1 `agents` shape with `PRAGMA table_info` (never by matching error
 text); a crash before this migration commits leaves the database at version 1 with no
-half-created objects. The released `3 -> 4` step adds
+half-created objects. The released `2 -> 3` step adds `tasks.abandoned_at` together with the
+`abandoned` status, event type, and transition, which means widening `CHECK` constraints on
+both `tasks` and `task_events`. SQLite cannot change a `CHECK` in place, so both STRICT tables
+are fully rebuilt: copy the rows to holding tables, `DROP` them, re-`CREATE` each under its
+final name with the released v3 SQL, copy the rows back, and recreate the four dropped
+indexes — re-`CREATE` under the final name rather than `ALTER TABLE RENAME`, because a rename
+stores a quoted table name in `sqlite_schema` that the standing schema-drift check would then
+report forever. Its validation compares both live table shapes against the full released v2
+SQL text, canonicalized so the two texts compare as shapes rather than character for
+character, and confirms both are still STRICT (`PRAGMA table_list`). Because `DROP TABLE`
+silently takes a table's indexes and triggers down with it, that same validation enumerates
+every object belonging to `tasks`/`task_events` by `tbl_name` and refuses on anything beyond
+the exact expected set, not merely on a mismatch within it. `abandoned_at` is left out of the
+copy-back column list, so every migrated row gets `NULL`. The released `3 -> 4` step adds
 `tasks.worktree_path`/`worktree_branch`/`worktree_base_ref` and the new `review_worktrees`
 table. Their all-or-none pairing `CHECK` spans three columns, and SQLite's
 `ALTER TABLE ADD COLUMN` cannot add a `CHECK` that mentions another column — so `tasks` is
@@ -496,9 +516,10 @@ and upgrade, rather than a best-effort attempt to change it in place.
 - `prune --messages-before <duration>` deletes only Messages that are already read and older
   than the cutoff (`read_at IS NOT NULL AND created_at < now − seconds`, using strict `<`).
   The default is 30 days.
-- `prune --tasks-before <duration>` deletes only completed Tasks older than the cutoff
-  (`completed_at < now − seconds`, strict `<`) whose every linked Message is already read.
-  The default is 90 days.
+- `prune --tasks-before <duration>` deletes only Tasks in a final state older than the cutoff
+  — a completed Task judged by `completed_at < now − seconds`, an abandoned Task by
+  `abandoned_at < now − seconds`, each using strict `<` — and only when every linked Message
+  is already read. The default is 90 days.
 - Durations are `<integer><s|m|h|d|w>`. A `0`, a fraction, a compound form (`1d12h`), or a
   value so large that `now − seconds` would leave the range of safely representable integers
   is rejected as `USAGE`.
