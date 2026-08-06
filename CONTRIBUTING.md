@@ -21,8 +21,9 @@ npm install
 ## Commands
 
 ```sh
-npm run build          # tsc -p tsconfig.build.json → dist/ (the publishable artifact)
-npm run typecheck      # tsc -p tsconfig.json (noEmit, includes tests)
+npm run build          # tsc -p tsconfig.build.json + build:web → dist/ (the publishable artifact)
+npm run build:docs     # esbuild docs-site/ → dist-docs/ (CI gate; not in the package)
+npm run typecheck      # 3 tsconfigs, all noEmit: root (incl. tests), web/, docs-site/
 npm run lint           # eslint . (type-checked rules; lint:fix to autofix)
 npm run format         # prettier --write . (format:check in CI)
 npm test               # vitest run
@@ -41,8 +42,10 @@ commands locally before pushing.
 
 - **Fast tier** (`ci.yml`, every PR): all the checks above, plus a short
   stress run that forces several processes to compete for the database at once
-  (`CREW_STRESS_ITERS=25`), and an `npm publish --dry-run` job that proves the package
-  could be published without actually publishing anything. TypeScript, lint, and format
+  (`CREW_STRESS_ITERS=25`), and a `publish-dry-run` job that proves the package could be
+  published without actually publishing anything — its `npm publish --dry-run` step skips
+  with a notice when the current version is already on npm, so it rehearses on a
+  version-bumping PR and no-ops between releases. TypeScript, lint, and format
   must all be green.
 - **Full tier** (nightly, started by hand via `workflow_dispatch`, or triggered by a PR
   label):

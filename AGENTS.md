@@ -69,11 +69,13 @@ npx vitest run -t "rejects a non-empty version-0 database"
 ```
 
 CI (`.github/workflows/ci.yml`) runs typecheck → lint → format:check → build →
-build:docs → test:coverage on GitHub-hosted runners at Node `24.18.0`. All six steps of
-that `build-test` job must pass — `build:docs` catches a broken docs bundle, and the test
-step enforces the 95% coverage thresholds — so match them locally
+build:docs → test:coverage on GitHub-hosted runners at Node `24.18.0`. All six of those
+gates in the `build-test` job must pass — `build:docs` catches a broken docs bundle, and
+the test step enforces the 95% coverage thresholds — so match them locally
 (`npm run test:coverage`, not plain `npm test`) before pushing. A second job,
-`publish-dry-run`, rehearses `npm publish --dry-run` on every PR.
+`publish-dry-run`, runs on every PR but only rehearses `npm publish --dry-run` when
+`package.json`'s version is not already on npm; between releases that step deliberately
+skips with a notice (`ci.yml:62-73`).
 
 **Node `>=24.15` is a hard floor.** The Store uses the built-in `node:sqlite` module,
 which only exists in Node 24+. There is no SQLite dependency in `package.json`.
@@ -82,18 +84,25 @@ which only exists in Node 24+. There is no SQLite dependency in `package.json`.
 
 ### The seams (read these first)
 
-The whole CLI is testable in-process because the process environment is injected, not
-reached for directly:
+The whole CLI is testable in-process because the process environment a command handler
+needs is injected at the `run(argv, io)` boundary rather than reached for inside the
+handler:
 
-- **`src/io.ts`** — the `Io` interface: these ten fields are every process-environment
-  input crew reads. The filesystem is not among them (21 `src/` modules import
-  `node:fs`; path policy is `src/fs-safe.ts` / `src/workspace.ts`), so a stubbed `Io`
-  does not isolate a test from disk. The ten: `cwd`, `env`, `stdin`, `stdout`, `stderr`,
-  `clock` (epoch seconds, the single source of "now"), `random` (Store retry jitter only —
-  `Math.random` in production, `0.5` in `captureIo`, seeded under stress), `runProcess`
-  (capture-only, timeout-bounded), `runInteractive` (unbounded, TTY-owning, for
-  `tmux attach`), and the optional test-only `onTransactionStep` fault hook. Tests use
-  `tests/helpers/io.ts` (`captureIo`) to capture output and control the clock.
+- **`src/io.ts`** — the `Io` interface, the ten fields threaded through that boundary:
+  `cwd`, `env`, `stdin`, `stdout`, `stderr`, `clock` (epoch seconds, the single source of
+  "now"), `random` (Store retry jitter only — `Math.random` in production, `0.5` in
+  `captureIo`, seeded under stress), `runProcess` (capture-only, timeout-bounded),
+  `runInteractive` (unbounded, TTY-owning, only for `tmux attach`), and the optional
+  test-only `onTransactionStep` fault hook. It is **not** every environment read in
+  `src/`: signal handlers (`src/relay.ts`, `src/ui/index.ts`), `process.platform`
+  (`src/ui/index.ts`), `process.argv[1]`/`process.execPath` for the self-invocation
+  string (`src/cli.ts`, `src/launcher/index.ts`, `src/ui/server.ts`), and
+  `process.versions.node` (`src/node-floor.ts`) all bypass it. `env` genuinely is fully
+  routed — no `src/` module reads `process.env` directly. The filesystem is not in `Io`
+  either (21 `src/` modules import `node:fs`; path policy is `src/fs-safe.ts` /
+  `src/workspace.ts`, plus `src/setup/fs.ts` for writes outside `.crew/`), so a stubbed
+  `Io` does not isolate a test from disk. Tests use `tests/helpers/io.ts` (`captureIo`)
+  to capture output and control the clock.
 - **`src/run.ts`** — `run(argv, io): Promise<number>` is the single Program seam. It
   drives commander and maps every outcome to an exit code plus crew-owned output. It
   **never calls `process.exit`** (the bin shim sets `process.exitCode` so Node can drain
