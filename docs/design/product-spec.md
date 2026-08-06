@@ -67,7 +67,8 @@ requires one process that stays alive for as long as the tmux session does.
 - Built-in Manager, Worker, and Inspector Roles, plus per-project overrides.
 - Team definitions and manual command rendering.
 - An optional tmux launch (all panes running the same Participant CLI) and a session Relay.
-- Explicit setup generators for Claude Code, Codex CLI, Gemini CLI, and Copilot CLI.
+- Explicit setup generators for each of the eight Participant CLIs (Claude Code, Codex CLI,
+  Gemini CLI, Copilot CLI, Antigravity CLI, Pi CLI, Little Coder, and opencode CLI).
 - Checked setup recipes for Ollama and LM Studio as Model Backends (inference servers that a
   Participant CLI may use; crew itself never contacts them).
 - Human-readable output and JSON output where each line is one complete JSON object, stable

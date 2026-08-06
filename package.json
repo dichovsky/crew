@@ -1,7 +1,7 @@
 {
   "name": "@dichovsky/crew",
   "version": "0.1.1",
-  "description": "Local coordination for terminal coding agents (Claude Code, Codex, Gemini, Copilot, Little Coder) via a workspace-local SQLite inbox and reviewed task workflow — no daemon, no model provider.",
+  "description": "Local coordination for terminal coding agents (Claude Code, Codex, Gemini, Copilot, Antigravity, Pi, Little Coder, opencode) via a workspace-local SQLite inbox and reviewed task workflow — no daemon, no model provider.",
   "type": "module",
   "license": "MIT",
   "publishConfig": {
@@ -17,7 +17,10 @@
     "codex",
     "gemini-cli",
     "copilot-cli",
+    "antigravity",
+    "pi",
     "little-coder",
+    "opencode",
     "inbox",
     "agents"
   ],
