@@ -11,27 +11,42 @@
  * is the one covering `src/`, `bin/`, and `tests/`.
  */
 import { describe, expect, it } from 'vitest';
-import { readdirSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'dist-docs', 'coverage', '.git', '.crew']);
 /** `tsconfig.json` and any variant (`tsconfig.build.json`, …). */
 const TSCONFIG = /^tsconfig(\..+)?\.json$/;
 
-/** Every tsconfig in the repo, as a POSIX path relative to the root. */
-function projectConfigs(dir: string): string[] {
-  const found: string[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      if (SKIP_DIRS.has(entry.name)) continue;
-      found.push(...projectConfigs(join(dir, entry.name)));
-    } else if (TSCONFIG.test(entry.name)) {
-      found.push(relative(ROOT, join(dir, entry.name)).split('\\').join('/'));
-    }
-  }
-  return found;
+/**
+ * Every tsconfig that is part of the repository, as a POSIX path relative to
+ * the root.
+ *
+ * Candidates come from git rather than a filesystem walk. The property wanted
+ * here is "a TypeScript project this repository ships", and git already answers
+ * exactly that — whereas a hand-maintained skip list is only an approximation of
+ * it, and drifted once already: `.claude/` was missing from it, so every agent
+ * worktree under `.claude/worktrees/` contributed five foreign tsconfigs and the
+ * suite failed locally while a fresh CI clone passed (#148).
+ *
+ * `--cached --others --exclude-standard` is tracked files PLUS untracked ones
+ * that are not ignored, so a brand-new project directory is caught before it is
+ * ever staged, while everything `.gitignore` excludes (`node_modules/`, `dist/`,
+ * `dist-docs/`, `coverage/`, `.crew/`, `.claude/`) stays out by construction.
+ * This binds the test to a git checkout; the repo is only ever built from one.
+ */
+function projectConfigs(): string[] {
+  const listed = execFileSync(
+    'git',
+    ['ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+    {
+      cwd: ROOT,
+      encoding: 'utf8',
+    },
+  );
+  return listed.split('\0').filter((path) => path !== '' && TSCONFIG.test(basename(path)));
 }
 
 const scripts = (
@@ -51,10 +66,10 @@ function compiledProjects(script: string | undefined): string[] {
 }
 
 describe('npm compile gates', () => {
-  // Guards the walker itself: a discovery bug that returned nothing would make
-  // every assertion below vacuously true.
+  // Guards the enumeration itself: a discovery bug that returned nothing would
+  // make every assertion below vacuously true.
   it('discovers the known tsconfig projects', () => {
-    const configs = projectConfigs(ROOT);
+    const configs = projectConfigs();
     expect(configs).toContain('tsconfig.json');
     expect(configs).toContain('tsconfig.build.json');
     expect(configs.length).toBeGreaterThanOrEqual(5);
@@ -68,7 +83,7 @@ describe('npm compile gates', () => {
       ...compiledProjects(scripts['typecheck']),
       ...compiledProjects(scripts['build']),
     ]);
-    const missing = projectConfigs(ROOT).filter((config) => !compiled.has(config));
+    const missing = projectConfigs().filter((config) => !compiled.has(config));
     expect(missing, `tsconfigs outside every compile gate: ${missing.join(', ')}`).toEqual([]);
   });
 });
