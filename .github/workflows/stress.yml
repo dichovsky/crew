@@ -20,6 +20,10 @@ on:
   pull_request:
     types: [labeled]
 
+# Least privilege: this job only reads the repo — no OIDC, no write scope.
+permissions:
+  contents: read
+
 jobs:
   stress:
     name: stress

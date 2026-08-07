@@ -14,6 +14,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
 
+# Least privilege: this job only reads the repo — no OIDC, no write scope.
+permissions:
+  contents: read
+
 jobs:
   ui-e2e:
     name: ui-e2e

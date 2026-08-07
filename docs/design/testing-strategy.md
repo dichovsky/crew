@@ -42,6 +42,11 @@ full-tier suites, an intermittent failure there is investigated rather than blin
   gracefully skips when tmux is absent; the recording-adapter tests remain mandatory
   everywhere.
 - Windows may run the core Program/Store tests as informational until officially supported.
+- **A loopback bind must be permitted.** The Console suites (`tests/integration/ui-server*.test.ts`
+  and `tests/integration/commands/ui.test.ts`) start the real `crew ui` server, which binds
+  127.0.0.1 (FR-U02). In a sandbox that denies local sockets they fail in setup with
+  `listen EPERM: operation not permitted 127.0.0.1`. That is an environment restriction, not a
+  defect — run the suite outside the sandbox, or grant it loopback networking.
 
 Tests use an isolated temporary `HOME`, Workspace, XDG variables, Git repo, and database. No
 test writes to real user setup locations or invokes a real model/backend except the release
