@@ -46,9 +46,19 @@ and the canonical gate list in
    Pi, Little Coder, opencode) at their pinned minimum versions, plus the Ollama and LM Studio Model-Backend
    tool-call smokes.
 4. **Commit the evidence:** `docs/release/artifacts-<date>.json`, and update the gate
-   statuses in the [release-gate table](../design/product-spec.md#release-gates).
-5. **Bump the version** in `package.json` and add a dated `CHANGELOG.md` entry (move
-   items out of `[Unreleased]`). Merge to `main`.
+   statuses in the [release-gate table](../design/product-spec.md#release-gates). Its
+   [retained-evidence](./README.md#retained-evidence) row is written at step 7, once
+   there is a published release to record.
+5. **Bump the version and refresh the release status** — all three in the same commit:
+   - `package.json`: the new version.
+   - `CHANGELOG.md`: move items out of `[Unreleased]` into a dated section.
+   - [`docs/README.md`](../README.md), **Current readiness**: name the new version as the
+     current published release. That section is the single source of truth for release
+     status, so nothing else records it — and nothing checks it, since it is free text.
+     The `[Unreleased]` move above is also the moment to re-check that section's feature
+     claims against what the release actually ships; the two rot together.
+
+   Merge to `main`.
 6. **Publish the GitHub Release** with tag `vX.Y.Z` at the release commit (release notes
    from the changelog). This triggers `publish.yml`:
    - it verifies the tag matches `package.json`, runs the full gate, then
@@ -56,12 +66,19 @@ and the canonical gate list in
      and exits green; otherwise it publishes with provenance via OIDC.
    > Re-cutting `v0.1.0` is safe: the preflight sees `0.1.0` already on npm and skips,
    > so the Release still validates the pipeline end-to-end without a double publish.
-7. **Verify the result:**
+7. **Verify the result, then record it:**
    ```sh
    npm view @dichovsky/crew version dist-tags
    npm install -g @dichovsky/crew && crew --version
    ```
    For OIDC publishes, confirm the provenance badge/attestation on the npm package page.
+   - **If it published:** add the release's row to the
+     [retained-evidence record](./README.md#retained-evidence), dating it from
+     `npm view @dichovsky/crew time --json`. This is the first point at which a
+     `Published` date exists, so it is the only point at which the row may be written.
+   - **If it did not:** the step-5 readiness update now names a version that is not
+     published. Revert that paragraph in [`docs/README.md`](../README.md) before anything
+     else — leaving it is exactly the drift step 5 exists to prevent.
 
 ## Notes
 

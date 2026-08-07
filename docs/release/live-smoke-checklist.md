@@ -77,3 +77,6 @@ For each of **Ollama** and **LM Studio**:
       `0.1.1`+ the maintainer publishes a GitHub Release, which runs `publish.yml` and
       publishes via npm OIDC Trusted Publishing (no long-lived npm secret in CI). See
       [publishing.md](./publishing.md).
+- [ ] **Once that publish is confirmed live**, the release has a row in the
+      [retained-evidence record](./README.md#retained-evidence). Not before — an
+      unpublished release has no `Published` date to record.

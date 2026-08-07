@@ -46,7 +46,9 @@ drift. Source lives in [`docs-site/`](../docs-site/).
 ## Current readiness
 
 This section is the single source of truth for release status; `AGENTS.md` and
-`CLAUDE.md` summarize it and defer here.
+`CLAUDE.md` summarize it and defer here. Nothing checks it automatically — step 5 of the
+[release runbook](./release/publishing.md) updates it in the same commit as the version
+bump.
 
 The design remains the implementation contract, and the code is feature-complete
 against it: Workspace/Role/Team configuration, the State Store (crew's shared SQLite
