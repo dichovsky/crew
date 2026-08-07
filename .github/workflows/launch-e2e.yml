@@ -17,6 +17,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
 
+# Least privilege: this job only reads the repo — no OIDC, no write scope.
+permissions:
+  contents: read
+
 jobs:
   launch-e2e:
     name: launch-e2e
