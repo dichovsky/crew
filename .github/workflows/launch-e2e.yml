@@ -29,8 +29,13 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
-          # Node floor: the lowest supported runtime (bundled node:sqlite governs
-          # locking) and the interpreter name the fake participant presents for readiness.
+          # Pinned to the same Node version as ci.yml. NOT the floor: the lowest
+          # supported runtime is >=24.15 (src/node-floor.ts), whose bundled node:sqlite
+          # is the one most likely to expose least-favourable locking edges, and this
+          # tier does not exercise it. Beyond that floor, what this tier depends on is
+          # the interpreter NAME rather than the version: the fake Participant is a
+          # `#!/usr/bin/env node` script, so tmux reports its pane process as `node` —
+          # the readiness name the e2e matches (tests/spawn/launch-e2e.test.ts).
           node-version: '24.18.0'
           cache: npm
       - run: npm ci

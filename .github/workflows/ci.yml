@@ -33,8 +33,10 @@ jobs:
       # first surfacing in the Pages deployment after merge.
       - run: npm run build:docs
       # Fast tier: a small fixed forced-contention count on every push/PR for quick
-      # signal and to block merge. The full hundreds-of-iterations matrix runs in
-      # stress.yml (nightly + release + concurrency-critical paths).
+      # signal and to block merge. Hundreds of iterations of every contention case run
+      # in stress.yml, which fires on its nightly schedule, on manual dispatch, and on a
+      # PR only when the `stress-full` label is added — it has no release trigger and no
+      # path filter.
       # Coverage-gated: `test:coverage` runs the same suite and enforces the
       # documented 95% thresholds from vitest.config.ts.
       - run: npm run test:coverage
