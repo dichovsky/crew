@@ -79,4 +79,4 @@ network.
 - Two features that kept the Console honest slipped during the redesign and were tracked rather
   than lost: the visible notice that history may have gaps (FR-U23 — since restored in
   the Messages view) and — missing even before the redesign — a create-Task form in the browser
-  (FR-U15, still open).
+  (FR-U15 — since added as the Tasks view's create-Task modal).

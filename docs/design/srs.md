@@ -808,10 +808,11 @@ rather than restating them.
   active-Agent rules. *Verify: automated test — `tests/integration/ui-server-actions.test.ts`,
   `e2e/ui/actions.spec.ts`.*
 - **FR-U15 — Operator Task creation.** The Operator shall be able to create a Task with any
-  reviewer, subject to the ordinary Task-creation preconditions. *Note: the server route
-  (`POST /api/tasks`) is implemented and verified, but the browser Console does not yet surface
-  a create-Task form — the Console create surface is deferred. Verify: automated
-  test — `tests/integration/ui-server-actions.test.ts`.*
+  reviewer, subject to the ordinary Task-creation preconditions. *Verify: automated
+  test — `tests/integration/ui-server-actions.test.ts`,
+  `web/components/create-task-modal.test.tsx` (roster-backed assignee/reviewer, the
+  client-side guard against an obviously-invalid POST, and a rejected create left visible),
+  `web/app.test.tsx` (Tasks-view create modal: POST then refetch).*
 - **FR-U16 — Operator approval authority.** The Operator shall approve a Submission only when
   it is that Task's reviewer. *Verify: automated test —
   `tests/integration/ui-server-actions.test.ts`, `web/components/tasks-view.test.tsx`.*
@@ -912,7 +913,9 @@ rather than restating them.
     actions (FR-U36).
   - **Tasks** — a board of five honest status columns (`queued`, `in_progress`, `submitted`
     shown as "In review" per FR-U31, `completed`, and a real, selectable `abandoned`
-    column) beside a detail panel carrying the FR-U16/FR-U17 approve and requeue controls.
+    column) beside a detail panel carrying the FR-U16/FR-U17 approve and requeue controls,
+    plus a create-Task modal (title, roster-backed assignee and reviewer, optional brief)
+    that creates under FR-U15.
   - **Messages** — the newest-window Message history (unread Operator Messages marked) beside a
     compose form (recipient select + body) that sends under FR-U14.
   - **Operations** — Team launch (FR-U20), the live owned-session list with owned-stop
@@ -921,7 +924,7 @@ rather than restating them.
     FR-U25.
   *Verify: automated test — `web/app.test.tsx` (navigation + per-view rendering),
   `web/view-model.test.ts`,
-  `web/components/{now-view,overview,agents,tasks-view,messages-view,operations,message-modal}.test.tsx`.*
+  `web/components/{now-view,overview,agents,tasks-view,messages-view,operations,message-modal,create-task-modal}.test.tsx`.*
 - **FR-U35 — Owned-session listing.** The Console shall list the crew-owned tmux Team sessions
   that are live now — and only those — reusing the same pane-map ownership proof as `team stop`
   (a validated pane-map whose ownership token matches the live session). A leftover pane-map
