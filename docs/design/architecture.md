@@ -11,9 +11,9 @@ crew is a tool that runs on your own machine and helps terminal coding agents �
 assistants that each run in their own terminal session — coordinate their work. The
 `crew` executable never calls an AI model provider itself. Every core command does a
 fixed amount of work and then stops: it finds the Workspace (the nearest directory
-containing a `.crew/` folder), opens that Workspace's State Store (the shared SQLite
-database that holds all coordination data), does its job, prints the result, closes the
-database, and exits.
+containing a `.crew/` folder, or the root that folder's `workspace-pointer` names),
+opens that Workspace's State Store (the shared SQLite database that holds all
+coordination data), does its job, prints the result, closes the database, and exits.
 
 There are two operating modes:
 
@@ -57,7 +57,7 @@ launched mode is not completely process-free.
 | Module | Interface and leverage | Implementation locality |
 |---|---|---|
 | Program | `run(argv, io): Promise<number>` — one consistent entry point for argument parsing, output mode, and errors | builds the commander CLI and maps top-level exceptions to exit codes |
-| Workspace | find or initialize the `.crew/` paths and load validated project config | walks up the directory tree, writes files safely, maintains the Git-ignore file, keeps every path inside the workspace |
+| Workspace | find or initialize the `.crew/` paths and load validated project config | walks up the directory tree and follows a `workspace-pointer` when the `.crew/` it finds carries one, writes files safely, maintains the Git-ignore file, keeps every path inside the workspace |
 | Store | named operations for Agents, Messages, Tasks, history, prune, and health | the only module that imports SQLite; owns the schema, migrations, SQL, transactions, and retries |
 | Roles | resolve/list/export a Role | packaged templates, with project files taking precedence over them |
 | Teams | resolve/list/render a Team | safe YAML parsing, schema validation, and expanding replicas (how many copies of a member to start) |
@@ -115,59 +115,99 @@ would have to be handled separately by every caller:
 bin/crew.ts                     executable shim -> run()
 src/
   run.ts                        Program interface and error mapping
-  cli.ts                        command registration
-  commands/*.ts                 thin command handlers
-  workspace.ts                  discovery, initialization, paths
+  cli.ts                        command registration (live program + silent validator)
+  io.ts                         the injected process-environment boundary
+  errors.ts                     CrewError and the ErrorCode vocabulary
+  format.ts                     human/NDJSON rendering; strips control sequences for humans
+  agents.ts                     thin command handlers: Agent lifecycle
+  messages.ts                   thin command handlers: Messaging
+  tasks.ts                      thin command handlers: reviewed Tasks
+  init.ts                       thin command handler: workspace initialization
+  roles.ts                      thin command handlers: Role resolve/list/export
+  teams.ts                      thin command handlers: Team resolve/list/render
+  doctor.ts                     read-only diagnostics and the finding severity vocabulary
+  maintenance.ts                thin command handlers: prune/clean
+  retention.ts                  default retention windows shared by prune and doctor
+  duration.ts                   retention-duration parsing
+  agent-id.ts                   Agent-id grammar and argument validation
+  task-id.ts                    Task-id grammar and argument validation
+  workspace.ts                  discovery (walk up, then pointer redirect), init, paths
+  fs-safe.ts                    path-contained safe writes inside .crew/
+  worktree.ts                   git worktree primitives (whole-Crew, per-Task, review)
+  config.ts                     strict .crew/config.yaml parsing (worktree opt-in)
+  yaml-load.ts                  strict, safe YAML loader for tracked config
+  templates.ts                  packaged Role/Team templates as embedded string constants
+  participants.ts               shared Participant CLI id vocabulary
+  version.ts                    runtime lookup of the crew package version
+  node-floor.ts                 Node floor check, run before the app graph is imported
+  delay.ts                      the real wall-clock delay for the Launcher/Relay loops
+  process.ts                    real Io.runProcess (capture-only) + runInteractive (tmux attach)
+  which.ts                      PATH executable lookup (doctor + registry)
+  relay.ts                      internal `crew relay` Relay loop (tick-driver + reducer wiring)
   store/
     index.ts                    Store interface
+    connection.ts               retry jitter, busy classification, open-settings readback
     schema.ts                   versioned schema and migrations
     agents.ts                   internal Agent queries
     messages.ts                 internal Message queries
     tasks.ts                    internal Task queries/transitions
+    review-worktrees.ts         internal review-Worktree queries
+    change-signature.ts         read-only Console poll cursors
     maintenance.ts              doctor/prune/clean queries
-  roles.ts
-  teams.ts
   platforms/
     registry.ts                 authoritative Setup Target lookup
     shared.ts                   record types, shared workflow, marker/hash, version probe
+    agent-skills.ts             shared Agent Skills artifact renderer (Codex, Antigravity)
     claude.ts
     codex.ts
     gemini.ts
     copilot.ts
+    antigravity.ts
+    pi.ts
+    little-coder.ts
+    opencode.ts
     ollama.ts
     lmstudio.ts
   setup/
     index.ts                    setup detection/install/recipe flow + records
     fs.ts                       setup-owned guarded writes (home/project, outside .crew/)
-  process.ts                    real Io.runProcess (capture-only) + runInteractive (tmux attach)
-  which.ts                      PATH executable lookup (doctor + registry)
-  relay.ts                      internal `crew relay` Relay loop (tick-driver + reducer wiring)
   launcher/
-    index.ts
-    config.ts
-    plan.ts
+    index.ts                    launch orchestration: --print plan, or the live tmux launch
+    config.ts                   strict .crew/launcher.yaml parsing + precedence merge
+    derive.ts                   pure, deterministic derived names and paths (no IO)
+    ref.ts                      pure git branch/revision syntax validation
+    plan.ts                     assembles and fully validates the immutable LaunchPlan
+    prompts.ts                  pure Manager/Inspector prompt and run-summary builders
     tmux.ts                     semantic TmuxAdapter over the process seams
     session.ts                  live launch orchestration + owned-session teardown
+    stop.ts                     owned-session stop + pane-map Agent archival
+    resume.ts                   clean-stop markers, plan matching, `crew team resume`
     relay.ts                    pure relayStep throttle reducer
     artifacts.ts                generated-artifact writer (fs-safe)
     sessions.ts                 live owned-session listing (pane-map proof + tmux) for GET /api/sessions
   ui/
+    index.ts                    `crew ui` lifecycle: port, per-run token, foreground server
     server.ts                   token-guarded loopback HTTP/SSE server + static assets; routes GET /api/snapshot,/api/events,/api/health,/api/sessions,/api/resumable-sessions,/api/peek and the action POSTs
     snapshot.ts                 bounded, non-consuming Store snapshot projection
-    actions.ts                  Operator action handlers (send/create/approve/requeue, launch/stop, prune/clean, listSessions)
-  format.ts
-  errors.ts
+    actions.ts                  Operator action handlers (send/create/approve/requeue, launch/resume/stop, listSessions/listResumableTeamSessions, peek, prune/clean, archive/restore)
 web/                            Preact + TypeScript dashboard source
   main.tsx                      browser entry point
-  view-model.ts                 pure selectors + colour vocabularies (relative time, status/role/activity, review queue, attention, activity feed)
+  api.ts                        typed Console API client (snapshot fetch + SSE subscribe)
+  types.ts                      local Console API type definitions
+  view-model.ts                 pure selectors + colour vocabularies (relative time, status/role/activity, review queue, attention, Now worklist, activity feed, pill backgrounds)
   app.tsx                       sidebar shell + six-view router + toasts + one-click confirm modal
-  components/                  the six views + sidebar, toasts, confirm-dialog, health, peek, recovery-banner
+  components/                   the six views + sidebar, toasts, confirm-dialog, message modal, health, peek, recovery-banner
+  styles.css                    stylesheet, bundled inside the authenticated JS bundle
+  styles.d.ts                   ambient declaration that makes styles.css importable
+  tsconfig.json                 the web/ typecheck project
   index.html                    build-time page shell (loads two CDN fonts with a system fallback)
-templates/
-  roles/{manager,worker,inspector}.md
-  teams/dev.yaml
-tests/{unit,integration,spawn,e2e,fixtures}/
+tests/{unit,integration,spawn,store,fixtures,helpers,tools}/
+e2e/ui/                         Playwright Console specs and their own config
 ```
+
+Tests for `src/` and `bin/` live under `tests/`, but the Console's own tests do not:
+`web/` and `web/components/` modules keep their `*.test.ts`/`*.test.tsx` beside them, so
+the dashboard's unit tests are not under `tests/` at all.
 
 ### 4.2 Workspace layout
 
@@ -194,18 +234,28 @@ explicit `setup` action.
 ### 4.3 Workspace discovery
 
 Discovery starts in the current directory and walks up through its parents until it
-finds one containing `.crew/`. Every pane in a Crew must arrive at the same root. Be
+finds one containing `.crew/`. It then takes one further step: when that `.crew/` holds a
+`workspace-pointer` file, discovery follows the pointer to the root it names instead — but
+only when that root independently passes the same real-`.crew/`-directory check. A missing
+or invalid pointer target fails as `NOT_WORKSPACE`; it never quietly falls back to the
+local, disconnected root (FR-W04). Every pane in a Crew must arrive at the same root. Be
 aware that a `.crew/` directory nested inside another, or changing directory mid-session,
 can silently select a different State Store; `crew doctor` prints which root was
 resolved.
 
 In v1 no environment variable can override which State Store is used. Tests pass the
 current directory in through the Program interface instead of changing the process's
-global working directory. A Crew launched inside a git worktree (a separate working copy
-of the repository that shares the same history) finds the worktree's own `.crew/` by
-this same upward walk — a fresh, short-lived Store local to that worktree. This is
-deliberate: it is not an override that points back at the main repository's Store
-(ADR-0011).
+global working directory. The two git worktree mechanisms (a worktree being a separate
+working copy of the repository that shares the same history) sit on opposite sides of that
+pointer step, and the difference is deliberate:
+
+- A **whole-Crew worktree** launch writes no pointer, so its panes find the worktree's own
+  `.crew/` by the plain upward walk — a fresh, short-lived Store local to that worktree,
+  not an override that points back at the main repository's Store (ADR-0011).
+- A Worker's per-Task **Task worktree** and a reviewing Agent's **Review Worktree** each
+  receive a `workspace-pointer` back to the shared Workspace when they are created, so a
+  crew command run inside one resolves the shared Store rather than a local one (ADR-0015).
+  The two mechanisms are independent; neither replaces the other.
 
 ## 5. State Store and concurrency
 
@@ -391,8 +441,8 @@ to the repository can edit it.
 
 - It can only choose a platform id from the registry; it can never supply an arbitrary
   shell command.
-- A custom executable is accepted only from an explicit command-line flag, and crew
-  prints it for you to confirm before running it.
+- The executable itself is never selectable. It is looked up from the platform registry
+  for the chosen id, so no configuration file and no flag can substitute one.
 - Child processes are started with argument arrays and `shell: false`, so no shell ever
   parses any of the values.
 - Worktree paths are resolved and checked to stay inside their allowed location; branch
@@ -455,8 +505,9 @@ Platforms Module records:
 - guidance for granting it permission to run crew commands and nothing broader;
 - for local model backends, a health check and a printed setup recipe.
 
-The start command is not a literal `/crew` everywhere. Claude and Gemini use `/crew`,
-Codex uses `$crew`, and in Copilot you run `/agent`, pick crew, and then type the prompt.
+The start command is not a literal `/crew` everywhere. Claude, Gemini, Antigravity, Pi,
+Little Coder and opencode use `/crew`, Codex uses `$crew`, and in Copilot you run
+`/agent`, pick crew, and then type the prompt (FR-G07).
 Ollama and LM Studio are Model Backends — local model servers a Participant CLI may use,
 which crew itself never contacts — not Agents. The exact current facts and their
 official sources are in [setup-integration.md](./setup-integration.md).
@@ -494,9 +545,12 @@ are recorded as [DEC-7 and DEC-8](./decisions.md); the release gate itself is de
   whether exported built-in Roles or Teams have drifted from their packaged versions,
   State Store integrity, schema support, whether the filesystem looks local where that
   can be detected, tmux and git readiness, and stale Leases.
-- `prune` deletes old already-read Messages and completed Tasks with their Task Events,
-  keeping whatever the explicit retention flags say to keep. `VACUUM` (SQLite's
-  reclaim-disk-space rebuild) is opt-in and requires that no Agents are active.
+- `prune` deletes old already-read Messages and old Tasks in a final state — completed
+  ones judged by `completed_at`, abandoned ones by `abandoned_at` — together with their
+  Task Events, keeping whatever the explicit retention flags say to keep. A Task of either
+  status is kept regardless of age while any Message linked to it is still unread
+  (FR-E24). `VACUUM` (SQLite's reclaim-disk-space rebuild) is opt-in and requires that no
+  Agents are active.
 - `clean` refuses to run while active Agents exist. Deleting the State Store despite
   active registrations requires `--force`. This guard prevents an accidental split: a
   process that still holds the old database file open would keep writing to it (and its
@@ -524,7 +578,7 @@ are recorded as [DEC-7 and DEC-8](./decisions.md); the release gate itself is de
 
 None of these exist as empty placeholder interfaces in v1. A new seam is added only when
 a second implementation or a shipped use case actually needs it. The matching deferred
-requirements are FR-X01–X08 in the [software requirements specification](./srs.md),
+requirements are the FR-X series in the [software requirements specification](./srs.md),
 except FR-X07: ADR-0015 promoted it to the opt-in group W contract, which gives each
 Worker its own per-Task worktree and each reviewing Agent one persistent review
 worktree of its own, only where `worker_worktrees.enabled` is set. That is separate
