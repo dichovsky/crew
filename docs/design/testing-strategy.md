@@ -240,17 +240,19 @@ metacharacters, Unicode edge cases, and malformed SQLite fixtures.
 
 The packaging gate is `tests/integration/package/pack-smoke.test.ts`: it runs `npm pack --json`,
 installs the tarball into a clean temporary prefix, and drives the installed executable. That
-file is the contract for what the gate proves — the list below names its cases rather than
-restating their assertions, so the two cannot drift apart.
+file, not this section, is the contract for what the gate proves. The summary below is keyed to
+the suite's two `describe` blocks so a reader can locate each claim in the source; the source is
+authoritative for the exact assertions.
 
 - **`packaged tarball contents`:** the built executable, the bundled Console page,
   `package.json`, `README.md`, and `LICENSE` all ship; no TypeScript source, `tests/`, or
   `node_modules/` entry ships; and an exclusivity allowlist admits nothing beyond
   `dist/**/*.js`, the bundled Console page, and those three root files. No Role/Team template
   ships as a separate asset because templates are compiled-in string constants
-  (`src/templates.ts`) with no runtime path resolution. The same allowlist keeps source maps,
-  declaration files, and stray fixtures out of the tarball — none of them ship at all, so no
-  content scan for leaked secrets or local paths is performed or needed.
+  (`src/templates.ts`) with no runtime path resolution. Because that allowlist admits only
+  `.js` files under `dist/`, source maps and declaration files cannot ship; a stray `.js`
+  fixture emitted into `dist/` still would, and nothing inspects the contents of the JavaScript
+  that does ship for secrets or local paths.
 - **`installed executable`:** the `#!/usr/bin/env node` shebang and the executable bit on the
   installed entry point; `crew --version` printing the manifest version and `crew --help`
   printing help, both exiting 0; an unknown command producing a `[USAGE]` error on stderr with
@@ -261,11 +263,12 @@ Three checks belong to this gate in principle but have no case, so it does not p
 
 1. **`send`, `receive`, and the reviewed Task flow:** the lifecycle case stops at
    `init`/`join`/`agents`/`leave`. Messaging and the Task state machine are covered at the
-   Program layer in-process and at the spawn layer against the built executable — never against
-   an installed tarball.
-2. **The engine floor:** `tests/unit/node-floor.test.ts` and `tests/unit/bin-floor-fail.test.ts`
-   prove the clear below-floor message in-process against `bin/crew.ts` with a spoofed
-   `process.versions.node`. No case invokes the installed binary on a too-old runtime.
+   Program layer in-process, and at the spawn layer by separate OS processes that import the
+   built `run()` seam (`dist/src/run.js`) — never through an installed tarball's binary.
+2. **The engine floor:** `tests/unit/node-floor.test.ts` unit-tests `src/node-floor.js` with
+   literal version strings, and `tests/unit/bin-floor-fail.test.ts` imports `bin/crew.ts`
+   in-process with a spoofed `process.versions.node`. No case invokes the installed binary on
+   a too-old runtime.
 3. **macOS packaging:** every workflow runs on `ubuntu-latest` (see the environment matrix
    above), so the shebang and executable-bit checks are proven on Linux in CI and on whatever
    OS a contributor happens to run locally — never on macOS.
