@@ -1305,11 +1305,14 @@ test*, *inspection*, *analysis*, or *demonstration*, matching the requirement ca
 (§9.5.18). The overall verification approach — behavior tests, race tests, packaging tests,
 and integration tests — is defined by [testing-strategy.md](./testing-strategy.md); the
 release gates are in the product-spec
-[release-gate table](./product-spec.md#release-gates). The automated gate is these six
+[release-gate table](./product-spec.md#release-gates). The automated gate is these five
 commands, in the order CI's `build-test` job runs them: `npm run typecheck`, `npm run lint`,
-`npm run format:check`, `npm run build`, `npm run build:docs`, and `npm run test:coverage` —
+`npm run format:check`, `npm run build:docs`, and `npm run test:coverage` —
 the last being the step that enforces NFR-MNT-01's 95% threshold on statements, branches,
-functions, and lines, which plain `npm test` does not. `npm run build:docs` is part of the gate
+functions, and lines, which plain `npm test` does not. Building the publishable `dist/` is
+deliberately not one of those steps: vitest's `globalSetup` ([tests/global-build.ts](../../tests/global-build.ts))
+removes `dist/` and runs `npm run build` once before any test project starts, so the test step
+already depends on a clean build. `npm run build:docs` is part of the gate
 even though the documentation site ships in no package: a broken docs bundle must fail the pull
 request rather than first surfacing in the Pages deployment after merge.
 

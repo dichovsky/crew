@@ -1,8 +1,9 @@
 /**
  * Agent-guide facts: a drift guard for the repository's own `CLAUDE.md`,
- * `AGENTS.md`, and `CONTRIBUTING.md`.
+ * `AGENTS.md`, and `CONTRIBUTING.md` — plus `docs/design/srs.md` §4, which
+ * restates the same `ci.yml` gate list one document over.
  *
- * Those three files hand-copy facts that live authoritatively elsewhere — the
+ * Those files hand-copy facts that live authoritatively elsewhere — the
  * `package.json` scripts, the `ci.yml` gate list, `vitest.config.ts`'s coverage
  * configuration, and the `Io` interface in `src/io.ts`. That is exactly the
  * parallel-table failure ADR-0006 forbids for the platform registry, and every
@@ -64,6 +65,7 @@ const pkg = memo(
 const vitestConfig = memo(() => read('vitest.config.ts'));
 const ciYaml = memo(() => read('.github/workflows/ci.yml'));
 const ioSource = memo(() => read('src/io.ts'));
+const srs = memo(() => read('docs/design/srs.md'));
 
 /** Collapse every whitespace run so a claim can be matched across line wraps. */
 const flat = (markdown: string): string => markdown.replace(/\s+/g, ' ');
@@ -339,6 +341,68 @@ describe('guide CI paragraph vs .github/workflows/ci.yml', () => {
         `Node \`${version}\``,
       );
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The SRS §4 gate sentence
+// ---------------------------------------------------------------------------
+
+/** The words §4 opens its gate enumeration with; the anchor this parse hangs on. */
+const SRS_GATE_OPENING = 'The automated gate is these';
+
+/**
+ * §4 Verification's gate sentence, from that opening to its closing em dash.
+ *
+ * The SRS restates the same `ci.yml` fact the guides do, in its own prose shape,
+ * and outranks them in the authority order — but nothing read it, so it drifted
+ * to six commands including a `npm run build` step `build-test` never ran (#142).
+ * Bounding the window at the em dash is deliberate: the clauses after it explain
+ * where `dist/` really comes from and legitimately name `npm run build`, which is
+ * exactly the command that must NOT reappear in the enumeration.
+ */
+const srsGateSentence = memo((): string => {
+  const flattened = flat(srs());
+  const open = flattened.indexOf(SRS_GATE_OPENING);
+  if (open < 0) {
+    throw new Error(
+      `docs/design/srs.md §4 no longer opens its gate sentence with "${SRS_GATE_OPENING}". ` +
+        'Re-point the pattern in tests/unit/guide-facts.test.ts; the fact itself may be fine.',
+    );
+  }
+  const close = flattened.indexOf('—', open);
+  if (close < 0) throw new Error("docs/design/srs.md's gate sentence has no closing em dash");
+  return flattened.slice(open, close);
+});
+
+describe('SRS §4 gate sentence vs .github/workflows/ci.yml', () => {
+  it('names the job that actually runs the gates', () => {
+    const named = required(
+      srsGateSentence(),
+      /CI's `([a-z][\w-]*)` job runs them/,
+      "docs/design/srs.md's CI job name",
+    );
+    expect(
+      named,
+      `docs/design/srs.md points at the "${named}" job, but the gates run in "${ciGateJobName()}"`,
+    ).toBe(ciGateJobName());
+  });
+
+  it('lists every gate the workflow runs, in workflow order', () => {
+    const listed = [...srsGateSentence().matchAll(/`npm run ([\w:-]+)`/g)].map(
+      (match) => match[1]!,
+    );
+    expect(listed, "docs/design/srs.md's gate enumeration drifted from ci.yml").toEqual(ciGates());
+  });
+
+  it('counts those gates correctly in prose', () => {
+    expectSpelledCount(
+      srsGateSentence(),
+      /gate is these (\w+) commands/,
+      ciGates().length,
+      'docs/design/srs.md',
+      'CI gate count',
+    );
   });
 });
 
