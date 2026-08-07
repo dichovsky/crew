@@ -70,7 +70,8 @@ For each of **Ollama** and **LM Studio**:
 
 ## Sign-off
 
-- [ ] `artifacts-<date>.json` is committed under `docs/release/`.
+- [ ] `artifacts-<date>.json` is committed under `docs/release/`, with its row added to
+      the [retained-evidence record](./README.md#retained-evidence).
 - [ ] The gate statuses in the release-gate table in `docs/design/product-spec.md` are
       updated (Gates 2 & 3 closed).
 - [ ] The release is published: `0.1.0` was a one-time manual `npm publish`; for

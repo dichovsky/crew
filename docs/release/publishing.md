@@ -45,10 +45,20 @@ and the canonical gate list in
    `HOME` — all eight Participant CLIs (Claude Code, Codex, Gemini, Copilot, Antigravity,
    Pi, Little Coder, opencode) at their pinned minimum versions, plus the Ollama and LM Studio Model-Backend
    tool-call smokes.
-4. **Commit the evidence:** `docs/release/artifacts-<date>.json`, and update the gate
-   statuses in the [release-gate table](../design/product-spec.md#release-gates).
-5. **Bump the version** in `package.json` and add a dated `CHANGELOG.md` entry (move
-   items out of `[Unreleased]`). Merge to `main`.
+4. **Commit the evidence:** `docs/release/artifacts-<date>.json`, add its row to the
+   [retained-evidence record](./README.md#retained-evidence), and update the gate
+   statuses in the [release-gate table](../design/product-spec.md#release-gates). If a
+   gate could not be run, say so in that row rather than leaving the trail silent.
+5. **Bump the version and refresh the release status** — all three in the same commit:
+   - `package.json`: the new version.
+   - `CHANGELOG.md`: move items out of `[Unreleased]` into a dated section.
+   - [`docs/README.md`](../README.md), **Current readiness**: name the new version as the
+     current published release. That section is the single source of truth for release
+     status, so nothing else records it — and nothing checks it, since it is free text.
+     The `[Unreleased]` move above is also the moment to re-check that section's feature
+     claims against what the release actually ships; the two rot together.
+
+   Merge to `main`.
 6. **Publish the GitHub Release** with tag `vX.Y.Z` at the release commit (release notes
    from the changelog). This triggers `publish.yml`:
    - it verifies the tag matches `package.json`, runs the full gate, then
