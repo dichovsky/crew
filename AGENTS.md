@@ -56,7 +56,7 @@ branch, stop: branch off `main` instead.
 ```sh
 npm run build          # tsc -p tsconfig.build.json + build:web → dist/ (the publishable artifact)
 npm run build:docs     # esbuild docs-site/ → dist-docs/ (CI gate; not in the package)
-npm run typecheck      # 3 tsconfigs, all noEmit: root (incl. tests), web/, docs-site/
+npm run typecheck      # 4 tsconfigs, all noEmit: root (incl. tests), web/, docs-site/, e2e/ui/
 npm run lint           # eslint . (type-checked rules; lint:fix to autofix)
 npm run format         # prettier --write . (format:check in CI)
 npm test               # vitest run
@@ -149,8 +149,10 @@ is honored only when the surrounding command/option sequence is otherwise valid 
 - **`src/setup/`** owns `crew setup`: `index.ts` is the detect/install/recipe flow; `fs.ts`
   does setup's guarded writes to global/project paths *outside* `.crew/` (a deliberately
   separate, narrower policy than the workspace-scoped `fs-safe.ts`).
-- **`src/process.ts`** is the real `Io.runProcess` (capture-only, `shell:false`) for version
-  probes; **`src/which.ts`** is the shared PATH executable lookup.
+- **`src/process.ts`** is the real `Io.runProcess` (capture-only, `shell:false`, bounded
+  timeout — platform probes, `git`, `tmux`, the Console's browser opener) **and** the real
+  `Io.runInteractive` (inherited stdio, no timeout, reserved for `tmux attach`);
+  **`src/which.ts`** is the shared PATH executable lookup.
 
 ### Errors and exit codes
 
