@@ -43,20 +43,24 @@ crew team dev --launch --client claude-code --workers 3
   stay out of your main checkout. A **live** launch creates or reuses that worktree as its
   last preparation step — after every read-only check has passed, and before anything
   touches tmux — and then runs the whole launched Crew inside it: its State Store, its
-  generated files, and every pane's working directory. `--no-worktree` overrides a worktree
-  recorded in your tracked configuration.
+  generated files, and every pane's working directory. `--print` creates nothing but still
+  shows the path the worktree would use. `--no-worktree` overrides a worktree recorded in
+  your tracked configuration.
 - Disconnecting and ending the tmux session yourself deletes nothing: the Agent rows this
   launch created stay active and keep their ids. Wind the Team down with
   `crew team stop <session>`, which kills a session crew can prove it owns and *archives*
-  the Agents named in its pane map — `crew team resume` later reactivates exactly those
-  rows. `crew leave` archives a single Agent, and `crew clean` resets the whole Workspace.
-  An archived id is never handed out to a later `crew join`; `crew join <id> --resume` is how
-  you claim it back.
-- Only a launch that **fails** partway deletes anything. Once crew has confirmed it tore
-  down the session it created, it removes the untouched Agent rows carrying this launch's
-  token — those with no Task, Task Event, or Message attached — which frees their ids so
-  `dev` can be launched again immediately. That cleanup is best-effort and is skipped when
-  the teardown could not be confirmed.
+  the Agents named in its pane map — when the Team was launched with `--worktree`, run it
+  from inside that worktree, where the launch wrote that pane map. `crew team resume` can
+  bring exactly those rows back later: it relaunches the session from the stored plan, but
+  only while that plan still matches your Team and every one of those Agents is still
+  archived. `crew leave` archives a single Agent, and `crew clean --force` resets the whole
+  Workspace — without `--force` it refuses while Agents are active. An archived id is never
+  handed out to a later `crew join`; `crew join <id> --resume` is how you claim it back.
+- Only a launch that **fails** partway deletes any of those rows by itself. Once crew has
+  confirmed it tore down the session it created, it removes the untouched Agent rows
+  carrying this launch's token — those with no Task, Task Event, or Message attached — which
+  frees their ids so `dev` can be launched again immediately. That cleanup is best-effort and
+  is skipped when the teardown could not be confirmed.
 
 ## 2. A rejected task gets requeued and reassigned
 
@@ -213,7 +217,7 @@ crew ui --port 7420             # bind an exact port instead of a random free on
 crew ui --json --no-open        # emit one ui_started record, then keep serving in the foreground
 ```
 
-![The crew Console dashboard: agent roster, health, task board, task detail, and messages](./docs/images/console-dashboard.png)
+![The crew Console's Overview screen: the six-view navigation rail — Now, Overview, Agents, Tasks, Messages, Operations — with the light/dark theme toggle in the header, headline counts, the live crew roster, what needs attention, and a recent-events feed](./docs/images/console-dashboard.png)
 
 - `crew ui` starts an HTTP server that only you, the Operator, start; it stays in the
   foreground of your terminal and listens only on `127.0.0.1`, so it is reachable only from
@@ -234,13 +238,19 @@ crew ui --json --no-open        # emit one ui_started record, then keep serving 
   the Console can also **drive** the Crew through the same authority rules and Store
   operations as the CLI: send a Message, create a Task with any reviewer, approve or requeue
   a Submission you review, launch a Team without attaching a terminal, stop a Team that crew
-  can prove it started, peek at a pane's text (cleaned of terminal control characters), and
-  run `prune`/`clean`. The server always decides who is acting from the session itself — a
-  request body cannot name a different actor.
-- The three destructive actions — **Team stop, `prune`, and `clean`** — each take one extra
-  click to confirm: the browser puts up a dialog naming the irreversible effect, and the
-  request it then sends carries a `{ "confirm": true }` flag the server checks for itself. A
-  POST without that flag fails with `USAGE`, so a bare request can never fire one of them.
+  can prove it started, peek at a pane's text (cleaned of terminal control characters),
+  archive an Agent or restore an archived one — exactly what `crew leave` and
+  `crew join <id> --resume` do — and run `prune`/`clean`. The server always decides who is
+  acting from the session itself — a request body cannot name a different actor.
+- The four destructive actions — **Team stop, `prune`, `clean`, and archiving an Agent** —
+  each take one extra click to confirm: the browser puts up a dialog naming the irreversible
+  or hard-to-reverse effect, and the request it then sends carries a `{ "confirm": true }`
+  flag the server checks for itself. A POST without that flag fails with `USAGE`, so a bare
+  request can never fire one of them. Restoring an archived Agent is deliberately left
+  outside that gate — it is the reversible corrective action, offered with no prompt:
+
+![The Console's one-click confirmation dialog for `prune`: a modal titled "Prune workspace history" naming the irreversible effect, with Cancel and Prune buttons and nothing to type](./docs/images/console-confirm.png)
+
 - The Tasks view is the reviewed-work board — Tasks grouped by status, with the selected
   Task's detail beside them, where you approve a Submission or requeue its Task:
 
