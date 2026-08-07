@@ -608,7 +608,7 @@ describe('runTeamResume — a valid resume relaunches the Crew', () => {
   });
 
   it('emits exactly one resume_result record, before the blocking attach', async () => {
-    const { out, recording } = await resumeCleanStop(true);
+    const { cwd, out, recording } = await resumeCleanStop(true);
 
     const records = out
       .join('')
@@ -620,7 +620,9 @@ describe('runTeamResume — a valid resume relaunches the Crew', () => {
         type: 'resume_result',
         schema_version: 1,
         session_name: 'crew-demo',
-        panes: 4,
+        // One pane per planned Agent — derived, like the sibling cases, so a
+        // roster change does not silently redefine what this asserts.
+        panes: plannedRoster(cwd).length,
         relay: true,
         attached: true,
       },
@@ -634,6 +636,10 @@ describe('runTeamResume — a valid resume relaunches the Crew', () => {
   it('renders the human summary when --json is not requested', async () => {
     const { out } = await resumeCleanStop(false);
 
-    expect(out.join('')).toBe('Resumed session crew-demo (4 panes, relay on).\n');
+    // Only that the human renderer is REACHED on this path. The exact wording is
+    // pinned once, against `renderTeamResumeResult` itself, in
+    // tests/unit/format.test.ts — asserting it byte-for-byte here would break two
+    // tests on one copy edit.
+    expect(out.join('')).toContain('Resumed session crew-demo');
   });
 });

@@ -13,8 +13,15 @@
  * `tests/unit/docs-facts.test.ts` prevents the same class of drift for
  * `docs-site/`; this is its sibling for the guides. The rule it follows is the
  * same one: every expectation is DERIVED from the authoritative source, never
- * written out here. A guard that hardcodes "3 tsconfigs" is a second copy of
+ * written out here. A guard that hardcodes "4 tsconfigs" is a second copy of
  * the same bug.
+ *
+ * Every derivation is LAZY and memoized, and is performed inside an `it` rather
+ * than in a `describe` body or at module scope. A guard whose parse can fail
+ * during collection stops guarding EVERYTHING the moment a sentence it anchors
+ * on is reworded — the mirror invariant and the `Io` enumeration would go down
+ * with the CI paragraph. Keeping each parse inside its own test bounds the blast
+ * radius of a stale anchor to the one fact it reads.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -26,30 +33,37 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 const read = (rel: string): string => readFileSync(join(ROOT, rel), 'utf8');
 
-const CLAUDE_MD = read('CLAUDE.md');
-const AGENTS_MD = read('AGENTS.md');
-const CONTRIBUTING_MD = read('CONTRIBUTING.md');
+/** Cache a derivation so repeated tests parse once, without doing it eagerly. */
+function memo<T>(build: () => T): () => T {
+  let cached: T | undefined;
+  return () => {
+    if (cached === undefined) cached = build();
+    return cached;
+  };
+}
 
-/** The three files that restate the commands/CI facts, by path. */
-const GUIDES: ReadonlyArray<readonly [string, string]> = [
-  ['CLAUDE.md', CLAUDE_MD],
-  ['AGENTS.md', AGENTS_MD],
-  ['CONTRIBUTING.md', CONTRIBUTING_MD],
-];
+/** The three files that restate the commands/CI facts, as [label, body]. */
+const guides = memo((): ReadonlyArray<readonly [string, string]> => [
+  ['CLAUDE.md', read('CLAUDE.md')],
+  ['AGENTS.md', read('AGENTS.md')],
+  ['CONTRIBUTING.md', read('CONTRIBUTING.md')],
+]);
 
 /** The mirrored pair: byte-identical apart from their identity lines. */
-const MIRRORED: ReadonlyArray<readonly [string, string]> = [
-  ['CLAUDE.md', CLAUDE_MD],
-  ['AGENTS.md', AGENTS_MD],
-];
+const mirrored = memo((): ReadonlyArray<readonly [string, string]> =>
+  guides().filter(([label]) => label !== 'CONTRIBUTING.md'),
+);
 
-const pkg = JSON.parse(read('package.json')) as {
-  readonly scripts: Record<string, string>;
-  readonly engines: { readonly node: string };
-};
-const VITEST_CONFIG = read('vitest.config.ts');
-const CI_YAML = read('.github/workflows/ci.yml');
-const IO_SOURCE = read('src/io.ts');
+const pkg = memo(
+  () =>
+    JSON.parse(read('package.json')) as {
+      readonly scripts: Record<string, string>;
+      readonly engines: { readonly node: string };
+    },
+);
+const vitestConfig = memo(() => read('vitest.config.ts'));
+const ciYaml = memo(() => read('.github/workflows/ci.yml'));
+const ioSource = memo(() => read('src/io.ts'));
 
 /** Collapse every whitespace run so a claim can be matched across line wraps. */
 const flat = (markdown: string): string => markdown.replace(/\s+/g, ' ');
@@ -83,9 +97,31 @@ function word(count: number): string {
 function required(source: string, pattern: RegExp, label: string): string {
   const captured = pattern.exec(source)?.[1];
   if (captured === undefined) {
-    throw new Error(`Could not read ${label} — update tests/unit/guide-facts.test.ts`);
+    throw new Error(
+      `Could not read ${label} — the wording this guard anchors on changed. ` +
+        'Re-point the pattern in tests/unit/guide-facts.test.ts; the fact itself may be fine.',
+    );
   }
   return captured;
+}
+
+/**
+ * Compare a cardinal word the guide spells out against a derived count. Both
+ * the claim and the count are named in the failure message, so a genuine
+ * miscount is never confused with a reworded sentence (which throws above).
+ */
+function expectSpelledCount(
+  body: string,
+  pattern: RegExp,
+  count: number,
+  label: string,
+  what: string,
+): void {
+  const claimed = required(body, pattern, `${label}'s ${what} sentence`);
+  expect(
+    claimed,
+    `${label} spells the ${what} as "${claimed}" but the source declares ${count} (${word(count)})`,
+  ).toBe(word(count));
 }
 
 // ---------------------------------------------------------------------------
@@ -112,32 +148,24 @@ function commandAnnotations(markdown: string, label: string): Map<string, string
   return annotations;
 }
 
-const COMMANDS = new Map(
-  GUIDES.map(([label, body]) => [label, commandAnnotations(body, label)] as const),
+const commands = memo(
+  () => new Map(guides().map(([label, body]) => [label, commandAnnotations(body, label)] as const)),
 );
-
-/** The annotation every guide agrees on for `script`, or `undefined`. */
-function annotationFor(script: string): string | undefined {
-  for (const block of COMMANDS.values()) {
-    const annotation = block.get(script);
-    if (annotation !== undefined) return annotation;
-  }
-  return undefined;
-}
 
 /** Assert `script` is annotated somewhere, and hand back that annotation. */
 function requireAnnotation(script: string): string {
-  const annotation = annotationFor(script);
-  if (annotation === undefined) {
-    throw new Error(`No guide annotates the "${script}" script — the Commands block lost a gate`);
+  for (const block of commands().values()) {
+    const annotation = block.get(script);
+    if (annotation !== undefined) return annotation;
   }
-  return annotation;
+  throw new Error(`No guide annotates the "${script}" script — the Commands block lost a gate`);
 }
 
 describe('guide Commands block vs package.json', () => {
   it('annotates only scripts package.json actually defines', () => {
-    for (const [label, block] of COMMANDS) {
-      const unknown = [...block.keys()].filter((script) => pkg.scripts[script] === undefined);
+    const scripts = pkg().scripts;
+    for (const [label, block] of commands()) {
+      const unknown = [...block.keys()].filter((script) => scripts[script] === undefined);
       expect(unknown, `${label} documents scripts that no longer exist`).toEqual([]);
     }
   });
@@ -146,11 +174,12 @@ describe('guide Commands block vs package.json', () => {
     // Every `x:y` token in an annotation is a script cross-reference
     // (`build:web`, `lint:fix`, `format:check`). Prose colons are always
     // followed by a space, so they never match.
-    for (const [label, block] of COMMANDS) {
+    const scripts = pkg().scripts;
+    for (const [label, block] of commands()) {
       for (const [script, annotation] of block) {
         for (const [, referenced] of annotation.matchAll(/\b([a-z][\w-]*:[a-z][\w-]*)\b/g)) {
           expect(
-            pkg.scripts[referenced!],
+            scripts[referenced!],
             `${label}'s "${script}" annotation references the missing script "${referenced!}"`,
           ).toBeDefined();
         }
@@ -159,12 +188,13 @@ describe('guide Commands block vs package.json', () => {
   });
 
   it('agrees word for word across every guide that documents the same script', () => {
-    // CONTRIBUTING.md:24-26 is currently byte-identical to the same lines of
-    // both agent guides; a one-file edit must fail rather than fork them.
-    for (const script of new Set([...COMMANDS.values()].flatMap((b) => [...b.keys()]))) {
-      const wording = GUIDES.map(([label]) => COMMANDS.get(label)!.get(script)).filter(
-        (annotation) => annotation !== undefined,
-      );
+    // CONTRIBUTING.md's Commands block is currently byte-identical to the same
+    // lines of both agent guides; a one-file edit must fail rather than fork them.
+    const blocks = commands();
+    for (const script of new Set([...blocks.values()].flatMap((block) => [...block.keys()]))) {
+      const wording = guides()
+        .map(([label]) => blocks.get(label)!.get(script))
+        .filter((annotation) => annotation !== undefined);
       expect(
         new Set(wording).size,
         `the guides disagree about "${script}": ${wording.join(' | ')}`,
@@ -172,18 +202,38 @@ describe('guide Commands block vs package.json', () => {
     }
   });
 
+  it('documents every CI gate in every guide, not just in one of them', () => {
+    // `requireAnnotation` is satisfied by ANY guide, and the agreement test
+    // above only compares guides that still document a script — so without
+    // this, deleting a whole command line from one file passes silently.
+    // CONTRIBUTING.md has no mirror invariant, so it is the exposed file.
+    // A gate counts as documented when it is a command in the block or is named
+    // inside an annotation (`format:check` lives in the `format` annotation).
+    for (const gate of ciGates()) {
+      for (const [label, block] of commands()) {
+        const documented =
+          block.has(gate) || [...block.values()].some((note) => note.includes(gate));
+        expect(documented, `${label}'s Commands block never mentions the "${gate}" CI gate`).toBe(
+          true,
+        );
+      }
+    }
+  });
+
   it('states the typecheck project count and every project directory', () => {
     // The fact that drifted: the annotation spells out how many tsconfig
     // projects the gate compiles. Both the count and the directory list are
-    // read out of the script, so adding a fourth project fails here until the
+    // read out of the script, so adding a project fails here until the
     // annotation is updated.
-    const script = pkg.scripts['typecheck']!;
+    const script = pkg().scripts['typecheck']!;
     const projects = [...script.matchAll(/tsc -p (\S+)/g)].map((match) => match[1]!);
     expect(projects.length, 'the typecheck script compiles no project').toBeGreaterThan(0);
     const annotation = requireAnnotation('typecheck');
-    expect(Number(required(annotation, /(\d+) tsconfigs?/, 'the typecheck project count'))).toBe(
-      projects.length,
-    );
+    const claimed = Number(required(annotation, /(\d+) tsconfigs?/, 'the typecheck project count'));
+    expect(
+      claimed,
+      `the typecheck annotation claims ${claimed} projects but the script compiles ${projects.length}: ${projects.join(', ')}`,
+    ).toBe(projects.length);
     for (const project of projects) {
       const dir = dirname(project);
       const token = dir === '.' ? 'root' : `${dir}/`;
@@ -192,7 +242,7 @@ describe('guide Commands block vs package.json', () => {
   });
 
   it('names every project and sub-script the build gate runs', () => {
-    const script = pkg.scripts['build']!;
+    const script = pkg().scripts['build']!;
     const annotation = requireAnnotation('build');
     for (const [, project] of script.matchAll(/tsc -p (\S+)/g)) {
       expect(annotation).toContain(`tsc -p ${project!}`);
@@ -203,21 +253,14 @@ describe('guide Commands block vs package.json', () => {
   });
 
   it('names the directory the docs bundle is written to', () => {
-    const outdir = required(pkg.scripts['build:docs']!, /--outdir=(\S+)/, "build:docs' --outdir");
+    const outdir = required(pkg().scripts['build:docs']!, /--outdir=(\S+)/, "build:docs' --outdir");
     expect(requireAnnotation('build:docs')).toContain(outdir);
   });
 
   it('states the coverage threshold and metrics the gate enforces', () => {
-    const metrics = ['statements', 'branches', 'functions', 'lines'] as const;
-    const thresholds = metrics.map((metric) =>
-      Number(
-        required(VITEST_CONFIG, new RegExp(`${metric}:\\s*(\\d+)`), `the ${metric} threshold`),
-      ),
-    );
-    expect(new Set(thresholds).size, 'the four thresholds diverged').toBe(1);
     const annotation = requireAnnotation('test:coverage');
-    expect(annotation).toContain(`${thresholds[0]!}%`);
-    for (const metric of metrics) expect(annotation).toContain(metric);
+    expect(annotation).toContain(`${coverageThreshold()}%`);
+    for (const metric of COVERAGE_METRICS) expect(annotation).toContain(metric);
   });
 });
 
@@ -225,40 +268,73 @@ describe('guide Commands block vs package.json', () => {
 // The CI paragraph
 // ---------------------------------------------------------------------------
 
-/** The `jobs:` block of `ci.yml` named `job`, sliced off at the next job key. */
-function ciJob(job: string): string {
-  const start = new RegExp(`^ {2}${job}:$`, 'm').exec(CI_YAML)?.index;
-  if (start === undefined) throw new Error(`ci.yml has no "${job}" job`);
-  const rest = CI_YAML.slice(start + 1);
-  const next = /^ {2}[A-Za-z0-9_-]+:$/m.exec(rest)?.index;
-  return next === undefined ? rest : rest.slice(0, next);
-}
+/**
+ * The `jobs:` mapping of `ci.yml`, as job name → that job's block.
+ *
+ * Scoped to `jobs:` because `on:` also has two-space keys (`push`,
+ * `pull_request`), which a bare indent match would pick up as jobs.
+ */
+const ciJobs = memo((): Map<string, string> => {
+  const anchor = ciYaml().indexOf('\njobs:\n');
+  if (anchor < 0) throw new Error('ci.yml has no `jobs:` mapping');
+  const region = ciYaml().slice(anchor + '\njobs:\n'.length);
+  const starts = [...region.matchAll(/^ {2}([A-Za-z0-9_-]+):$/gm)];
+  if (starts.length === 0) throw new Error('ci.yml declares no job');
+  return new Map(
+    starts.map((match, index) => [
+      match[1]!,
+      region.slice(match.index, starts[index + 1]?.index ?? region.length),
+    ]),
+  );
+});
+
+/**
+ * The gate job: the FIRST job in the workflow. Selected structurally rather
+ * than from the guides' prose, so a reworded sentence cannot take the gate
+ * list, the gate count, and the Node version down with it — the guides' claim
+ * about WHICH job it is carries its own test below.
+ */
+const ciGateJob = memo(() => [...ciJobs().values()][0]!);
+const ciGateJobName = memo(() => [...ciJobs().keys()][0]!);
+/** Every `npm run …` step of the gate job, in workflow order. */
+const ciGates = memo(() =>
+  [...ciGateJob().matchAll(/-\s*run:\s*npm run ([\w:-]+)/g)].map((match) => match[1]!),
+);
 
 describe('guide CI paragraph vs .github/workflows/ci.yml', () => {
-  // The guides name the job themselves, so the job name is a checked claim too:
-  // a renamed job fails inside ciJob() rather than silently guarding nothing.
-  const jobName = required(flat(CLAUDE_MD), /`([a-z][\w-]*)` job must pass/, 'the CI job name');
-  const job = ciJob(jobName);
-  const gates = [...job.matchAll(/-\s*run:\s*npm run ([\w:-]+)/g)].map((match) => match[1]!);
+  it('names the job that actually runs the gates', () => {
+    for (const [label, body] of mirrored()) {
+      const named = required(flat(body), /`([a-z][\w-]*)` job must pass/, `${label}'s CI job name`);
+      expect(
+        named,
+        `${label} points at the "${named}" job, but the gates run in "${ciGateJobName()}"`,
+      ).toBe(ciGateJobName());
+    }
+  });
 
   it('lists every gate the workflow runs, in workflow order', () => {
-    expect(gates.length, `the ${jobName} job runs no npm script`).toBeGreaterThan(0);
-    for (const [label, body] of GUIDES) {
+    const gates = ciGates();
+    expect(gates.length, `the ${ciGateJobName()} job runs no npm script`).toBeGreaterThan(0);
+    for (const [label, body] of guides()) {
       expect(flat(body), `${label}'s CI gate list drifted`).toContain(gates.join(' → '));
     }
   });
 
   it('counts those gates correctly in prose', () => {
-    for (const [label, body] of MIRRORED) {
-      expect(flat(body), `${label} miscounts the CI gates`).toContain(
-        `All ${word(gates.length)} of those gates`,
+    for (const [label, body] of mirrored()) {
+      expectSpelledCount(
+        flat(body),
+        /All (\w+) of those gates/,
+        ciGates().length,
+        label,
+        'CI gate count',
       );
     }
   });
 
   it('states the Node version the workflow pins', () => {
-    const version = required(job, /node-version: '([\d.]+)'/, "the CI job's node-version");
-    for (const [label, body] of GUIDES) {
+    const version = required(ciGateJob(), /node-version: '([\d.]+)'/, "the CI job's node-version");
+    for (const [label, body] of guides()) {
       expect(flat(body), `${label} names the wrong CI Node version`).toContain(
         `Node \`${version}\``,
       );
@@ -270,27 +346,60 @@ describe('guide CI paragraph vs .github/workflows/ci.yml', () => {
 // The coverage gate description
 // ---------------------------------------------------------------------------
 
-describe('guide coverage description vs vitest.config.ts', () => {
-  const coverage = VITEST_CONFIG.slice(
-    VITEST_CONFIG.indexOf('coverage: {'),
-    VITEST_CONFIG.indexOf('projects:'),
+const COVERAGE_METRICS = ['statements', 'branches', 'functions', 'lines'] as const;
+
+/** The `coverage: { … }` region of vitest.config.ts, above the projects list. */
+const coverageConfig = memo(() => {
+  const open = vitestConfig().indexOf('coverage: {');
+  const close = vitestConfig().indexOf('projects:');
+  if (open < 0 || close < 0) throw new Error('vitest.config.ts has no coverage block to read');
+  return vitestConfig().slice(open, close);
+});
+
+/** The single threshold all four coverage metrics share. */
+const coverageThreshold = memo(() => {
+  const thresholds = COVERAGE_METRICS.map((metric) =>
+    Number(required(coverageConfig(), new RegExp(`${metric}:\\s*(\\d+)`), `the ${metric} gate`)),
   );
-  const globs = (key: string): string[] =>
-    [
-      ...required(coverage, new RegExp(`${key}:\\s*\\[([^\\]]*)\\]`), `coverage.${key}`).matchAll(
-        /'([^']+)'/g,
-      ),
-    ].map((match) => match[1]!);
+  expect(
+    new Set(thresholds).size,
+    `the four coverage thresholds diverged: ${thresholds.join(', ')}`,
+  ).toBe(1);
+  return thresholds[0]!;
+});
+
+const coverageGlobs = (key: string): string[] =>
+  [
+    ...required(
+      coverageConfig(),
+      new RegExp(`${key}:\\s*\\[([^\\]]*)\\]`),
+      `coverage.${key}`,
+    ).matchAll(/'([^']+)'/g),
+  ].map((match) => match[1]!);
+
+describe('guide coverage description vs vitest.config.ts', () => {
+  /** The `## Tests` section of a guide, bounded by the next level-2 heading. */
+  function testsSection(body: string, label: string): string {
+    const open = body.indexOf('## Tests');
+    if (open < 0) throw new Error(`${label} has no "## Tests" heading`);
+    const rest = body.slice(open + 1);
+    const close = rest.indexOf('\n## ');
+    // A missing terminator would silently widen the window to the whole file,
+    // so it is an error rather than a default.
+    if (close < 0)
+      throw new Error(`${label}'s "## Tests" section has no following level-2 heading`);
+    return flat(rest.slice(0, close));
+  }
 
   it('states the same threshold, included globs, and exclusion as the gate', () => {
-    const threshold = required(coverage, /statements:\s*(\d+)/, 'the statements threshold');
-    const included = globs('include');
-    const excluded = globs('exclude');
+    const threshold = coverageThreshold();
+    const included = coverageGlobs('include');
+    const excluded = coverageGlobs('exclude');
     expect(included.length, 'coverage.include is empty').toBeGreaterThan(0);
     expect(excluded.length, 'coverage.exclude is empty').toBeGreaterThan(0);
 
-    for (const [label, body] of MIRRORED) {
-      const tests = flat(body.slice(body.indexOf('## Tests'), body.indexOf('## Docs are')));
+    for (const [label, body] of mirrored()) {
+      const tests = testsSection(body, label);
       expect(tests, `${label} states the wrong coverage threshold`).toContain(`${threshold}%`);
       for (const glob of included) {
         expect(tests, `${label} omits the covered glob ${glob}`).toContain(`\`${glob}\``);
@@ -307,24 +416,41 @@ describe('guide coverage description vs vitest.config.ts', () => {
 // The `src/io.ts` seam bullet
 // ---------------------------------------------------------------------------
 
-/** Every `readonly` member declared directly on the `Io` interface. */
+/**
+ * Every member declared directly on the `Io` interface, `readonly` or not.
+ *
+ * #103's Acceptance says "every `readonly` member", and every member is
+ * `readonly` today — but a member that simply omitted the modifier would escape
+ * a `readonly`-anchored parse while still making the guides' field count wrong,
+ * so this matches the modifier optionally. Nested brace/paren groups are removed
+ * first, so an inline parameter object (`opts: { readonly timeoutMs: number }`)
+ * cannot be mistaken for a member of `Io` however it is later reformatted.
+ */
 function ioMembers(): string[] {
-  const open = IO_SOURCE.indexOf('{', IO_SOURCE.indexOf('export interface Io'));
+  const open = ioSource().indexOf('{', ioSource().indexOf('export interface Io'));
   if (open < 0) throw new Error('src/io.ts declares no `export interface Io`');
   let depth = 0;
   let close = open;
-  for (; close < IO_SOURCE.length; close++) {
-    const char = IO_SOURCE[close];
+  for (; close < ioSource().length; close++) {
+    const char = ioSource()[close];
     if (char === '{') depth++;
     else if (char === '}' && --depth === 0) break;
   }
-  const body = IO_SOURCE.slice(open, close).replace(/\/\*[\s\S]*?\*\//g, '');
-  return [...body.matchAll(/^\s*readonly\s+([A-Za-z_$][\w$]*)\??\s*:/gm)].map((match) => match[1]!);
+  let interior = ioSource()
+    .slice(open + 1, close)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '');
+  let previous = '';
+  while (interior !== previous) {
+    previous = interior;
+    interior = interior.replace(/\{[^{}]*\}/g, '').replace(/\([^()]*\)/g, '');
+  }
+  return [...interior.matchAll(/^\s*(?:readonly\s+)?([A-Za-z_$][\w$]*)\??\s*:/gm)].map(
+    (match) => match[1]!,
+  );
 }
 
 describe('guide Io bullet vs src/io.ts', () => {
-  const members = ioMembers();
-
   /** The `- **`src/io.ts`**` bullet of a guide, up to the next top-level bullet. */
   function ioBullet(markdown: string, label: string): string {
     const start = markdown.indexOf('- **`src/io.ts`**');
@@ -335,12 +461,16 @@ describe('guide Io bullet vs src/io.ts', () => {
   }
 
   it('declares members at all (the parse still matches src/io.ts)', () => {
+    const members = ioMembers();
     expect(members).toContain('cwd');
-    expect(members.length).toBeGreaterThan(5);
+    expect(members).toContain('runInteractive');
+    // The inline `{ readonly timeoutMs: number }` parameter object is not a member.
+    expect(members).not.toContain('timeoutMs');
   });
 
   it('enumerates exactly the interface members, no more and no fewer', () => {
-    for (const [label, body] of MIRRORED) {
+    const members = ioMembers();
+    for (const [label, body] of mirrored()) {
       const bullet = ioBullet(body, label);
       // The enumeration runs from the "boundary:" colon to the end of that
       // sentence. Parentheticals are stripped first: their backticked asides
@@ -364,9 +494,14 @@ describe('guide Io bullet vs src/io.ts', () => {
   });
 
   it('counts those members correctly in prose', () => {
-    for (const [label, body] of MIRRORED) {
-      expect(ioBullet(body, label), `${label} miscounts the Io fields`).toContain(
-        `the ${word(members.length)} fields`,
+    const members = ioMembers();
+    for (const [label, body] of mirrored()) {
+      expectSpelledCount(
+        ioBullet(body, label),
+        /the (\w+) fields/,
+        members.length,
+        label,
+        'Io field count',
       );
     }
   });
@@ -378,18 +513,21 @@ describe('guide Io bullet vs src/io.ts', () => {
 
 describe('guide claims derived from the authoritative modules', () => {
   it('counts the Participant CLIs the registry declares', () => {
-    for (const [label, body] of MIRRORED) {
-      expect(flat(body), `${label} miscounts the Participant CLIs`).toContain(
-        `the ${word(PARTICIPANT_TARGETS.length)} Participant CLIs`,
+    for (const [label, body] of mirrored()) {
+      expectSpelledCount(
+        flat(body),
+        /the (\w+) Participant CLIs/,
+        PARTICIPANT_TARGETS.length,
+        label,
+        'Participant CLI count',
       );
     }
   });
 
   it('states the Node floor package.json enforces', () => {
-    for (const [label, body] of GUIDES) {
-      expect(flat(body), `${label} states the wrong Node floor`).toContain(
-        `\`${pkg.engines.node}\``,
-      );
+    const floor = pkg().engines.node;
+    for (const [label, body] of guides()) {
+      expect(flat(body), `${label} states the wrong Node floor`).toContain(`\`${floor}\``);
     }
   });
 });
@@ -398,8 +536,8 @@ describe('CLAUDE.md and AGENTS.md are one file with two names', () => {
   it('differ only in the H1 and the guidance sentence beneath it', () => {
     // The mirror is enforced by author discipline alone today: every change has
     // to land in both, and nothing fails when a future edit touches only one.
-    const claude = CLAUDE_MD.split('\n');
-    const agents = AGENTS_MD.split('\n');
+    const claude = read('CLAUDE.md').split('\n');
+    const agents = read('AGENTS.md').split('\n');
     expect(agents.length, 'the guides no longer have the same line count').toBe(claude.length);
 
     const differing = claude
