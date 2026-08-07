@@ -408,6 +408,30 @@ describe('listResumableSessions', () => {
       listResumableSessions(io, { adapter: fakeAdapter({ present: false }) }),
     ).resolves.toEqual([]);
   });
+
+  it('omits a session whose clean-stop marker is absent', async () => {
+    const cwd = workspace();
+    archivePlannedAgents(cwd, 'dev');
+    writeResumableSession(cwd, 'dev');
+    rmSync(join(cwd, '.crew', 'generated', 'crew-demo', 'resume.json'));
+    const { io } = captureIo({ cwd, env: { HOME: '/home/u', PATH: join(cwd, 'fakebin') } });
+
+    await expect(
+      listResumableSessions(io, { adapter: fakeAdapter({ present: false }) }),
+    ).resolves.toEqual([]);
+  });
+
+  it('omits a session whose stored plan is unreadable', async () => {
+    const cwd = workspace();
+    archivePlannedAgents(cwd, 'dev');
+    writeResumableSession(cwd, 'dev');
+    writeFileSync(join(cwd, '.crew', 'generated', 'crew-demo', 'launch-plan.json'), '{ truncated');
+    const { io } = captureIo({ cwd, env: { HOME: '/home/u', PATH: join(cwd, 'fakebin') } });
+
+    await expect(
+      listResumableSessions(io, { adapter: fakeAdapter({ present: false }) }),
+    ).resolves.toEqual([]);
+  });
 });
 
 describe('runTeamResume', () => {

@@ -1089,9 +1089,9 @@ rather than restating them.
   `tests/integration/ui-server-team.test.ts` (`GET /api/resumable-sessions`: the empty case, the
   full record asserted field by field, the live-again omission, and the config-drift omission),
   `tests/unit/launcher/resume.test.ts` (`listResumableSessions`: the any-session-live,
-  drifted, live-under-its-own-name, never-joined, still-active, wrong-Role, and wrong-platform
-  cases, plus the tmux-absent listing), `web/components/operations.test.tsx` (the rendered
-  rows).*
+  drifted, live-under-its-own-name, never-joined, still-active, wrong-Role, wrong-platform,
+  absent-clean-stop-marker, and unreadable-stored-plan cases, plus the tmux-absent listing),
+  `web/components/operations.test.tsx` (the rendered rows).*
 
 #### W. Worker and review worktrees
 
