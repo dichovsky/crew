@@ -104,8 +104,9 @@ All sections and fields except `version` are optional.
 
 Configuration committed to the repository can never choose the executable, add CLI
 arguments, set environment variables, pick where on disk a worktree goes, change what
-setup writes where, or bypass permissions. A custom executable can come only from an
-explicit command-line flag, and crew shows it to you before launching.
+setup writes where, or bypass permissions. Neither can anything you type: `--client` selects a
+Participant registry id, and crew takes the executable from that registry entry — no flag names
+an executable path or an arbitrary command.
 
 A worktree is a separate working copy of the repository that shares the same history.
 crew keeps its worktrees at the location it manages itself:
