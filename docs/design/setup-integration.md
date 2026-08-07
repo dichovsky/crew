@@ -146,8 +146,8 @@ generated, and the replacement depends on the platform:
 |---|---|---|
 | `claude-code` | literal token `$ARGUMENTS` | `<!-- … -->` |
 | `gemini-cli` | literal token `{{args}}` | `# …` |
-| `codex-cli` | the phrase: the role and optional id given after `$crew` (Codex CLI) or `/crew` (Antigravity CLI) | `<!-- … -->` |
-| `copilot-cli` | the phrase: the role and optional id typed after selecting this agent | `<!-- … -->` |
+| `codex-cli` | the phrase: the arguments given after `$crew` (Codex CLI) or `/crew` (Antigravity CLI) | `<!-- … -->` |
+| `copilot-cli` | the phrase: the arguments typed after selecting this agent | `<!-- … -->` |
 | `antigravity-cli` | identical to `codex-cli` (one shared artifact) | `<!-- … -->` |
 | `pi-cli` | literal token `$ARGUMENTS` | `<!-- … -->` |
 | `little-coder` | identical to `pi-cli` (one shared artifact) | `<!-- … -->` |
@@ -167,7 +167,7 @@ allowed-tools: Bash(crew *)
 argument-hint: <manager|worker|inspector> [agent-id] [--resume]
 ---
 
-<!-- generated-by: crew setup; registry-revision: 6 -->
+<!-- generated-by: crew setup; registry-revision: 7 -->
 
 Use the finite crew workflow below for `$ARGUMENTS`.
 [shared workflow rendered here]
@@ -192,9 +192,9 @@ name: crew
 description: Join and coordinate through the local crew inbox and reviewed task workflow. Use when the user asks to start or act as a crew role.
 ---
 
-<!-- generated-by: crew setup; registry-revision: 6 -->
+<!-- generated-by: crew setup; registry-revision: 7 -->
 
-Use the finite crew workflow below for the role and optional id supplied by the user.
+Use the finite crew workflow below for the arguments supplied by the user.
 [shared workflow rendered here]
 ```
 
@@ -225,7 +225,7 @@ Gemini custom commands are TOML files under `.gemini/commands`; a project file w
 a user file with the same name. crew generates:
 
 ```toml
-# generated-by: crew setup; registry-revision: 6
+# generated-by: crew setup; registry-revision: 7
 description = "Join and coordinate through the local crew inbox and reviewed task workflow"
 prompt = """
 Role and optional id: {{args}}
@@ -255,12 +255,12 @@ tools:
   - execute
 ---
 
-<!-- generated-by: crew setup; registry-revision: 6 -->
+<!-- generated-by: crew setup; registry-revision: 7 -->
 
 [shared finite workflow rendered here]
 ```
 
-In interactive use you run `/agent`, pick `crew`, and then type the role and optional id
+In interactive use you run `/agent`, pick `crew`, and then type the role arguments
 when prompted. The non-interactive form is `copilot --agent=crew --prompt "worker"`. The
 `tools: [execute]` line makes the shell tool available to the agent; permission to
 actually run commands is granted separately. Once live verification has confirmed the
@@ -305,7 +305,7 @@ description: Join and coordinate through the local crew inbox and reviewed task 
 argument-hint: <manager|worker|inspector> [agent-id] [--resume]
 ---
 
-<!-- generated-by: crew setup; registry-revision: 6 -->
+<!-- generated-by: crew setup; registry-revision: 7 -->
 
 [shared finite workflow rendered here]
 ```
@@ -330,7 +330,7 @@ Little Coder (`little-coder`) launches a bundled Pi runtime optimized for small 
 models. It retains Pi's Prompt Template discovery, so `crew setup little-coder` writes the
 same byte-identical `crew.md` body and paths documented for `pi-cli`: the global
 `~/.pi/agent/prompts/crew.md` or project `.pi/prompts/crew.md`. You start it by typing
-`/crew` followed by the role and optional id.
+`/crew` followed by the role arguments.
 
 Little Coder's default Bash gate does not include `crew`. Setup prints this narrow,
 additive opt-in, which preserves any existing deployment-specific prefixes:
@@ -362,7 +362,7 @@ operator's `<role> [id]`. crew generates:
 description: Join and coordinate through the local crew inbox and reviewed task workflow.
 ---
 
-<!-- generated-by: crew setup; registry-revision: 6 -->
+<!-- generated-by: crew setup; registry-revision: 7 -->
 
 [shared finite workflow rendered here]
 ```
@@ -477,8 +477,8 @@ file's own format, with three fields separated by semicolons:
 generated-by: crew setup; registry-revision: <n>; content-hash: sha256:<64-hex>
 ```
 
-- Markdown / `SKILL.md` / `*.agent.md`: `<!-- generated-by: crew setup; registry-revision: 6; content-hash: sha256:… -->`
-- TOML (`crew.toml`): `# generated-by: crew setup; registry-revision: 6; content-hash: sha256:…`
+- Markdown / `SKILL.md` / `*.agent.md`: `<!-- generated-by: crew setup; registry-revision: 7; content-hash: sha256:… -->`
+- TOML (`crew.toml`): `# generated-by: crew setup; registry-revision: 7; content-hash: sha256:…`
 
 `content-hash` is the SHA-256 of the **rendered file with the `content-hash:` value
 replaced by an empty string**, written as lower-case hex, after line endings are
@@ -531,9 +531,10 @@ starts as `copilot --agent=crew --prompt …`; nothing is pasted into an already
 Copilot interface. The Team display and setup keep the guidance about selecting crew via
 `/agent`.
 
-The registry lives in `src/platforms/` and is currently at **registry-revision 6**
+The registry lives in `src/platforms/` and is currently at **registry-revision 7**
 (the revision started at 1; adding Participants, launch facts, and artifact text since
-then bumped it, most recently the shared workflow's `[--resume]` parse rule).
+then bumped it, most recently rewording the `{{ROLE_ARGS}}` phrases to name the argument
+source rather than enumerate the arguments).
 `registry.ts` looks up targets; `shared.ts` holds the record types, the shared workflow
 text, the marker and content-hash rules, and the version probe; each target has its own
 module supplying its facts and rendering (`agent-skills.ts` holds the single renderer

@@ -103,7 +103,7 @@ describe('participant artifact rendering', () => {
 
     const codex = PARTICIPANT_TARGETS.find((t) => t.id === 'codex-cli')!.render();
     expect(codex).toContain(
-      'the role and optional id given after `$crew` (Codex CLI) or `/crew` (Antigravity CLI)',
+      'the arguments given after `$crew` (Codex CLI) or `/crew` (Antigravity CLI)',
     );
 
     const toml = PARTICIPANT_TARGETS.find((t) => t.id === 'gemini-cli')!.render();
@@ -112,7 +112,7 @@ describe('participant artifact rendering', () => {
     expect(toml).toContain('prompt = """');
 
     const copilot = PARTICIPANT_TARGETS.find((t) => t.id === 'copilot-cli')!.render();
-    expect(copilot).toContain('the role and optional id typed after selecting this agent');
+    expect(copilot).toContain('the arguments typed after selecting this agent');
     expect(copilot).toContain('tools:\n  - execute');
   });
 
@@ -264,16 +264,16 @@ describe('participant artifact rendering', () => {
     // bytes, the digest changes and this fails, forcing both an update here AND a
     // REGISTRY_REVISION bump so previously-installed artifacts read as managed-outdated.
     const expected: Record<string, string> = {
-      'claude-code': '22001355596469c2e0d8484f8254496a829d8fa83e77de2b28ad5ca97d05bccc',
-      'codex-cli': '01d9c942ba8f095d6a7853d41a91c719e45e0c558526869f4c89670f15de5e88',
-      'gemini-cli': 'e86bd4ae9a7dec4932b136105affeafedf446e07d13d5dacc89813924b099682',
-      'copilot-cli': '1ee19562275914d4ff059bfe0d1cd67696b53d4ccec07f6c4eb1ea03d8e90e87',
-      'antigravity-cli': '01d9c942ba8f095d6a7853d41a91c719e45e0c558526869f4c89670f15de5e88',
-      'pi-cli': '359ff24755556eccb155d5ec2b858d41ebbe98f9ecb10f9fc09862c98e9ae3d6',
-      'little-coder': '359ff24755556eccb155d5ec2b858d41ebbe98f9ecb10f9fc09862c98e9ae3d6',
-      'opencode-cli': 'b3be65a516d2ac14f90f120e23c0e86e96d1171e7bf852efe6b9693eef3366c0',
+      'claude-code': '71d8b844edd2e972101911a2d3bbdd297d6dcb199fd37bf011bc6e8fc5f29665',
+      'codex-cli': '780218952a7ced9aee70c767bffb36883ef9bcbf4ef9be320312096238786c9e',
+      'gemini-cli': '794a1ce17dd9ebe1ab5682333217ee4b66ca06264a0c43c0eb0328a3925d5842',
+      'copilot-cli': '17fac36bb3081d0602af2d2e361281556982c3236b6200aa1d96c68f7033ab4e',
+      'antigravity-cli': '780218952a7ced9aee70c767bffb36883ef9bcbf4ef9be320312096238786c9e',
+      'pi-cli': '6594ad733209f885fc77a98d7676c8165432d0cb0901fa99ea435bfb051d42b3',
+      'little-coder': '6594ad733209f885fc77a98d7676c8165432d0cb0901fa99ea435bfb051d42b3',
+      'opencode-cli': 'e7bde7c981db90c03dac35c8e03226d25f1e16e59b41aac82c53f080895c8fc0',
     };
-    expect(REGISTRY_REVISION).toBe(6); // bump together with the digests above
+    expect(REGISTRY_REVISION).toBe(7); // bump together with the digests above
     for (const t of PARTICIPANT_TARGETS) {
       const hash = /content-hash: sha256:([0-9a-f]{64})/.exec(t.render())![1];
       expect(hash, `${t.id} artifact bytes changed`).toBe(expected[t.id]);
