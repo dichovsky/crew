@@ -68,8 +68,8 @@ npx vitest run tests/unit/format.test.ts
 npx vitest run -t "rejects a non-empty version-0 database"
 ```
 
-CI (`.github/workflows/ci.yml`) runs typecheck → lint → format:check → build →
-build:docs → test:coverage on GitHub-hosted runners at Node `24.18.0`. All six of those
+CI (`.github/workflows/ci.yml`) runs typecheck → lint → format:check →
+build:docs → test:coverage on GitHub-hosted runners at Node `24.18.0`. All five of those
 gates in the `build-test` job must pass — `build:docs` catches a broken docs bundle, and
 the test step enforces the 95% coverage thresholds — so match them locally
 (`npm run test:coverage`, not plain `npm test`) before pushing. A second job,
