@@ -436,8 +436,8 @@ revision the operation read — and "touch" means refreshing an Agent's `last_se
 Task transactions use `BEGIN IMMEDIATE` (the transaction claims the right to write up front
 instead of failing later). The operation clock is read once per operation, so the Task, its
 Event, and its notifications all carry the same timestamp. In the two terminal rows the
-assignee's notification is the structured `clear_safe` Sign-off, and `land` is the one
-transaction that skips it — only when the assignee is archived.
+assignee's notification is the structured `clear_safe` Sign-off, which both transactions
+skip only when the assignee is archived.
 
 The Console detects change through `Store.getChangeSignature()` (FR-U22), a read-only query
 that gathers a set of counters: the highest (`MAX()`) Message id, Task-Event id, Task

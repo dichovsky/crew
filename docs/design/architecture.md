@@ -205,9 +205,9 @@ tests/{unit,integration,spawn,store,fixtures,helpers,tools}/
 e2e/ui/                         Playwright Console specs and their own config
 ```
 
-Tests for `src/` and `bin/` live under `tests/`, but the Console's own tests do not: each
-`web/` and `web/components/` module keeps its `*.test.ts`/`*.test.tsx` beside it, so the
-dashboard's unit tests are not under `tests/` at all.
+Tests for `src/` and `bin/` live under `tests/`, but the Console's own tests do not:
+`web/` and `web/components/` modules keep their `*.test.ts`/`*.test.tsx` beside them, so
+the dashboard's unit tests are not under `tests/` at all.
 
 ### 4.2 Workspace layout
 
