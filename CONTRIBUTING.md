@@ -23,7 +23,7 @@ npm install
 ```sh
 npm run build          # tsc -p tsconfig.build.json + build:web → dist/ (the publishable artifact)
 npm run build:docs     # esbuild docs-site/ → dist-docs/ (CI gate; not in the package)
-npm run typecheck      # 3 tsconfigs, all noEmit: root (incl. tests), web/, docs-site/
+npm run typecheck      # 4 tsconfigs, all noEmit: root (incl. tests), web/, docs-site/, e2e/ui/
 npm run lint           # eslint . (type-checked rules; lint:fix to autofix)
 npm run format         # prettier --write . (format:check in CI)
 npm test               # vitest run
