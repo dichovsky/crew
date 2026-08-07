@@ -92,3 +92,40 @@ commands are **not** uniformly `/clear`, so the follow-up per-engine reset field
 assume it: **opencode** resets with `/new` (documented alias `/clear`), but **pi** has
 **no `/clear` and no `/reset`** — its only context reset is `/new`. Record `/new` for both
 when the Relay-delivered reset lands.
+
+## Update — the roster outgrew the "five current engines" the Decision counts
+
+"All five supported engines" in the Context and "all five current engines" in the Decision were
+accurate when this ADR was written: `PARTICIPANT_IDS` held exactly those five ids. The roster has
+grown twice since — `pi-cli` and `opencode-cli` the day after (the additions the update above
+records), then `little-coder` — and `src/participants.ts` now declares **eight**. Both sentences
+should therefore be read as the roster and the survey at the time of the decision, not as a
+current count, and the follow-up building the registry field must cover all eight ids rather than
+take "five" as the set.
+
+Reset facts by engine, as far as they have been established: `/clear` for the five surveyed
+above; `/new` for `opencode-cli` and `pi-cli` per the preceding update, which already shows the
+`/clear` generalization does not extend to later engines. **`little-coder` is the one id with no
+recorded reset fact** — nothing in `src/platforms/little-coder.ts` or
+`docs/design/setup-integration.md` states one, and this ADR does not invent it; it must be
+researched when the field lands, exactly as the two engines above were. The nullable-command
+decision itself is unaffected: a command that has not been established is precisely the null case
+the Decision already provides for, and the registry field remains deferred to the follow-up.
+
+## Update — the Role prompts no longer claim crew delivers the reset
+
+The Consequences bullet beginning "The Worker Role no longer tells Workers to clear their own
+context" goes on to say the Role "now says that crew performs the reset in launched crews". That
+second half no longer describes the shipped prompt. Because the Relay-delivered reset is still
+deferred — `src/relay.ts` types no reset and `src/platforms/` records no reset command — the
+Manager and Worker Role text in `src/templates.ts` was corrected to say that crew does **not**
+deliver the context reset yet and a human still types it. The first half of that bullet stands
+unchanged: the Role prompt still never tells a Worker to clear its own context, which the Context
+above established is impossible on every engine surveyed.
+
+Nothing the ADR decided changes. `clear_safe` remains the structured signal minted by `task land`
+and `task abandon`, and the Relay delivery plus the per-engine registry field remain the follow-up
+this ADR already defers them to — the same follow-up the preceding update leaves `little-coder`'s
+reset command to. Until it lands, the bullet ending "nothing gets worse in the window between the
+two changes" is the accurate description of behaviour: a `clear_safe` Message is a readable Inbox
+entry that also triggers the ordinary Relay nudge, and the reset itself is typed by a human.

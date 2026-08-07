@@ -99,8 +99,9 @@ requires one process that stays alive for as long as the tmux session does.
 - A Worker's Submission can never be reported as accepted before a Review transition.
 - The Relay can nudge an idle launched pane without consuming Messages and without typing any
   Message content into the pane.
-- Package contents, templates, the shebang line, and the required Node version are verified
-  from the output of `npm pack`.
+- The published file list, the shebang line, and the executable bit are verified from the
+  output of `npm pack`, and the tarball is installed into a clean temporary prefix so an
+  `init`/`join`/`agents`/`leave` run goes through the packed executable.
 
 ## Release gates
 
@@ -129,7 +130,7 @@ stable.
 | Participant CLI matrix | the CLIs' install paths and permission models change quickly | a live smoke test in a clean home directory for each of the eight Participant CLIs at their pinned minimum versions, including the Copilot scoped shell-rule syntax (`--allow-tool='shell(crew:*)'`) and Little Coder's scoped `LITTLE_CODER_BASH_ALLOW` prefix confirmed against the installed versions |
 | Model Backend recipes | the Ollama and LM Studio integration paths change independently and are unverified until actually run | an Ollama and an LM Studio tool-call smoke test through a supported Participant CLI |
 | Relay proof | launched autonomy depends on wake-up actually working | a tmux end-to-end test with an idle pane, a nudge, a receive, and proof that no Message is consumed twice |
-| SQLite stress | the product depends on staying correct when several processes write at once | a repeatable forced-contention suite on Linux and macOS proving the documented contention and delivery behavior |
+| SQLite stress | the product depends on staying correct when several processes write at once | a repeatable forced-contention suite on Linux proving the documented contention and delivery behavior |
 | Security review | repo config and text from other agents are untrusted inputs | all controls in [security.md](./security.md) covered by tests |
 
 ## Post-v1 direction
