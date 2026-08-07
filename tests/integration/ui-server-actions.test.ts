@@ -1,7 +1,10 @@
 /**
  * Real-HTTP integration tests for the Console Operator action routes
- * (FR-U13–U19 and FR-U36): the POST routes that write through the Store — one
- * per `ActionStore` member — over a real Store in a temp Workspace. Every one
+ * (FR-U13–U19, FR-U36 and FR-U53): the POST routes that mutate Workspace
+ * state — one per `ActionStore` member, plus `/api/team/resume`, which writes
+ * through `TeamActionDeps` rather than the Store surface and so has no
+ * `ActionStore` member of its own — over a real Store in a temp Workspace.
+ * Every one
  * is proven behind the 11c security posture (401 without token, 403 foreign
  * Host, no-store, no cookies) and rejected at the boundary on a malformed body
  * or an impersonating identity field; the `MAX_ACTION_BODY_BYTES` cap is
