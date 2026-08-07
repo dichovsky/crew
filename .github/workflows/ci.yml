@@ -60,7 +60,9 @@ jobs:
           node-version: '24.18.0'
           cache: npm
       - run: npm ci
-      - run: npm run build
+      # No explicit build step: `npm publish --dry-run` runs the `prepack` hook, which
+      # builds dist/ before packing. A separate build here would only be thrown away.
+
       # Skip when this version is already on npm (e.g. between releases): a dry-run of an
       # already-published version trips npm's duplicate-version check, a false alarm here.
       # The pack-smoke test still guards the exact file allowlist unconditionally.
