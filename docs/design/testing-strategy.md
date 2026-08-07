@@ -17,7 +17,7 @@ state-machine behavior.
 | tmux e2e | built executable + real tmux | real processes | pane readiness, Relay nudge, session cleanup |
 | Console browser e2e | built dashboard bundle served by `crew ui` | real server + Chromium | the board renders seeded Workspace data and Operator actions apply |
 | Platform smoke | installed Participant CLI | release-only/manual or isolated job | generated artifact discovery and a finite workflow |
-| Package smoke | packed tarball in clean temp prefix | real install | published file list, templates, executable, runtime floor |
+| Package smoke | packed tarball in clean temp prefix | real install | published file list, shebang and exec bit, a lifecycle run of the installed executable |
 
 The spawn layer starts many real operating-system processes on purpose, so it can prove
 behavior — locking, crashes, signals — that in-process tests cannot reach. "e2e" means
@@ -239,18 +239,40 @@ metacharacters, Unicode edge cases, and malformed SQLite fixtures.
 
 ## Package verification
 
-`npm pack --json` must contain only the documented files. Install the tarball into a clean
-temporary prefix and verify:
+The packaging gate is `tests/integration/package/pack-smoke.test.ts`: it runs `npm pack --json`,
+installs the tarball into a clean temporary prefix, and drives the installed executable. That
+file, not this section, is the contract for what the gate proves. The summary below is keyed to
+the suite's two `describe` blocks so a reader can locate each claim in the source; the source is
+authoritative for the exact assertions.
 
-- `crew --version` and `crew --help`;
-- init + join + send + receive + reviewed Task flow;
-- no Role/Team template ships as a separate asset: templates are compiled-in string
-  constants (`src/templates.ts`) with no runtime path resolution, and the packed-file
-  allowlist admits only `dist/**/*.js`, the bundled Console page, `README.md`, `LICENSE`,
-  and `package.json`;
-- the executable bit and shebang line on macOS and Linux;
-- Node below the engine floor fails with a clear message;
-- no source maps or test fixtures leak secrets or local paths.
+- **`packaged tarball contents`:** the built executable, the bundled Console page,
+  `package.json`, `README.md`, and `LICENSE` all ship; no TypeScript source, `tests/`, or
+  `node_modules/` entry ships; and an exclusivity allowlist admits nothing beyond
+  `dist/**/*.js`, the bundled Console page, and those three root files. No Role/Team template
+  ships as a separate asset because templates are compiled-in string constants
+  (`src/templates.ts`) with no runtime path resolution. Because that allowlist admits only
+  `.js` files under `dist/`, source maps and declaration files cannot ship; a stray `.js`
+  fixture emitted into `dist/` still would, and nothing inspects the contents of the JavaScript
+  that does ship for secrets or local paths.
+- **`installed executable`:** the `#!/usr/bin/env node` shebang and the executable bit on the
+  installed entry point; `crew --version` printing the manifest version and `crew --help`
+  printing help, both exiting 0; an unknown command producing a `[USAGE]` error on stderr with
+  exit 2; and one lifecycle case running `init`, `join`, `agents`, and `leave` through the
+  packed binary.
+
+Three checks belong to this gate in principle but have no case, so it does not prove them today:
+
+1. **`send`, `receive`, and the reviewed Task flow:** the lifecycle case stops at
+   `init`/`join`/`agents`/`leave`. Messaging and the Task state machine are covered at the
+   Program layer in-process, and at the spawn layer by separate OS processes that import the
+   built `run()` seam (`dist/src/run.js`) — never through an installed tarball's binary.
+2. **The engine floor:** `tests/unit/node-floor.test.ts` unit-tests `src/node-floor.js` with
+   literal version strings, and `tests/unit/bin-floor-fail.test.ts` imports `bin/crew.ts`
+   in-process with a spoofed `process.versions.node`. No case invokes the installed binary on
+   a too-old runtime.
+3. **macOS packaging:** every workflow runs on `ubuntu-latest` (see the environment matrix
+   above), so the shebang and executable-bit checks are proven on Linux in CI and on whatever
+   OS a contributor happens to run locally — never on macOS.
 
 The package `@dichovsky/crew` is published after the release gates close: `0.1.0` was a
 one-time manual `npm publish`, and `0.1.1`+ publish from CI via npm OIDC Trusted
