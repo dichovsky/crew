@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { initWorkspace } from '../../../src/init.js';
@@ -154,6 +154,145 @@ function fakeAdapter(options: {
     killSession: unused,
     attach: unused,
   };
+}
+
+/** One realized launch, as observed through the fake adapter's semantic calls. */
+interface RelaunchRecording {
+  readonly adapter: TmuxAdapter;
+  /** Every semantic tmux operation, in call order (`attach` included). */
+  readonly ops: string[];
+  /** Every invocation string pasted into a pane via the argv buffer. */
+  readonly invocations: string[];
+  /** Every window command started with `new-window` (the Relay). */
+  readonly windowCommands: (readonly string[])[];
+  /** Stdout lines already written when `attach` was called. */
+  readonly outAtAttach: string[];
+}
+
+/**
+ * A fake TmuxAdapter that actually completes a launch: pasting a pane's
+ * invocation simulates that Participant running `crew join` against the REAL
+ * Store, so `runLiveLaunch`'s stage-2 roster gate passes on genuine
+ * registrations. Modeled on the fake in
+ * `tests/integration/commands/team-launch-live.test.ts`, but resume-aware — the
+ * pasted invocation carries `--resume`, and the simulated join therefore
+ * reactivates the archived exact id instead of allocating a suffix, exactly as
+ * `crew join --resume` does in a real pane.
+ */
+function relaunchingAdapter(cwd: string, out: readonly string[]): RelaunchRecording {
+  const ops: string[] = [];
+  const invocations: string[] = [];
+  const windowCommands: (readonly string[])[] = [];
+  const outAtAttach: string[] = [];
+  let paneCounter = 0;
+  let sessionOwner: string | null = null;
+  let pending: { id: string; role: string; resume: boolean } | null = null;
+
+  const join = (entry: { id: string; role: string; resume: boolean }): void => {
+    const store = openWorkspaceStore(cwd, () => 20);
+    try {
+      store.joinAgent({
+        id: entry.id,
+        role: entry.role,
+        platformId: 'codex-cli',
+        ...(entry.resume ? { resume: true as const } : {}),
+      });
+    } finally {
+      store.close();
+    }
+  };
+
+  const adapter: TmuxAdapter = {
+    isPresent: () => Promise.resolve(true),
+    hasSession: () => Promise.resolve(false),
+    sessionOwner: () => Promise.resolve(sessionOwner),
+    newSession: () => {
+      ops.push('newSession');
+      return Promise.resolve(`%${paneCounter++}`);
+    },
+    splitPane: () => {
+      ops.push('splitPane');
+      return Promise.resolve(`%${paneCounter++}`);
+    },
+    tileLayout: () => {
+      ops.push('tileLayout');
+      return Promise.resolve();
+    },
+    paneCommand: () => Promise.resolve('codex'),
+    setSessionOwner: (_session, token) => {
+      ops.push('setSessionOwner');
+      sessionOwner = token;
+      return Promise.resolve();
+    },
+    capturePane: () => Promise.resolve(''),
+    setBufferArg: (_buffer, content) => {
+      ops.push('setBufferArg');
+      invocations.push(content);
+      // `$crew <role> <id>` with an optional trailing `--resume`; drop flags
+      // before reading the positional pair.
+      const tokens = content.trim().split(/\s+/);
+      const positional = tokens.filter((token) => !token.startsWith('-'));
+      if (positional.length >= 3 && positional[0]?.includes('crew')) {
+        pending = {
+          role: positional[positional.length - 2]!,
+          id: positional[positional.length - 1]!,
+          resume: tokens.includes('--resume'),
+        };
+      }
+      return Promise.resolve();
+    },
+    loadBufferFile: () => {
+      ops.push('loadBufferFile');
+      return Promise.resolve();
+    },
+    pasteBuffer: () => {
+      ops.push('pasteBuffer');
+      return Promise.resolve();
+    },
+    sendEnter: () => {
+      ops.push('sendEnter');
+      if (pending !== null) {
+        join(pending);
+        pending = null;
+      }
+      return Promise.resolve();
+    },
+    newWindow: (o) => {
+      ops.push('newWindow');
+      windowCommands.push(o.command);
+      return Promise.resolve(`%${paneCounter++}`);
+    },
+    killSession: () => {
+      ops.push('killSession');
+      return Promise.resolve();
+    },
+    attach: () => {
+      ops.push('attach');
+      outAtAttach.push(...out);
+      return Promise.resolve(0);
+    },
+  };
+  return { adapter, ops, invocations, windowCommands, outAtAttach };
+}
+
+/** Every Agent row (active and archived) in the workspace Store, by id. */
+function agentStatuses(cwd: string): Map<string, string> {
+  const store = openWorkspaceStore(cwd, () => 20);
+  try {
+    return new Map(store.listAgents({ includeArchived: true }).map((a) => [a.id, a.status]));
+  } finally {
+    store.close();
+  }
+}
+
+/** The planned roster of `team` under the workspace's tracked config. */
+function plannedRoster(cwd: string): { agent_id: string; role: string }[] {
+  const { io } = captureIo({ cwd, env: { HOME: '/home/u', PATH: join(cwd, 'fakebin') } });
+  const config = mergeEffectiveConfig(loadLauncherConfig(cwd), {});
+  return buildLaunchPlan(io, 'dev', config).plan.roster.map((entry) => ({
+    agent_id: entry.agent_id,
+    role: entry.role,
+  }));
 }
 
 afterEach(() => {
@@ -383,5 +522,118 @@ describe('runTeamResume', () => {
       code: 'TEAM_DRIFT',
       message: expect.stringContaining('archived exact match') as string,
     });
+  });
+});
+
+/**
+ * The success path. Every case above is a refusal, so nothing proved that a
+ * valid `crew team resume` reaches `runLiveLaunch` at all — the recovery verb
+ * runs when something has already gone wrong, and is the path least likely to
+ * be exercised by hand before a release.
+ *
+ * The fake adapter completes a real relaunch against the REAL Store, so these
+ * assertions pin the behaviors that only the resume entrypoint can produce:
+ * `resume: true` reaching the pane invocations, the preflight's planned-id
+ * check being skipped so archived ids are reactivated instead of suffixed
+ * (`src/launcher/session.ts` — the entire reason resume can reuse ids), the
+ * retired clean-stop marker, and the `resume_result` record emitted BEFORE the
+ * blocking attach.
+ */
+describe('runTeamResume — a valid resume relaunches the Crew', () => {
+  /** Archive the planned roster, store the plan + clean-stop marker, resume it. */
+  async function resumeCleanStop(json: boolean): Promise<{
+    cwd: string;
+    out: string[];
+    recording: RelaunchRecording;
+  }> {
+    const cwd = workspace();
+    archivePlannedAgents(cwd, 'dev');
+    writeResumableSession(cwd, 'dev');
+    const { io, out } = captureIo({
+      cwd,
+      env: { HOME: '/home/u', PATH: join(cwd, 'fakebin') },
+      clock: () => 20,
+    });
+    const recording = relaunchingAdapter(cwd, out);
+
+    await runTeamResume(
+      io,
+      'crew-demo',
+      { json },
+      { adapter: recording.adapter, delay: () => Promise.resolve(), relayBin: ['node', 'crew'] },
+    );
+    return { cwd, out, recording };
+  }
+
+  it('builds the tmux session and starts the Relay window', async () => {
+    const { recording } = await resumeCleanStop(true);
+
+    // The session was genuinely created — not merely validated and abandoned.
+    expect(recording.ops).toContain('newSession');
+    expect(recording.ops).toContain('setSessionOwner');
+    expect(recording.ops).toContain('newWindow');
+    expect(recording.ops).not.toContain('killSession');
+    expect(recording.windowCommands).toEqual([
+      ['node', 'crew', 'relay', '--internal', '--session', 'crew-demo'],
+    ]);
+  });
+
+  it('carries --resume into every pane invocation', async () => {
+    const { cwd, recording } = await resumeCleanStop(true);
+    const roster = plannedRoster(cwd);
+
+    expect(recording.invocations).toEqual(
+      roster.map((entry) => `$crew ${entry.role} ${entry.agent_id} --resume`),
+    );
+  });
+
+  it('reactivates the archived exact ids instead of allocating suffixed ones', async () => {
+    const { cwd } = await resumeCleanStop(true);
+    const roster = plannedRoster(cwd);
+    const agents = agentStatuses(cwd);
+
+    // No `-2` twin anywhere: the planned ids are the ONLY rows, and each is
+    // active again. A launch that did not set `resume` would have been refused
+    // by the preflight's planned-id check instead.
+    expect([...agents.keys()].sort()).toEqual(roster.map((entry) => entry.agent_id).sort());
+    expect([...agents.values()]).toEqual(roster.map(() => 'active'));
+  });
+
+  it('retires the clean-stop marker so the session is not resumable twice', async () => {
+    const { cwd } = await resumeCleanStop(true);
+
+    expect(existsSync(join(cwd, '.crew', 'generated', 'crew-demo', 'resume.json'))).toBe(false);
+    // The launch plan itself stays — only the clean-stop marker is retired.
+    expect(existsSync(join(cwd, '.crew', 'generated', 'crew-demo', 'launch-plan.json'))).toBe(true);
+  });
+
+  it('emits exactly one resume_result record, before the blocking attach', async () => {
+    const { out, recording } = await resumeCleanStop(true);
+
+    const records = out
+      .join('')
+      .split('\n')
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as { type: string });
+    expect(records).toEqual([
+      {
+        type: 'resume_result',
+        schema_version: 1,
+        session_name: 'crew-demo',
+        panes: 4,
+        relay: true,
+        attached: true,
+      },
+    ]);
+    // `runLiveLaunch` attaches last; the record must already have been written
+    // when it did, or a resumed-and-attached operator never sees it.
+    expect(recording.ops).toContain('attach');
+    expect(recording.outAtAttach.join('')).toContain('"type":"resume_result"');
+  });
+
+  it('renders the human summary when --json is not requested', async () => {
+    const { out } = await resumeCleanStop(false);
+
+    expect(out.join('')).toBe('Resumed session crew-demo (4 panes, relay on).\n');
   });
 });

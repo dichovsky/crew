@@ -14,6 +14,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { initWorkspace } from '../../src/init.js';
 import type { Io } from '../../src/io.js';
+import { writePlanArtifacts, writeResumeMarker } from '../../src/launcher/artifacts.js';
+import { loadLauncherConfig, mergeEffectiveConfig } from '../../src/launcher/config.js';
+import { buildLaunchPlan } from '../../src/launcher/plan.js';
 import { runTeamResume } from '../../src/launcher/resume.js';
 import { createTmuxAdapter, type TmuxAdapter } from '../../src/launcher/tmux.js';
 import { openWorkspaceStore, type Store } from '../../src/store/index.js';
@@ -64,6 +67,7 @@ interface Envelope {
   readonly prune?: Record<string, unknown>;
   readonly clean?: Record<string, unknown>;
   readonly sessions?: ReadonlyArray<Record<string, unknown>>;
+  readonly resumable_sessions?: ReadonlyArray<Record<string, unknown>>;
 }
 
 function httpSend(
@@ -991,5 +995,99 @@ describe('crew ui ensures the operator Agent row at startup (FR-U13)', () => {
       role: 'worker',
       status: 'active',
     });
+  });
+});
+
+/**
+ * The Console's read side of resume. `listResumableSessions` is well covered as
+ * a unit, but nothing exercised the route that renders it, so the snapshot
+ * shape the dashboard consumes was proven only in `web/app.test.tsx` against a
+ * hand-written fixture. The clean-stop state is seeded directly (archived exact
+ * roster + stored plan + marker) rather than launched-then-stopped, so this
+ * covers the route, not the launcher.
+ */
+describe('GET /api/resumable-sessions (clean-stop recovery candidates)', () => {
+  const STOPPED_AT = 100;
+
+  function getResumable(port: number): Promise<HttpReply> {
+    return httpSend(port, `/api/resumable-sessions?token=${TOKEN}`, '', {}, 'GET');
+  }
+
+  /** Archive the planned roster and store the plan + clean-stop marker. */
+  function seedCleanStop(cwd: string, io: Io): number {
+    const config = mergeEffectiveConfig(loadLauncherConfig(cwd), {});
+    const plan = buildLaunchPlan(io, 'dev', config).plan;
+    const store = openStore(cwd);
+    for (const entry of plan.roster) {
+      store.joinAgent({ id: entry.agent_id, role: entry.role, platformId: plan.client });
+      store.leaveAgent(entry.agent_id);
+    }
+    writePlanArtifacts(cwd, plan.session_name, {
+      launchPlan: plan,
+      managerPrompt: '# manager\n',
+      inspectorPrompt: '# inspector\n',
+      runSummary: '# summary\n',
+    });
+    writeResumeMarker(cwd, plan.session_name, {
+      schema_version: 1,
+      session_name: plan.session_name,
+      stopped_at: STOPPED_AT,
+      agents_archived: plan.roster.length,
+      cleanly_stopped: true,
+    });
+    return plan.roster.length;
+  }
+
+  it('returns an empty list when nothing was ever launched', async () => {
+    const { cwd, io } = teamWorkspace();
+    const { port } = await serve(io, cwd, fakeTmux(cwd));
+
+    const reply = await getResumable(port);
+    expect(reply.status).toBe(200);
+    expect(envelope(reply).ok).toBe(true);
+    expect(envelope(reply).resumable_sessions).toEqual([]);
+  });
+
+  it('renders a cleanly stopped session as a resumable_session record', async () => {
+    const { cwd, io } = teamWorkspace();
+    const archived = seedCleanStop(cwd, io);
+    const { port } = await serve(io, cwd, fakeTmux(cwd));
+
+    const reply = await getResumable(port);
+    expect(reply.status).toBe(200);
+    expect(envelope(reply).resumable_sessions).toEqual([
+      {
+        type: 'resumable_session',
+        schema_version: 1,
+        session_name: SESSION,
+        team: 'dev',
+        stopped_at: STOPPED_AT,
+        agents_archived: archived,
+      },
+    ]);
+  });
+
+  it('omits a session whose tmux session is live again', async () => {
+    const { cwd, io } = teamWorkspace();
+    seedCleanStop(cwd, io);
+    const { port } = await serve(io, cwd, fakeTmux(cwd, { hasSession: true }));
+
+    const reply = await getResumable(port);
+    expect(reply.status).toBe(200);
+    expect(envelope(reply).resumable_sessions).toEqual([]);
+  });
+
+  it('omits a session after the Team config drifts away from the stored plan', async () => {
+    const { cwd, io } = teamWorkspace();
+    seedCleanStop(cwd, io);
+    writeFileSync(
+      join(cwd, '.crew', 'launcher.yaml'),
+      LAUNCHER_YAML.replace('reminder_seconds: 30', 'reminder_seconds: 45'),
+    );
+    const { port } = await serve(io, cwd, fakeTmux(cwd));
+
+    const reply = await getResumable(port);
+    expect(reply.status).toBe(200);
+    expect(envelope(reply).resumable_sessions).toEqual([]);
   });
 });
