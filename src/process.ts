@@ -5,8 +5,10 @@
  * interpolation of any argument), enforce a bounded timeout, and resolve with
  * the captured exit status and streams. It never throws for a non-zero exit, a
  * missing executable, or a timeout — those are reported through the result so
- * callers (the platform registry's version probes and the tmux adapter) can
- * classify them.
+ * callers can classify them. That contract is owed to EVERY `Io.runProcess`
+ * caller rather than to a named subset: this is crew's only capture-only
+ * process seam, so a change to the error handling here reaches all of them at
+ * once. `grep -rn '\.runProcess(' src/` is the current inventory.
  */
 import { execFile, spawn } from 'node:child_process';
 import type { ProcessResult } from './io.js';

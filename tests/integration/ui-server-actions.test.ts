@@ -1,11 +1,19 @@
 /**
  * Real-HTTP integration tests for the Console Operator action routes
- * (FR-U13–U19): the four POST routes over a real Store in a temp Workspace.
- * Every route is proven behind the 11c security posture (401 without token,
- * 403 foreign Host, no-store, no cookies), validated at the boundary (USAGE on
- * malformed/oversized/impersonating bodies), authority-checked in the Store
- * (non-reviewer approve → TASK_CONFLICT), and re-proven NON-CONSUMING after
- * every successful POST — a recipient's unread Inbox stays claimable.
+ * (FR-U13–U19, FR-U36 and FR-U53): the POST routes that mutate Workspace
+ * state — one per `ActionStore` member, plus `/api/team/resume`, which writes
+ * through `TeamActionDeps` rather than the Store surface and so has no
+ * `ActionStore` member of its own — over a real Store in a temp Workspace.
+ * Every one
+ * is proven behind the 11c security posture (401 without token, 403 foreign
+ * Host, no-store, no cookies) and rejected at the boundary on a malformed body
+ * or an impersonating identity field; the `MAX_ACTION_BODY_BYTES` cap is
+ * proven on `/api/messages`. The Message/Task routes additionally carry the
+ * Store-side authority proof (non-reviewer approve → TASK_CONFLICT) and the
+ * NON-CONSUMING re-proof after every successful POST — a recipient's unread
+ * Inbox stays claimable. `ACTION_PATHS` below is the inventory the
+ * token/Host/malformed-body sweeps iterate, and is the whole of what makes
+ * them exhaustive: a new action route belongs in it.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { request, type IncomingHttpHeaders } from 'node:http';
