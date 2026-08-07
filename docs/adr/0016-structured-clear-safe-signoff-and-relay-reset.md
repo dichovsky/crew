@@ -111,3 +111,21 @@ recorded reset fact** — nothing in `src/platforms/little-coder.ts` or
 researched when the field lands, exactly as the two engines above were. The nullable-command
 decision itself is unaffected: a command that has not been established is precisely the null case
 the Decision already provides for, and the registry field remains deferred to the follow-up.
+
+## Update — the Role prompts no longer claim crew delivers the reset
+
+The Consequences bullet beginning "The Worker Role no longer tells Workers to clear their own
+context" goes on to say the Role "now says that crew performs the reset in launched crews". That
+second half no longer describes the shipped prompt. Because the Relay-delivered reset is still
+deferred — `src/relay.ts` types no reset and `src/platforms/` records no reset command — the
+Manager and Worker Role text in `src/templates.ts` was corrected to say that crew does **not**
+deliver the context reset yet and a human still types it. The first half of that bullet stands
+unchanged: the Role prompt still never tells a Worker to clear its own context, which the Context
+above established is impossible on every engine surveyed.
+
+Nothing the ADR decided changes. `clear_safe` remains the structured signal minted by `task land`
+and `task abandon`, and the Relay delivery plus the per-engine registry field remain the follow-up
+this ADR already defers them to — the same follow-up the preceding update leaves `little-coder`'s
+reset command to. Until it lands, the bullet ending "nothing gets worse in the window between the
+two changes" is the accurate description of behaviour: a `clear_safe` Message is a readable Inbox
+entry that also triggers the ordinary Relay nudge, and the reset itself is typed by a human.
