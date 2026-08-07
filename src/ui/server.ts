@@ -12,11 +12,13 @@
  * and `/api/resumable-sessions`. The write surface is EXACTLY the FR-U19
  * Operator action POSTs: `/api/messages`, `/api/tasks`,
  * `/api/tasks/:id/approve`, `/api/tasks/:id/requeue`, `/api/team/launch`,
- * `/api/team/resume`, `/api/team/stop`, `/api/prune`, and `/api/clean` —
- * each handled by `./actions.js` with the actor derived from the
- * authenticated Operator session (FR-U13/U14), guarded by the same
- * token/Host/no-store posture as every GET, and the destructive three gated
- * by the FR-U25 one-click confirmation flag.
+ * `/api/team/resume`, `/api/team/stop`, `/api/prune`, and `/api/clean`, plus
+ * the FR-U36 Agent lifecycle pair `/api/agents/:id/archive` and
+ * `/api/agents/:id/restore` — each handled by `./actions.js` with the actor
+ * derived from the authenticated Operator session (FR-U13/U14), guarded by the
+ * same token/Host/no-store posture as every GET, and the destructive ones
+ * (stop, prune, clean, archive) gated by the FR-U25 one-click confirmation
+ * flag.
  *
  * Change detection is one server-side poller over the monotonic cursors of
  * `Store.getChangeSignature()` (FR-U22); connected browsers are notified with
@@ -419,6 +421,8 @@ export function startUiServer(options: UiServerOptions): Promise<UiServer> {
     adapter: options.tmuxAdapter ?? createTmuxAdapter(io),
     delay: options.launchDelay ?? realDelay,
     relayBin: options.relayBin ?? defaultRelayBin(),
+    // The single site that decides it, for every Console launch path (FR-U20).
+    noAttach: true,
   };
   const reopenStore =
     options.reopenStore ??

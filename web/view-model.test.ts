@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PARTICIPANT_IDS } from '../src/participants.js';
 import type {
   AgentSnapshotRecord,
   MessageSnapshotRecord,
@@ -216,10 +217,20 @@ describe('colour vocabularies', () => {
     expect(engineMeta('copilot-cli').label).toBe('Copilot');
     expect(engineMeta('antigravity-cli').label).toBe('Antigravity');
     expect(engineMeta('pi-cli').label).toBe('Pi');
+    expect(engineMeta('little-coder').label).toBe('Little Coder');
     expect(engineMeta('opencode-cli').label).toBe('opencode');
-    // Every registered engine gets a branded badge, never the neutral fallback glyph.
-    for (const id of ['pi-cli', 'opencode-cli']) {
-      expect(engineMeta(id).glyph).not.toBe('·');
+  });
+
+  /**
+   * The roster-drift guard is the TYPE, not this test: `ENGINE_META` is keyed
+   * by `ParticipantId`, so an engine added to `PARTICIPANT_IDS` without a badge
+   * fails `npm run typecheck`. This only pins that every shipped id resolves to
+   * a branded badge rather than the fallback.
+   */
+  it('every Participant id resolves to a branded badge, never the fallback', () => {
+    for (const id of PARTICIPANT_IDS) {
+      expect(engineMeta(id).glyph, `${id} has no badge`).not.toBe('·');
+      expect(engineMeta(id).label, `${id} renders its raw id`).not.toBe(id);
     }
   });
 

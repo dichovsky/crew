@@ -7,6 +7,7 @@
  * milliseconds so callers and tests control the clock. These functions never
  * touch the DOM, so they carry the Console's logic under unit test.
  */
+import { isParticipantId, type ParticipantId } from '../src/participants.js';
 import type {
   AgentSnapshotRecord,
   MessageSnapshotRecord,
@@ -138,7 +139,16 @@ export interface EngineMeta {
   readonly fg: string;
 }
 
-const ENGINE_META: Record<string, EngineMeta> = {
+/**
+ * One badge per Participant CLI id. Keyed by `ParticipantId` rather than
+ * `string` on purpose: a missing entry is invisible at runtime (the
+ * unknown-engine fallback below just renders the raw id), so the only way to
+ * catch the next engine landing in the shared vocabulary without a Console
+ * badge is to make its absence a COMPILE error. An id added to
+ * `PARTICIPANT_IDS` now fails `npm run typecheck` here until it has a badge,
+ * and a key that is not a Participant id fails too.
+ */
+const ENGINE_META: Record<ParticipantId, EngineMeta> = {
   'claude-code': {
     label: 'Claude Code',
     glyph: '✳',
@@ -157,6 +167,13 @@ const ENGINE_META: Record<string, EngineMeta> = {
     fg: '#1a7345',
   },
   'pi-cli': { label: 'Pi', glyph: 'π', color: '#c2317a', bg: '#fbe9f2', fg: '#a52868' },
+  'little-coder': {
+    label: 'Little Coder',
+    glyph: '◈',
+    color: '#0f8ba6',
+    bg: '#e4f2f6',
+    fg: '#0b6b80',
+  },
   'opencode-cli': { label: 'opencode', glyph: '❯', color: '#c9821f', bg: '#f9f0e2', fg: '#a66b12' },
 };
 
@@ -167,7 +184,7 @@ const ENGINE_META: Record<string, EngineMeta> = {
  * "unknown" badge naming whatever id was given (or "unknown" for `null`).
  */
 export function engineMeta(platformId: string | null): EngineMeta {
-  if (platformId !== null && platformId in ENGINE_META) return ENGINE_META[platformId]!;
+  if (platformId !== null && isParticipantId(platformId)) return ENGINE_META[platformId];
   return {
     label: platformId ?? 'unknown',
     glyph: '·',

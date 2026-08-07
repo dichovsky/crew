@@ -47,7 +47,7 @@
     "build": "tsc -p tsconfig.build.json && npm run build:web",
     "build:web": "esbuild web/main.tsx --bundle --minify --format=esm --jsx=automatic --jsx-import-source=preact --loader:.css=text --outdir=dist/ui-assets && cp web/index.html dist/ui-assets/index.html",
     "build:docs": "esbuild docs-site/main.tsx --bundle --minify --format=esm --jsx=automatic --jsx-import-source=preact --loader:.css=text --outdir=dist-docs && cp docs-site/index.html dist-docs/index.html",
-    "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json && tsc -p docs-site/tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json && tsc -p docs-site/tsconfig.json && tsc -p e2e/ui/tsconfig.json",
     "lint": "eslint . --ignore-pattern dist-docs",
     "lint:fix": "eslint . --ignore-pattern dist-docs --fix",
     "format": "prettier --write .",
