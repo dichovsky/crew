@@ -52,7 +52,7 @@ tools:
 
 ${marker}
 
-${renderSharedWorkflow('the role and optional id typed after selecting this agent')}
+${renderSharedWorkflow('the arguments typed after selecting this agent')}
 `,
     );
   },

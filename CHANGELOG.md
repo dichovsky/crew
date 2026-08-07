@@ -16,9 +16,17 @@ All notable changes to this project are documented in this file. The format foll
   `LAUNCH_FAILED` because the planned archived ids never came back active. The parse rule
   now reads `<role> [id] [--resume]` and the join step keys off that token; the Claude Code
   and Pi/Little Coder artifacts widen their `argument-hint` to match. **Because every
-  Participant artifact's bytes change, the registry advances to revision 6, so a
+  Participant artifact's bytes change, the registry advances to revision 7, so a
   previously installed artifact is reported as outdated until `crew setup` is re-run** —
   that regeneration is in place and needs neither `--force` nor a backup.
+- The generated instruction for Codex CLI, Antigravity CLI, Copilot CLI, and Gemini CLI
+  still described what a pane receives as "the role and optional id" — a subject naming
+  two arguments directly above a parse rule admitting three. The ambiguity landed inside
+  an instruction a Participant CLI is expected to follow literally, and on the resume path
+  specifically, where misreading it means joining as the wrong Agent id. Those artifacts
+  now name the argument *source* ("the arguments given after `$crew` …"), leaving the
+  backticked `<role> [id] [--resume]` as the single place the argument set is spelled out,
+  so a future argument cannot reopen the same gap. This ships in the same revision-7 bump.
 
 ### Added
 

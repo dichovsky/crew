@@ -19,8 +19,8 @@ description: Join and coordinate through the local crew inbox and reviewed task 
 
 ${marker}
 
-Use the finite crew workflow below for the role and optional id supplied by the user.
-${renderSharedWorkflow('the role and optional id given after `$crew` (Codex CLI) or `/crew` (Antigravity CLI)')}
+Use the finite crew workflow below for the arguments supplied by the user.
+${renderSharedWorkflow('the arguments given after `$crew` (Codex CLI) or `/crew` (Antigravity CLI)')}
 `,
   );
 }
