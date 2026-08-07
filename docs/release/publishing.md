@@ -90,8 +90,15 @@ and the canonical gate list in
   `id-token: write` for the whole job, so the OIDC-token environment is present during
   `npm ci` / build / test. To shrink that surface, split into a `build` job (no
   `id-token`) that uploads the built artifact and a minimal `publish` job that alone
-  holds `id-token: write`. Deferred because `prepack` rebuilds on publish, so a correct
-  split needs `--ignore-scripts` plus artifact reuse; the current single-job shape
-  matches npm's documented trusted-publishing example.
+  holds `id-token: write`. Deferred because the split has to carry `dist/` across the job
+  boundary itself: there is **no** `prepack`/`prepublishOnly` hook — it was removed so each
+  publish path builds exactly once from a visible step — so nothing rebuilds during
+  `npm publish`. A `publish` job that neither runs `npm run build` nor downloads the
+  `build` job's artifact packs a tarball with **no `dist/`**, and npm reports the missing
+  `bin` target as a warning rather than an error, so that publish exits **0** and
+  irreversibly ships a code-less version to `latest`. Any split must therefore restore
+  `dist/` in the publishing job and assert it is there before publishing. The current
+  single-job shape matches npm's documented trusted-publishing example and cannot fail
+  that way.
 - `1.0.0` is reserved for a later stability milestone, once the CLI and Store contracts
   are declared stable.

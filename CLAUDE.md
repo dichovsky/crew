@@ -75,7 +75,7 @@ the test step enforces the 95% coverage thresholds — so match them locally
 (`npm run test:coverage`, not plain `npm test`) before pushing. A second job,
 `publish-dry-run`, runs on every PR but only rehearses `npm publish --dry-run` when
 `package.json`'s version is not already on npm; between releases that step deliberately
-skips with a notice (`ci.yml:62-73`).
+skips with a notice (`ci.yml:64-75`).
 
 **Node `>=24.15` is a hard floor.** The Store uses the built-in `node:sqlite` module,
 which only exists in Node 24+. There is no SQLite dependency in `package.json`.

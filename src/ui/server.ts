@@ -116,7 +116,8 @@ export interface UiServer {
 /**
  * Fallback page for an unbuilt source checkout (no `dist/ui-assets`);
  * deliberately contains no stored content. The packaged artifact always ships
- * the bundled dashboard (`prepack` builds it), so end users never see this.
+ * the bundled dashboard (every publish path runs `npm run build` as an explicit step
+ * before packing; there is no `prepack` hook), so end users never see this.
  */
 const PLACEHOLDER_HTML = `<!doctype html>
 <html lang="en">
