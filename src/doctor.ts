@@ -89,7 +89,8 @@ function collectSystemFindings(io: Io, findings: Finding[]): void {
 /**
  * Report each Participant CLI that is not installed (FR-K01). Absence is `info`,
  * like tmux/git: crew coordinates whatever Participant is present and requires no
- * single one. Version is not a doctor finding — it is surfaced by `crew setup`.
+ * single one. Presence is all this function judges; version drift IS a doctor
+ * finding, reported separately by `collectVersionFloorFindings` below.
  */
 function collectParticipantFindings(io: Io, findings: Finding[]): void {
   for (const target of PARTICIPANT_TARGETS) {
