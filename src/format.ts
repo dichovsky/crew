@@ -118,9 +118,15 @@ const MAX_REDACTED_LENGTH = 2048;
 // `launch_token`, `CREW_LAUNCH_TOKEN`, `signing_key`, and `db_credential` all match
 // while `monkey`/`author` do not. The credential-word set below is the vocabulary
 // of this keyed-pair rule alone — a free-text redaction applied to error and setup
-// output (FR-J14). It is not an environment guardrail: crew's no-credential-env
-// property (FR-J13) holds because no environment value is ever copied into a
-// record, not because any name is matched.
+// output (FR-J14); security.md ("Redaction rule") is its authoritative statement,
+// down to these same examples. It is NOT an environment guardrail, and nothing
+// keys off a variable's name to decide what may be emitted. crew emits no
+// credential environment value (FR-J13) for two unrelated reasons: `doctor` and
+// `setup` consult the environment only to answer "is this program present?" and
+// report by name, and the one credential env value that IS copied into a record —
+// the launch token an Agent row carries from `CREW_LAUNCH_TOKEN` — is held back by
+// never being rendered (FR-J15, and FR-H28 from the launcher side), not by never
+// being stored.
 const KEYED_PAIR =
   /([A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?)((\s*[=:]\s*)(?:"([^"]*)"|'([^']*)'|([^\s",;]+)))?/g;
 const CREDENTIAL_KEY =
