@@ -19,7 +19,12 @@ import {
   PARTICIPANT_TARGETS,
   REGISTRY_REVISION,
 } from '../../src/platforms/registry.js';
-import { classifyArtifact, compareVersions, probeVersion } from '../../src/platforms/shared.js';
+import {
+  classifyArtifact,
+  compareVersions,
+  probeVersion,
+  renderSharedWorkflow,
+} from '../../src/platforms/shared.js';
 import { PARTICIPANT_IDS } from '../../src/participants.js';
 
 /** Create a temp dir holding an executable named `exe`, and return the dir for PATH. */
@@ -516,6 +521,40 @@ describe('official sources mirror setup-integration.md', () => {
           `${target.id} cites ${url}, which setup-integration.md does not list`,
         ).toContain(url);
       }
+    }
+  });
+
+  // §4.0 promises every Participant template embeds its block "word for word", and §7
+  // ties every marker's registry-revision to REGISTRY_REVISION. Both are machine-checkable
+  // claims that have already gone stale on main once; these two assertions keep them honest.
+  it('§4.0 quotes the shared workflow with its {{ROLE_ARGS}} token intact', () => {
+    const heading = doc.indexOf('### 4.0 ');
+    expect(heading, 'setup-integration.md no longer has a "### 4.0 " heading').toBeGreaterThan(-1);
+    const open = doc.indexOf('```text\n', heading);
+    expect(open, 'no fenced text block follows the §4.0 heading').toBeGreaterThan(-1);
+    const bodyStart = open + '```text\n'.length;
+    const close = doc.indexOf('\n```', bodyStart);
+    expect(close, 'the §4.0 fenced text block is never closed').toBeGreaterThan(-1);
+
+    // `{{ROLE_ARGS}}` is its own substitution, so rendering with the token itself
+    // returns the unrendered canonical text — no need to export the private const.
+    expect(
+      doc.slice(bodyStart, close),
+      'setup-integration.md §4.0 no longer quotes the shared workflow word for word',
+    ).toBe(renderSharedWorkflow('{{ROLE_ARGS}}'));
+  });
+
+  it('every registry-revision literal in the doc is the current REGISTRY_REVISION', () => {
+    // `<n>` is the marker-grammar placeholder, not a literal, so it is excluded.
+    const literals = [...doc.matchAll(/registry-revision[:\s*]+(<n>|\d+)/g)]
+      .map((match) => match[1])
+      .filter((value) => value !== '<n>');
+    expect(literals.length, 'setup-integration.md quotes no registry-revision').toBeGreaterThan(0);
+    for (const literal of literals) {
+      expect(
+        Number(literal),
+        `setup-integration.md states registry-revision ${literal}, but the registry is at ${REGISTRY_REVISION}`,
+      ).toBe(REGISTRY_REVISION);
     }
   });
 });
