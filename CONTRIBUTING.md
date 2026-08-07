@@ -34,7 +34,7 @@ npx vitest run tests/unit/format.test.ts
 npx vitest run -t "rejects a non-empty version-0 database"
 ```
 
-CI runs **typecheck → lint → format:check → build → build:docs → test:coverage** on
+CI runs **typecheck → lint → format:check → build:docs → test:coverage** on
 GitHub's hosted runners, at Node `24.18.0`. Every step must pass, so run the same
 commands locally before pushing.
 
@@ -99,7 +99,7 @@ functions, and lines); tests are not applicable for docs-only changes.
 
 ## Before you open a PR
 
-- `npm run typecheck && npm run lint && npm run format:check && npm run build &&
+- `npm run typecheck && npm run lint && npm run format:check &&
   npm run build:docs && npm run test:coverage` are all green.
 - The matching docs-as-contract updates land in the same PR as the behavior change.
 - The PR description explains why the change is needed and includes a test plan.

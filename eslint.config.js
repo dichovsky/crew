@@ -4,7 +4,18 @@ import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'experiments/**', 'eslint.config.js'],
+    ignores: [
+      'dist/**',
+      'dist-docs/**',
+      'coverage/**',
+      'node_modules/**',
+      'experiments/**',
+      '.claude/**',
+      '.agents/**',
+      '.crew/**',
+      '.vitest/**',
+      'test-results/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -15,6 +26,10 @@ export default tseslint.config(
         tsconfigRootDir: import.meta.dirname,
       },
     },
+  },
+  {
+    files: ['**/*.js'],
+    ...tseslint.configs.disableTypeChecked,
   },
   prettier,
 );

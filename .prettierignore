@@ -3,6 +3,7 @@ dist-docs
 coverage
 node_modules
 package-lock.json
+test-results
 
 # Prettier governs code; prose docs are authored by hand.
 **/*.md
