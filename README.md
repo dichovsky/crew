@@ -149,11 +149,12 @@ crew ui                        # start the Console; prints an authenticated loca
 - The human is represented as an ordinary Agent named `operator`, with no special powers, so
   the Console can also **act on** the Crew under the same rules as any other Agent: send a
   Message, create/approve/requeue a Task, launch a Team without attaching your terminal,
-  stop a Team that crew can prove it started, peek at a pane, archive or restore an Agent,
-  and run `prune`/`clean`. Every destructive one of those takes a single click in a dialog
-  that names the irreversible effect — there is no phrase to type — and the request it then
-  sends carries a `confirm: true` flag the server verifies for itself, so a bare POST can
-  never fire one.
+  stop a Team that crew can prove it started, resume one it stopped cleanly, peek at a pane,
+  archive or restore an Agent, and run `prune`/`clean`. Four of those — Team stop, `prune`,
+  `clean`, and archiving an Agent — take a single click in a dialog that names the
+  irreversible or hard-to-reverse effect; there is no phrase to type, and the request then
+  carries a `confirm: true` flag the server verifies for itself, so a bare POST can never
+  fire one. Resuming a Team and restoring an archived Agent are not gated that way.
 - **The URL it prints is a secret** - anyone on the machine who has it can act as the
   Operator until the server stops. Don't paste or share it; restarting `crew ui` makes the
   old URL useless.

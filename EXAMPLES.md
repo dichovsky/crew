@@ -53,8 +53,8 @@ crew team dev --launch --client claude-code --workers 3
   from inside that worktree, where the launch wrote that pane map. `crew team resume` can
   bring exactly those rows back later: it relaunches the session from the stored plan, but
   only while that plan still matches your Team and every one of those Agents is still
-  archived. `crew leave` archives a single Agent, and `crew clean --force` resets the whole
-  Workspace — without `--force` it refuses while Agents are active. An archived id is never
+  archived. `crew leave` archives a single Agent, and `crew clean --force` deletes the State
+  Store files — without `--force` it refuses while Agents are active. An archived id is never
   handed out to a later `crew join`; `crew join <id> --resume` is how you claim it back.
 - Only a launch that **fails** partway deletes any of those rows by itself. Once crew has
   confirmed it tore down the session it created, it removes the untouched Agent rows
@@ -238,18 +238,20 @@ crew ui --json --no-open        # emit one ui_started record, then keep serving 
   the Console can also **drive** the Crew through the same authority rules and Store
   operations as the CLI: send a Message, create a Task with any reviewer, approve or requeue
   a Submission you review, launch a Team without attaching a terminal, stop a Team that crew
-  can prove it started, peek at a pane's text (cleaned of terminal control characters),
-  archive an Agent or restore an archived one — exactly what `crew leave` and
-  `crew join <id> --resume` do — and run `prune`/`clean`. The server always decides who is
-  acting from the session itself — a request body cannot name a different actor.
+  can prove it started, resume one it stopped cleanly, peek at a pane's text (cleaned of
+  terminal control characters), archive an Agent or restore an archived one — exactly what
+  `crew leave` and `crew join <id> --resume` do — and run `prune`/`clean`. The server always
+  decides who is acting from the session itself — a request body cannot name a different
+  actor.
 - The four destructive actions — **Team stop, `prune`, `clean`, and archiving an Agent** —
-  each take one extra click to confirm: the browser puts up a dialog naming the irreversible
-  or hard-to-reverse effect, and the request it then sends carries a `{ "confirm": true }`
-  flag the server checks for itself. A POST without that flag fails with `USAGE`, so a bare
-  request can never fire one of them. Restoring an archived Agent is deliberately left
-  outside that gate — it is the reversible corrective action, offered with no prompt:
+  each take one extra click to confirm, and the request the browser then sends carries a
+  `{ "confirm": true }` flag the server checks for itself. A POST without that flag fails
+  with `USAGE`, so a bare request can never fire one of them. Resuming a Team and restoring
+  an archived Agent are deliberately left outside that gate — they are the reversible
+  corrective actions, offered with no prompt.
+- The dialog names the irreversible or hard-to-reverse effect, and there is nothing to type:
 
-![The Console's one-click confirmation dialog for `prune`: a modal titled "Prune workspace history" naming the irreversible effect, with Cancel and Prune buttons and nothing to type](./docs/images/console-confirm.png)
+![The Console's one-click confirmation dialog for prune: a modal headed Prune workspace history, naming the irreversible effect, with Cancel and Prune buttons and no field to type into](./docs/images/console-confirm.png)
 
 - The Tasks view is the reviewed-work board — Tasks grouped by status, with the selected
   Task's detail beside them, where you approve a Submission or requeue its Task:
