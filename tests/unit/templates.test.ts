@@ -27,19 +27,38 @@ describe('packaged Roles — ADR-0014 context-clear Sign-off', () => {
  * to wait for a reset that never arrives.
  */
 describe('packaged Roles — ADR-0016 relay-delivered reset is still a follow-up', () => {
-  const flat = (body: string): string => body.replace(/\s+/g, ' ');
+  /** Sentences of a prompt, whitespace-flattened. */
+  const sentences = (body: string): string[] =>
+    body
+      .replace(/\s+/g, ' ')
+      .split(/(?<=\.)\s+/)
+      .filter((s) => s.length > 0);
 
-  it('no packaged Role claims crew already performs the context reset', () => {
+  /**
+   * A claim that some actor performs the reset — matched by MEANING (any of
+   * reset/clear/deliver applied to a context or session) rather than by the two
+   * phrasings this change happens to remove, so a reworded regression such as
+   * "the Relay clears your context after the Sign-off" is caught too.
+   */
+  const RESET_CLAIM = /\b(?:reset|clear\w*|deliver\w*)\b[^.]*\b(?:context|session)\b|\breset\b/i;
+  const NEGATED = /\b(?:not|never|cannot|can't|no)\b/i;
+
+  it('every sentence about a context reset is negated, in every packaged Role', () => {
     for (const [name, body] of Object.entries(PACKAGED_ROLES)) {
-      expect(flat(body), `${name} promises an undelivered reset`).not.toMatch(
-        /crew (?:then )?(?:resets|performs the context reset)/i,
-      );
+      const claims = sentences(body).filter((s) => RESET_CLAIM.test(s));
+      for (const claim of claims) {
+        expect(claim, `${name} states an unnegated reset claim`).toMatch(NEGATED);
+      }
     }
   });
 
-  it('the Manager and Worker prompts say the reset is not delivered yet', () => {
-    expect(flat(PACKAGED_ROLES.manager!)).toMatch(/crew does not deliver [^.]*context reset yet/i);
-    expect(flat(PACKAGED_ROLES.worker!)).toMatch(/crew does not deliver the reset yet/i);
+  it('the Manager and Worker prompts state that crew does not deliver it', () => {
+    for (const name of ['manager', 'worker']) {
+      const stated = sentences(PACKAGED_ROLES[name]!).some(
+        (s) => /\bcrew\b/i.test(s) && /\bdeliver\w*\b/i.test(s) && NEGATED.test(s),
+      );
+      expect(stated, `${name} never says crew does not deliver the reset`).toBe(true);
+    }
   });
 });
 
