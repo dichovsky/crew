@@ -10,9 +10,10 @@ export default tseslint.config(
       'coverage/**',
       'node_modules/**',
       'experiments/**',
-      'eslint.config.js',
       '.claude/**',
       '.agents/**',
+      '.crew/**',
+      '.vitest/**',
       'test-results/**',
     ],
   },
@@ -25,6 +26,10 @@ export default tseslint.config(
         tsconfigRootDir: import.meta.dirname,
       },
     },
+  },
+  {
+    files: ['**/*.js'],
+    ...tseslint.configs.disableTypeChecked,
   },
   prettier,
 );
