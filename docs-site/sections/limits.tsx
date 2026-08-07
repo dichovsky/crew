@@ -45,7 +45,7 @@ const LIMITS = [
     label: 'Tracked launcher config is untrusted',
     kind: 'design',
     detail:
-      'Anyone who can commit to the repository can edit .crew/launcher.yaml, so it is treated as untrusted input: it may only name a platform id from the registry, never an arbitrary shell command. A custom executable is accepted only from an explicit command-line flag and printed for confirmation. Child processes start with argument arrays and shell:false, YAML aliases and custom tags are disabled, and unknown keys fail validation.',
+      'Anyone who can commit to the repository can edit .crew/launcher.yaml, so it is treated as untrusted input: it may only name a platform id from the registry, never an arbitrary shell command. The executable that actually runs comes from that id’s registry entry and cannot be overridden — executable, command, args, and env are refused outright as keys, with a security-specific message rather than a generic unknown-key one. Child processes start with argument arrays and shell:false, YAML aliases and custom tags are disabled, and unknown keys fail validation.',
   },
   {
     id: 'no-daemon',
@@ -63,10 +63,10 @@ const LIMITS = [
   },
   {
     id: 'deferred',
-    label: 'Seven deferred seams',
+    label: 'Deferred seams',
     kind: 'v1',
     detail:
-      'Not built, and deliberately not stubbed: at-least-once delivery, session tokens detecting a displaced session, Task dependencies and readiness queries, durable Agent memory, approval records and human gates, automatic mixed-CLI launch, and removing generated setup artifacts by marker. A seam is added when a second implementation or a shipped use case actually needs it — none exist as empty placeholder interfaces.',
+      'Not built, and deliberately not stubbed — among them at-least-once delivery, session tokens detecting a displaced session, Task dependencies and readiness queries, durable Agent memory, approval records and human gates, automatic mixed-CLI launch, and removing generated setup artifacts by marker. The SRS carries the authoritative list; this chip does not restate its length. A seam is added when a second implementation or a shipped use case actually needs it — none exist as empty placeholder interfaces.',
   },
 ] as const;
 

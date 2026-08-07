@@ -4,10 +4,41 @@ import { Note, Section, Stepper } from '../kit';
  * The reviewed Task lifecycle, walked transition by transition. The point the
  * diagram has to make: submitted and completed are different states, reached by
  * different actors, and the database refuses to conflate them.
+ *
+ * The five statuses of `TaskStatus` split into two shapes, so the diagram draws
+ * them differently: four sit on the forward path, and `abandoned` is a terminal
+ * off-ramp reachable from any of the three states before completion.
  */
-const STATES = ['queued', 'in_progress', 'submitted', 'completed'] as const;
+const FLOW_STATES = ['queued', 'in_progress', 'submitted', 'completed'] as const;
+const TERMINAL_STATE = 'abandoned';
 
-const STEPS = [
+/**
+ * Row geometry. Box i sits at x = 20 + i * 186, so the forward-path centres are
+ * 95 / 281 / 467 / 653. Both off-path transitions are many-to-one, so both are
+ * drawn the same way: the sources drop onto a rail, and the rail carries one
+ * arrow into the target. Abandon runs above the row and requeue below it, which
+ * is what keeps the two from crossing.
+ */
+const ROW_Y = 136;
+const ROW_BOTTOM = 190;
+/** The x centres of the three states `task abandon` may be called from. */
+const ABANDON_FROM_X = [95, 281, 467];
+/** The horizontal rail those abandon edges merge into, above the row. */
+const ABANDON_RAIL_Y = 100;
+/** The x centre of the terminal `abandoned` box. */
+const TERMINAL_X = 380;
+/**
+ * The x centres of the two states `task requeue` may be called from: a
+ * submitted Task, and an in_progress one whose Lease has expired
+ * (`src/store/tasks.ts` — `status = 'in_progress' AND lease_expires_at <= now`).
+ */
+const REQUEUE_FROM_X = [281, 467];
+/** The rail those requeue edges merge into, below the row, aimed at queued. */
+const REQUEUE_RAIL_Y = 236;
+
+/** Exported for the drift guard in `lifecycle.test.tsx`, which pins this set
+ *  against the `task` subcommands the facts file derives from `src/cli.ts`. */
+export const STEPS = [
   {
     id: 'create',
     label: 'create',
@@ -48,6 +79,14 @@ const STEPS = [
     detail:
       'Sends work back. A Submission may be requeued by either; an in_progress Task may be recovered only after its Lease has expired. A reason is required, and the assignee plus the other agents involved are notified. This is the loop that makes review meaningful rather than advisory.',
   },
+  {
+    id: 'abandon',
+    label: 'abandon',
+    active: TERMINAL_STATE,
+    actor: 'the creator or the reviewer, with an optional reason',
+    detail:
+      'Retires a queued, in_progress, or submitted Task without it ever completing. abandoned is terminal exactly as completed is: there is no un-abandon, and a completed Task cannot be abandoned either. The assignee’s notification is the structured clear_safe Sign-off rather than a courtesy note, because an abandoned Task never merges and no rework is coming — so it is delivered even when the assignee is the one abandoning. Worktree bookkeeping is cleared in the same write. If both the creator and the reviewer have been archived, the plain operator identity may abandon on their behalf.',
+  },
 ] as const;
 
 export function Lifecycle() {
@@ -56,10 +95,12 @@ export function Lifecycle() {
       title="The reviewed Task lifecycle"
       lede={
         <>
-          Five transitions, each permitted to exactly one actor, each incrementing a revision and
-          appending an unchangeable Task Event. The rule the whole design turns on:{' '}
+          Each transition is permitted only to the actors named on it and appends an unchangeable
+          Task Event; every transition after <code>create</code> also increments the Task’s
+          revision. The rule the whole design turns on:{' '}
           <strong>a Submission is not a completed Task</strong> — only an accepting Review completes
-          one. Step through to see who may do what.
+          one, and <code>abandoned</code> is the other, terminal way a Task can end. Step through to
+          see who may do what.
         </>
       }
       sources={[
@@ -86,7 +127,7 @@ export function Lifecycle() {
         {(index) => {
           const active = STEPS[index]?.active;
           return (
-            <svg viewBox="0 0 760 200" class="diagram" role="img" aria-label="Task state machine">
+            <svg viewBox="0 0 760 300" class="diagram" role="img" aria-label="Task state machine">
               <defs>
                 <marker
                   id="arrow"
@@ -101,13 +142,43 @@ export function Lifecycle() {
                 </marker>
               </defs>
 
-              {STATES.map((state, i) => (
+              {/* abandon: an off-ramp above the row, merging the three states it
+                  may be called from into one rail so the edges never cross. */}
+              <g
+                class={`node ${TERMINAL_STATE === active ? 'node-accent is-selected' : 'node-plain'}`}
+              >
+                <rect x={TERMINAL_X - 75} y={20} width={150} height={54} rx={8} />
+                <text x={TERMINAL_X} y={52}>
+                  {TERMINAL_STATE}
+                </text>
+              </g>
+              {ABANDON_FROM_X.map((x) => (
+                <path
+                  key={`a-${String(x)}`}
+                  class={`edge is-dashed${index === 5 ? ' is-live' : ''}`}
+                  d={`M${String(x)},${String(ROW_Y)} L${String(x)},${String(ABANDON_RAIL_Y)}`}
+                />
+              ))}
+              <path
+                class={`edge is-dashed${index === 5 ? ' is-live' : ''}`}
+                d={`M95,${String(ABANDON_RAIL_Y)} L467,${String(ABANDON_RAIL_Y)}`}
+              />
+              <path
+                class={`edge is-dashed${index === 5 ? ' is-live' : ''}`}
+                d={`M${String(TERMINAL_X)},${String(ABANDON_RAIL_Y)} L${String(TERMINAL_X)},76`}
+                marker-end="url(#arrow)"
+              />
+              <text class={`edge-label${index === 5 ? ' is-live' : ''}`} x="281" y="94">
+                abandon · terminal
+              </text>
+
+              {FLOW_STATES.map((state, i) => (
                 <g
                   key={state}
                   class={`node ${state === active ? 'node-accent is-selected' : 'node-plain'}`}
                 >
-                  <rect x={20 + i * 186} y={60} width={150} height={54} rx={8} />
-                  <text x={95 + i * 186} y={92}>
+                  <rect x={20 + i * 186} y={ROW_Y} width={150} height={54} rx={8} />
+                  <text x={95 + i * 186} y={ROW_Y + 32}>
                     {state}
                   </text>
                 </g>
@@ -117,29 +188,41 @@ export function Lifecycle() {
                 <path
                   key={`f-${String(i)}`}
                   class={`edge${index === i ? ' is-live' : ''}`}
-                  d={`M${String(170 + i * 186)},87 L${String(200 + i * 186)},87`}
-                  markerEnd="url(#arrow)"
+                  d={`M${String(170 + i * 186)},${String(ROW_Y + 27)} L${String(200 + i * 186)},${String(ROW_Y + 27)}`}
+                  marker-end="url(#arrow)"
                 />
               ))}
-              {/* Above the boxes, not level with them — at y=76 these sat inside
-                  the 60..114 band and overlapped the state borders. */}
-              <text class="edge-label" x="188" y="48">
+              {/* Between the abandon rail and the boxes, never level with them —
+                  at box height these overlapped the state borders. */}
+              <text class="edge-label" x="188" y="124">
                 start
               </text>
-              <text class="edge-label" x="374" y="48">
+              <text class="edge-label" x="374" y="124">
                 submit
               </text>
-              <text class="edge-label" x="560" y="48">
+              <text class="edge-label" x="560" y="124">
                 approve
               </text>
 
-              {/* requeue: submitted (and expired in_progress) back to queued */}
+              {/* requeue: submitted, and in_progress once its Lease has expired,
+                  back to queued — the same merge shape as abandon, mirrored below. */}
+              {REQUEUE_FROM_X.map((x) => (
+                <path
+                  key={`r-${String(x)}`}
+                  class={`edge is-dashed${index === 4 ? ' is-live' : ''}`}
+                  d={`M${String(x)},${String(ROW_BOTTOM)} L${String(x)},${String(REQUEUE_RAIL_Y)}`}
+                />
+              ))}
               <path
                 class={`edge is-dashed${index === 4 ? ' is-live' : ''}`}
-                d="M578,114 C520,166 200,166 95,120"
-                markerEnd="url(#arrow)"
+                d={`M467,${String(REQUEUE_RAIL_Y)} L95,${String(REQUEUE_RAIL_Y)}`}
               />
-              <text class={`edge-label${index === 4 ? ' is-live' : ''}`} x="336" y="184">
+              <path
+                class={`edge is-dashed${index === 4 ? ' is-live' : ''}`}
+                d={`M95,${String(REQUEUE_RAIL_Y)} L95,${String(ROW_BOTTOM + 4)}`}
+                marker-end="url(#arrow)"
+              />
+              <text class={`edge-label${index === 4 ? ' is-live' : ''}`} x="281" y="264">
                 requeue (with a reason) · expired Lease recovery
               </text>
             </svg>

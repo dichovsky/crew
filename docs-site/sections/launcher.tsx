@@ -15,7 +15,7 @@ const STEPS = [
     id: 'resolve',
     label: 'Resolve platform',
     detail:
-      'Resolve one Participant CLI from the platform registry and show the exact executable that will run. Config may only name a platform id; it can never supply an arbitrary shell command. A custom executable is accepted only from an explicit flag, and printed for you to confirm.',
+      'Resolve one Participant CLI from the platform registry and show the exact executable that will run. Config may only name a platform id; it can never supply an arbitrary shell command. The executable itself is not selectable at all — it comes from that id’s registry entry, and there is no flag or config key that overrides it.',
   },
   {
     id: 'worktree',
