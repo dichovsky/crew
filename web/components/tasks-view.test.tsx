@@ -1,12 +1,14 @@
 /**
  * Tasks view tests: the five honest status columns (including a real,
- * selectable Abandoned column), selection, and the FR-U16/U17
+ * selectable Abandoned column), selection, the FR-U16/U17
  * approve/requeue controls with their enable matrix and the required requeue
- * reason. The POST is a passed-in async callback; these assert wiring only.
+ * reason, and the FR-U15 "New task" button that opens the create-Task modal.
+ * The POST is a passed-in async callback; these assert wiring only.
  */
 import { render } from 'preact';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TaskSnapshotRecord } from '../types.js';
+import type { CreateTaskInput } from './create-task-modal.js';
 import { TasksView } from './tasks-view';
 
 /** Fire a bubbling click on a (possibly just-re-queried) element. */
@@ -52,6 +54,7 @@ interface Overrides {
   onSelect?: (id: string) => void;
   onApprove?: (id: string) => Promise<void>;
   onRequeue?: (id: string, input: { reason: string; to?: string }) => Promise<void>;
+  onCreateTask?: (input: CreateTaskInput) => Promise<void>;
 }
 
 function mount(tasks: readonly TaskSnapshotRecord[], opts: Overrides = {}): HTMLElement {
@@ -68,6 +71,7 @@ function mount(tasks: readonly TaskSnapshotRecord[], opts: Overrides = {}): HTML
       onSelect={opts.onSelect ?? (() => {})}
       onApprove={opts.onApprove ?? (() => Promise.resolve())}
       onRequeue={opts.onRequeue ?? (() => Promise.resolve())}
+      onCreateTask={opts.onCreateTask ?? (() => Promise.resolve())}
     />,
     host,
   );
@@ -106,6 +110,21 @@ describe('TasksView board', () => {
     const host = mount([task({ status: 'queued' })]);
     expect(host.querySelector('.task-card.selected')).toBeNull();
     expect(host.querySelector('.detail-empty')?.textContent).toContain('Select a task');
+    host.remove();
+  });
+
+  it('opens the create-task modal from New task and closes it on Cancel', async () => {
+    const host = mount([]);
+    expect(host.querySelector('.create-task-modal')).toBeNull();
+    click([...host.querySelectorAll('button')].find((b) => b.textContent === 'New task'));
+    await vi.waitFor(() => expect(host.querySelector('.create-task-modal')).not.toBeNull());
+
+    click(
+      [...host.querySelectorAll('.create-task-modal button')].find(
+        (b) => b.textContent === 'Cancel',
+      ),
+    );
+    await vi.waitFor(() => expect(host.querySelector('.create-task-modal')).toBeNull());
     host.remove();
   });
 

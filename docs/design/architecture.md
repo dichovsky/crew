@@ -197,7 +197,7 @@ web/                            Preact + TypeScript dashboard source
   types.ts                      re-exports the shared snapshot shapes from src/ui/snapshot-records.ts; declares only the two records that originate in src/ui/server.ts
   view-model.ts                 pure selectors + colour vocabularies (relative time, status/role/activity, review queue, attention, Now worklist, activity feed, pill backgrounds)
   app.tsx                       sidebar shell + six-view router + toasts + one-click confirm modal
-  components/                   the six views + sidebar, toasts, confirm-dialog, message modal, health, peek, recovery-banner
+  components/                   the six views + sidebar, toasts, confirm-dialog, message modal, create-task modal, health, peek, recovery-banner
   styles.css                    stylesheet, bundled inside the authenticated JS bundle
   styles.d.ts                   ambient declaration that makes styles.css importable
   tsconfig.json                 the web/ typecheck project
