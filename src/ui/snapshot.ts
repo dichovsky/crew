@@ -19,6 +19,14 @@ import type {
   TaskEventRecord,
   TaskRecord,
 } from '../store/index.js';
+import type {
+  AgentSnapshotRecord,
+  InboxStateSnapshotRecord,
+  MessageSnapshotRecord,
+  TaskEventSnapshotRecord,
+  TaskSnapshotRecord,
+  WorkspaceSnapshot,
+} from './snapshot-records.js';
 
 /** Newest-window Message history bound applied when the caller gives none. */
 export const DEFAULT_HISTORY_LIMIT = 100;
@@ -37,96 +45,20 @@ export interface SnapshotStore {
   listMessageHistory(input: { limit: number }): MessageRecord[];
 }
 
-/** Mirror of the CLI `inbox_state` NDJSON record. */
-export interface InboxStateSnapshotRecord {
-  readonly type: 'inbox_state';
-  readonly schema_version: 1;
-  readonly agent_id: string;
-  readonly unread_count: number;
-  readonly max_unread_id: number | null;
-}
-
-/** Mirror of the CLI `agent` NDJSON record, carrying its pending summary. */
-export interface AgentSnapshotRecord {
-  readonly type: 'agent';
-  readonly schema_version: 1;
-  readonly id: string;
-  readonly role: string;
-  readonly platform_id: AgentRecord['platformId'];
-  readonly status: AgentRecord['status'];
-  readonly activity: AgentRecord['activity'];
-  readonly joined_at: number;
-  readonly last_seen: number;
-  readonly archived_at: number | null;
-  readonly stale_lease_count: number;
-  readonly pending_summary: InboxStateSnapshotRecord;
-}
-
-/** Mirror of the CLI `task_event` NDJSON record. */
-export interface TaskEventSnapshotRecord {
-  readonly type: 'task_event';
-  readonly schema_version: 1;
-  readonly id: number;
-  readonly task_id: string;
-  readonly revision: number;
-  readonly event_type: TaskEventRecord['eventType'];
-  readonly actor_id: string;
-  readonly from_status: TaskEventRecord['fromStatus'];
-  readonly to_status: TaskEventRecord['toStatus'];
-  readonly detail: string;
-  readonly created_at: number;
-}
-
-/** Mirror of the CLI `task` NDJSON record, carrying its bounded Event timeline. */
-export interface TaskSnapshotRecord {
-  readonly type: 'task';
-  readonly schema_version: 1;
-  readonly id: string;
-  readonly title: string;
-  readonly body: string;
-  readonly creator_id: string;
-  readonly assignee_id: string;
-  readonly reviewer_id: string;
-  readonly status: TaskRecord['status'];
-  readonly revision: number;
-  readonly lease_owner_id: string | null;
-  readonly lease_expires_at: number | null;
-  readonly submission_summary: string | null;
-  readonly submitted_at: number | null;
-  readonly review_summary: string | null;
-  readonly completed_at: number | null;
-  readonly abandoned_at: number | null;
-  readonly worktree_path: string | null;
-  readonly worktree_branch: string | null;
-  readonly worktree_base_ref: string | null;
-  readonly created_at: number;
-  readonly updated_at: number;
-  readonly stale_lease: boolean;
-  /** The most recent {@link TASK_EVENT_LIMIT} Events, oldest-to-newest. */
-  readonly events: readonly TaskEventSnapshotRecord[];
-}
-
-/** Mirror of the CLI `message` NDJSON record. */
-export interface MessageSnapshotRecord {
-  readonly type: 'message';
-  readonly schema_version: 1;
-  readonly id: number;
-  readonly sender_id: string;
-  readonly recipient_id: string;
-  readonly content: string;
-  readonly kind: MessageRecord['kind'];
-  readonly task_id: string | null;
-  readonly reply_to: number | null;
-  readonly created_at: number;
-  readonly read_at: number | null;
-}
-
-/** One JSON-ready observation of the Workspace for the Console dashboard. */
-export interface WorkspaceSnapshot {
-  readonly agents: readonly AgentSnapshotRecord[];
-  readonly tasks: readonly TaskSnapshotRecord[];
-  readonly messages: readonly MessageSnapshotRecord[];
-}
+/**
+ * The snapshot wire shapes live in `./snapshot-records.js` — a leaf with no
+ * Store import — so the browser bundle in `web/` can name the same
+ * declarations instead of hand-copying them. Re-exported here because this
+ * module is the one every `src/` and `tests/` consumer already imports.
+ */
+export type {
+  AgentSnapshotRecord,
+  InboxStateSnapshotRecord,
+  MessageSnapshotRecord,
+  TaskEventSnapshotRecord,
+  TaskSnapshotRecord,
+  WorkspaceSnapshot,
+};
 
 export interface SnapshotOptions {
   /** Newest Messages to include, oldest-to-newest (Store enforces 1..1000). */
