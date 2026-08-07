@@ -113,7 +113,7 @@ export function Stack() {
               key={`a-${String(i)}`}
               class="edge"
               d={`M${String(120 + i * 126)},67 L${String(130 + i * 126)},67`}
-              markerEnd="url(#arrow)"
+              marker-end="url(#arrow)"
             />
           ))}
           <text class="fig-caption" x="8" y="118">

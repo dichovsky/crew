@@ -215,7 +215,7 @@ export function Modules() {
               </g>
             ))}
 
-            <path class="edge" d="M410,72 L410,94" markerEnd="url(#arrow)" />
+            <path class="edge" d="M410,72 L410,94" marker-end="url(#arrow)" />
             <text class="edge-label edge-label-left" x="422" y="88">
               crew join / send / receive / task …
             </text>
@@ -231,7 +231,7 @@ export function Modules() {
               selected={selected}
               onSelect={select}
             />
-            <path class="edge" d="M410,140 L410,162" markerEnd="url(#arrow)" />
+            <path class="edge" d="M410,140 L410,162" marker-end="url(#arrow)" />
 
             <NodeBox
               x={330}
@@ -259,9 +259,9 @@ export function Modules() {
               selected={selected}
               onSelect={select}
             />
-            <path class="edge is-dashed" d="M554,186 L492,186" markerEnd="url(#arrow)" />
+            <path class="edge is-dashed" d="M554,186 L492,186" marker-end="url(#arrow)" />
 
-            <path class="edge" d="M410,208 L410,230" markerEnd="url(#arrow)" />
+            <path class="edge" d="M410,208 L410,230" marker-end="url(#arrow)" />
             <NodeBox
               x={330}
               y={232}
@@ -282,7 +282,7 @@ export function Modules() {
                 key={`tick-${id}`}
                 class="edge"
                 d={`M${String(fanCx(i))},294 L${String(fanCx(i))},314`}
-                markerEnd="url(#arrow)"
+                marker-end="url(#arrow)"
               />
             ))}
 
@@ -314,7 +314,7 @@ export function Modules() {
                   <path
                     class="edge"
                     d={`M${String(fromCx - 8)},${String(FAN_Y + 56)} L${String(output.x + 82)},426`}
-                    markerEnd="url(#arrow)"
+                    marker-end="url(#arrow)"
                   />
                   <NodeBox
                     x={output.x}
@@ -335,7 +335,7 @@ export function Modules() {
             <path
               class="edge is-dashed"
               d="M425,482 L425,494 Q425,502 437,502 L798,502 Q812,502 812,490 L812,54 Q812,40 798,40 L788,40"
-              markerEnd="url(#arrow)"
+              marker-end="url(#arrow)"
             />
             <text class="edge-label" x="620" y="497">
               each pane runs an agent CLI
