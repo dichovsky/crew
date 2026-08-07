@@ -37,9 +37,16 @@ cannot leave a `Published` date behind. A release with no committed
 | `0.1.0` | 2026-07-13 | not retained |
 | `0.1.1` | 2026-07-13 | not retained |
 
-Both releases shipped without a capture. `0.1.0` was the one-time manual bootstrap publish
-that predates this recorder workflow, and `0.1.1` followed it closely enough that the
-practice was still not in place. Neither gap is back-fillable. The capture records the versions the recorder's probes
+Both releases shipped without a capture, and neither gap has a mitigating cause: the
+requirement was already in force. The initial public release commit carries `0.1.0` in
+`package.json` and already contained the recorder (`tests/tools/release-smoke.test.ts`),
+this file's description of `artifacts-<date>.json`, and the
+[checklist](./live-smoke-checklist.md) sign-off item requiring the capture be committed.
+`0.1.1` shipped the same day. So the practice was documented and available from the first
+release onward and simply was not followed — only the [runbook](./publishing.md) that now
+sequences it came later.
+
+Neither gap is back-fillable. The capture records the versions the recorder's probes
 found on the maintainer's machine **at the moment it ran**; a capture made today would
 describe today's machine, not either release, so writing one and dating it backwards
 would manufacture evidence rather than recover it. The requirement itself stands — the
