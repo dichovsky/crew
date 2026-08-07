@@ -6,7 +6,9 @@
  * (ADR-0006). `setup`, `doctor`, Team display, and the Launcher read these
  * records; they never keep parallel path/invocation tables. Official platform
  * facts and sources live in docs/design/setup-integration.md, which this module
- * mirrors verbatim — a change there is a registry-revision bump here.
+ * mirrors verbatim; REGISTRY_REVISION is bumped whenever a change alters a
+ * generated artifact's rendered bytes (setup-integration.md §7) — a doc-only
+ * edit that changes no rendered byte must not bump it.
  */
 import { createHash } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync, readSync, realpathSync } from 'node:fs';
@@ -16,7 +18,7 @@ import type { ParticipantId } from '../participants.js';
 import { resolveExecutableOnPath } from '../which.js';
 
 /** Integer revision of the platform registry record set; bumped on any artifact change. */
-export const REGISTRY_REVISION = 5;
+export const REGISTRY_REVISION = 6;
 
 /** Date the documented paths/invocations were last re-verified (setup-integration.md). */
 export const VERIFIED_ON = '2026-06-29';
@@ -118,13 +120,13 @@ export type SetupTarget = ParticipantTarget | BackendTarget;
  * `<target>`, and `<actual-id>` runtime placeholders the model fills — is stable
  * so generator snapshots are reproducible.
  */
-const SHARED_WORKFLOW = `Parse {{ROLE_ARGS}} as \`<role> [id]\`; if no id is given, the id defaults to the role.
+const SHARED_WORKFLOW = `Parse {{ROLE_ARGS}} as \`<role> [id] [--resume]\`; if no id is given, the id defaults to the role.
 
 1. Confirm this is a crew Workspace: run \`crew doctor\`. If it is not, tell the operator to
    run \`crew init\` in the intended repository root, then stop.
 2. Join once: \`crew join <id> --role <role> --platform <target>\`. Retain the actual id it
-   prints; it may carry a \`-2\`..\`-99\` suffix after a collision. If the pane is recovering
-   a clean stop, add \`--resume\` to the join command.
+   prints; it may carry a \`-2\`..\`-99\` suffix after a collision. If the arguments included
+   \`--resume\` (this pane is recovering a clean stop), add \`--resume\` to the join command.
 3. Read your inbox once: \`crew receive <actual-id>\`.
 4. Act only within your Role:
    - Worker: \`crew task start <actual-id> <task-id>\`, do the work, then

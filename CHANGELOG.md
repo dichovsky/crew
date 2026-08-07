@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Fixed
+
+- The shared Participant workflow told a pane to add `--resume` to its `crew join` when
+  "the pane is recovering a clean stop" — a state a Participant CLI cannot observe — while
+  its own parse rule admitted only `<role> [id]` and so hid the appended `--resume` token
+  that is the pane's only reliable signal. A pane following that rule literally dropped the
+  flag and joined without it, and the roster gate then failed the relaunch with
+  `LAUNCH_FAILED` because the planned archived ids never came back active. The parse rule
+  now reads `<role> [id] [--resume]` and the join step keys off that token; the Claude Code
+  and Pi/Little Coder artifacts widen their `argument-hint` to match. **Because every
+  Participant artifact's bytes change, the registry advances to revision 6, so a
+  previously installed artifact is reported as outdated until `crew setup` is re-run** —
+  that regeneration is in place and needs neither `--force` nor a backup.
+
 ### Added
 
 - Little Coder 1.11.0 is now a first-class Participant CLI (`little-coder`), bringing
@@ -14,8 +28,8 @@ All notable changes to this project are documented in this file. The format foll
   tmux launcher, and is included in the Ollama / LM Studio local-model recipes. Setup
   prints the narrow additive `LITTLE_CODER_BASH_ALLOW` opt-in and never enables
   `accept-all`. Because Little Coder forwards `--version` to bundled Pi, crew reads the
-  adjacent installed package metadata for its 1.11.0 version floor. The registry advances
-  to revision 5.
+  adjacent installed package metadata for its 1.11.0 version floor. This addition took the
+  registry to revision 5.
 - Two new Participant CLI engines, `pi-cli` (Pi) and `opencode-cli` (opencode), bringing
   the registry to seven Participant CLIs. Each ships a Markdown customization artifact
   (`crew.md`) that exposes the `/crew <role> [id]` command: pi as a Prompt Template under

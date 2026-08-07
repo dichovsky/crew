@@ -84,11 +84,12 @@ they replaced are recorded once in
 
 Every generated customization file teaches the tool the same fixed, bounded workflow:
 
-1. Parse `<role> [id]`; when no id is given, the id defaults to the role.
+1. Parse `<role> [id] [--resume]`; when no id is given, the id defaults to the role.
 2. Confirm the current directory is inside a crew Workspace by running `crew doctor`; if
    it is not, report that the operator must run `crew init` in the intended root.
 3. Run `crew join <id> --role <role> --platform <target>` once, and remember the actual
-   id it prints — it may carry a suffix. Add `--resume` when the pane is recovering a
+   id it prints — it may carry a suffix. Add `--resume` when the parsed arguments included
+   it; that trailing token is the pane's only reliable signal that it is recovering a
    clean stop.
 4. Run `crew receive <actual-id>` once.
 5. For a Task, use `task start`, do the work, then `task submit`; only the Inspector
@@ -110,13 +111,13 @@ Every Participant template embeds the block below, word for word, where its
 generators are reproducible.
 
 ```text
-Parse {{ROLE_ARGS}} as `<role> [id]`; if no id is given, the id defaults to the role.
+Parse {{ROLE_ARGS}} as `<role> [id] [--resume]`; if no id is given, the id defaults to the role.
 
 1. Confirm this is a crew Workspace: run `crew doctor`. If it is not, tell the operator to
    run `crew init` in the intended repository root, then stop.
 2. Join once: `crew join <id> --role <role> --platform <target>`. Retain the actual id it
-   prints; it may carry a `-2`..`-99` suffix after a collision. If the pane is recovering
-   a clean stop, add `--resume` to the join command.
+   prints; it may carry a `-2`..`-99` suffix after a collision. If the arguments included
+   `--resume` (this pane is recovering a clean stop), add `--resume` to the join command.
 3. Read your inbox once: `crew receive <actual-id>`.
 4. Act only within your Role:
    - Worker: `crew task start <actual-id> <task-id>`, do the work, then
@@ -163,10 +164,10 @@ name: crew
 description: Join and coordinate through the local crew inbox and reviewed task workflow.
 disable-model-invocation: true
 allowed-tools: Bash(crew *)
-argument-hint: <manager|worker|inspector> [agent-id]
+argument-hint: <manager|worker|inspector> [agent-id] [--resume]
 ---
 
-<!-- generated-by: crew setup; registry-revision: 5 -->
+<!-- generated-by: crew setup; registry-revision: 6 -->
 
 Use the finite crew workflow below for `$ARGUMENTS`.
 [shared workflow rendered here]
@@ -191,7 +192,7 @@ name: crew
 description: Join and coordinate through the local crew inbox and reviewed task workflow. Use when the user asks to start or act as a crew role.
 ---
 
-<!-- generated-by: crew setup; registry-revision: 5 -->
+<!-- generated-by: crew setup; registry-revision: 6 -->
 
 Use the finite crew workflow below for the role and optional id supplied by the user.
 [shared workflow rendered here]
@@ -224,7 +225,7 @@ Gemini custom commands are TOML files under `.gemini/commands`; a project file w
 a user file with the same name. crew generates:
 
 ```toml
-# generated-by: crew setup; registry-revision: 5
+# generated-by: crew setup; registry-revision: 6
 description = "Join and coordinate through the local crew inbox and reviewed task workflow"
 prompt = """
 Role and optional id: {{args}}
@@ -254,7 +255,7 @@ tools:
   - execute
 ---
 
-<!-- generated-by: crew setup; registry-revision: 5 -->
+<!-- generated-by: crew setup; registry-revision: 6 -->
 
 [shared finite workflow rendered here]
 ```
@@ -301,10 +302,10 @@ operator's `<role> [id]` with `$ARGUMENTS`. crew generates:
 ```markdown
 ---
 description: Join and coordinate through the local crew inbox and reviewed task workflow.
-argument-hint: <manager|worker|inspector> [agent-id]
+argument-hint: <manager|worker|inspector> [agent-id] [--resume]
 ---
 
-<!-- generated-by: crew setup; registry-revision: 5 -->
+<!-- generated-by: crew setup; registry-revision: 6 -->
 
 [shared finite workflow rendered here]
 ```
@@ -361,7 +362,7 @@ operator's `<role> [id]`. crew generates:
 description: Join and coordinate through the local crew inbox and reviewed task workflow.
 ---
 
-<!-- generated-by: crew setup; registry-revision: 5 -->
+<!-- generated-by: crew setup; registry-revision: 6 -->
 
 [shared finite workflow rendered here]
 ```
@@ -476,8 +477,8 @@ file's own format, with three fields separated by semicolons:
 generated-by: crew setup; registry-revision: <n>; content-hash: sha256:<64-hex>
 ```
 
-- Markdown / `SKILL.md` / `*.agent.md`: `<!-- generated-by: crew setup; registry-revision: 5; content-hash: sha256:… -->`
-- TOML (`crew.toml`): `# generated-by: crew setup; registry-revision: 5; content-hash: sha256:…`
+- Markdown / `SKILL.md` / `*.agent.md`: `<!-- generated-by: crew setup; registry-revision: 6; content-hash: sha256:… -->`
+- TOML (`crew.toml`): `# generated-by: crew setup; registry-revision: 6; content-hash: sha256:…`
 
 `content-hash` is the SHA-256 of the **rendered file with the `content-hash:` value
 replaced by an empty string**, written as lower-case hex, after line endings are
@@ -530,9 +531,9 @@ starts as `copilot --agent=crew --prompt …`; nothing is pasted into an already
 Copilot interface. The Team display and setup keep the guidance about selecting crew via
 `/agent`.
 
-The registry lives in `src/platforms/` and is currently at **registry-revision 5**
-(the revision started at 1; adding Participants and launch facts since then bumped it,
-most recently the `little-coder` target).
+The registry lives in `src/platforms/` and is currently at **registry-revision 6**
+(the revision started at 1; adding Participants, launch facts, and artifact text since
+then bumped it, most recently the shared workflow's `[--resume]` parse rule).
 `registry.ts` looks up targets; `shared.ts` holds the record types, the shared workflow
 text, the marker and content-hash rules, and the version probe; each target has its own
 module supplying its facts and rendering (`agent-skills.ts` holds the single renderer

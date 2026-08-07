@@ -41,7 +41,7 @@ name: crew
 description: Join and coordinate through the local crew inbox and reviewed task workflow.
 disable-model-invocation: true
 allowed-tools: Bash(crew *)
-argument-hint: <manager|worker|inspector> [agent-id]
+argument-hint: <manager|worker|inspector> [agent-id] [--resume]
 ---
 
 ${marker}

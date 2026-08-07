@@ -126,7 +126,7 @@ describe('crew setup <participant> (install, FR-G04/G05)', () => {
     expect(rec.action).toBe('written');
     expect(rec.scope).toBe('global');
     expect(rec.path).toBe('~/.claude/skills/crew/SKILL.md');
-    expect(rec.registry_revision).toBe(5);
+    expect(rec.registry_revision).toBe(6);
     const body = readFileSync(join(home, '.claude/skills/crew/SKILL.md'), 'utf8');
     expect(classifyArtifact(body)).toBe('managed-current');
   });
