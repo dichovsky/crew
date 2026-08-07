@@ -156,6 +156,41 @@ describe('CreateTaskModal', () => {
     );
     expect(onClose).not.toHaveBeenCalled();
     expect(host.querySelector('.create-task-modal')).not.toBeNull();
+    // The point of staying open is that the Operator can fix and retry, so pin the two
+    // properties that make that possible rather than just the modal's presence.
+    expect(host.querySelector<HTMLInputElement>('#create-task-title')?.value).toBe('Add X');
+    expect(host.querySelector<HTMLSelectElement>('#create-task-assignee')?.value).toBe('grace');
+    const retry = [...host.querySelectorAll('button')].find((b) =>
+      b.textContent?.includes('Create task'),
+    );
+    expect(retry?.disabled).toBe(false);
+    host.remove();
+  });
+
+  it('ignores Escape while a create is in flight so the draft and the answer survive', async () => {
+    let settle: () => void = () => {};
+    const onCreate = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          settle = resolve;
+        }),
+    );
+    const onClose = vi.fn();
+    const host = mount({ onCreate, onClose });
+    await fill(host, 'Add X', 'grace', 'linus');
+    click(createButton(host));
+    // Wait for the rendered pending state, not just the call: the Escape guard lives in
+    // an effect that only re-registers with `pending: true` on the next render, so
+    // dispatching before that flush would test nothing. The submit label flipping to
+    // "Creating…" is that render having happened.
+    await vi.waitFor(() => expect(host.textContent).toContain('Creating…'));
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(host.querySelector('.create-task-modal')).not.toBeNull();
+
+    settle();
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
     host.remove();
   });
 

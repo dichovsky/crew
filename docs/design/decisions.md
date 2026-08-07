@@ -130,8 +130,9 @@ listing FR-U35, and the CDN-font re-scope of FR-U08), and
 [ADR-0017](../adr/0017-console-now-view-theme-and-agent-archive.md) (Console v2, extending
 ADR-0013: the Now triage view FR-U37, the light/dark theme toggle FR-U38, and Operator Agent
 archive/restore FR-U36). Two honesty features were lost in the
-redesign: the visible note about gaps in Message history and the browser
-create-Task form — both since restored (the create-Task modal now opens from the Tasks view).
+redesign: the visible note about gaps in Message history — since restored — and the browser
+create-Task form, which was in fact missing even before the redesign and has since been added
+(the create-Task modal now opens from the Tasks view).
 
 ## Worker context-clear decisions
 

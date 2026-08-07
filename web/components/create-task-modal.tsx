@@ -68,6 +68,12 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
       if (!container) return;
       if (e.key === 'Escape') {
         e.preventDefault();
+        // Ignored while a create is in flight. The buttons are already disabled, but
+        // closing here would discard the draft AND drop the server's answer on the
+        // floor: the caller only closes after the POST and the refetch both resolve,
+        // so a rejection would land on an unmounted modal and the Operator would see
+        // no error, no toast, and no Task — indistinguishable from success.
+        if (pending) return;
         onClose();
         return;
       }
@@ -89,7 +95,7 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
     }
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [onClose, pending]);
 
   // Mirror only what keeps an obviously-invalid POST off the wire; every other
   // precondition (unknown or inactive Agent, self-review rules) stays server-side.
@@ -130,6 +136,9 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
     <div
       class="modal-backdrop"
       onClick={(e) => {
+        // Same guard as Escape: a backdrop click mid-create would lose the draft and
+        // swallow the server's answer.
+        if (pending) return;
         if (e.target === e.currentTarget) onClose();
       }}
     >
