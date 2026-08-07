@@ -89,8 +89,8 @@ Every generated customization file teaches the tool the same fixed, bounded work
    it is not, report that the operator must run `crew init` in the intended root.
 3. Run `crew join <id> --role <role> --platform <target>` once, and remember the actual
    id it prints — it may carry a suffix. Add `--resume` when the parsed arguments included
-   it; that trailing token is the only signal the pane has that it is recovering a clean
-   stop.
+   it; that trailing token is the pane's only reliable signal that it is recovering a
+   clean stop.
 4. Run `crew receive <actual-id>` once.
 5. For a Task, use `task start`, do the work, then `task submit`; only the Inspector
    uses `task approve` or `task requeue`.
@@ -164,7 +164,7 @@ name: crew
 description: Join and coordinate through the local crew inbox and reviewed task workflow.
 disable-model-invocation: true
 allowed-tools: Bash(crew *)
-argument-hint: <manager|worker|inspector> [agent-id]
+argument-hint: <manager|worker|inspector> [agent-id] [--resume]
 ---
 
 <!-- generated-by: crew setup; registry-revision: 6 -->
@@ -302,7 +302,7 @@ operator's `<role> [id]` with `$ARGUMENTS`. crew generates:
 ```markdown
 ---
 description: Join and coordinate through the local crew inbox and reviewed task workflow.
-argument-hint: <manager|worker|inspector> [agent-id]
+argument-hint: <manager|worker|inspector> [agent-id] [--resume]
 ---
 
 <!-- generated-by: crew setup; registry-revision: 6 -->
@@ -532,8 +532,8 @@ Copilot interface. The Team display and setup keep the guidance about selecting 
 `/agent`.
 
 The registry lives in `src/platforms/` and is currently at **registry-revision 6**
-(the revision started at 1; adding Participants and launch facts since then bumped it,
-most recently the shared workflow's `[--resume]` parse rule).
+(the revision started at 1; adding Participants, launch facts, and artifact text since
+then bumped it, most recently the shared workflow's `[--resume]` parse rule).
 `registry.ts` looks up targets; `shared.ts` holds the record types, the shared workflow
 text, the marker and content-hash rules, and the version probe; each target has its own
 module supplying its facts and rendering (`agent-skills.ts` holds the single renderer

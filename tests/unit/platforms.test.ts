@@ -141,14 +141,20 @@ describe('participant artifact rendering', () => {
 
   it('teaches every artifact to read the resume signal off its own arguments (FR-U47)', () => {
     // A Participant CLI cannot see tmux session history, so the appended `--resume`
-    // token is the pane's only evidence that it is recovering a clean stop. The
-    // workflow's parse rule must therefore admit that token, and the join step must
-    // key off it rather than off a state the pane has no way to observe.
-    const claude = PARTICIPANT_TARGETS.find((t) => t.id === 'claude-code')!;
-    expect(claude.invocation('worker', 'worker-2', { resume: true }).split(' ').at(-1)).toBe(
-      '--resume',
-    );
+    // token is the pane's only reliable evidence that it is recovering a clean stop.
+    // The workflow's parse rule must therefore admit that token, and the join step
+    // must key off it rather than off a state the pane cannot reliably observe.
     for (const t of PARTICIPANT_TARGETS) {
+      // Mirror paneLaunch (src/launcher/session.ts): launchArgs wins when it is
+      // defined, so Copilot's resumed pane never goes through `invocation` at all.
+      // Checking only `invocation` here would exempt the one target whose token
+      // travels the other path.
+      const resuming = { resume: true };
+      const launched =
+        t.launchArgs?.('worker', 'worker-2', resuming)?.join(' ') ??
+        t.invocation('worker', 'worker-2', resuming);
+      expect(launched.split(' ').at(-1), `${t.id} pane is never handed --resume`).toBe('--resume');
+
       const body = t.render();
       expect(body, `${t.id} parse rule hides the appended --resume`).toContain(
         'as `<role> [id] [--resume]`',
@@ -253,13 +259,13 @@ describe('participant artifact rendering', () => {
     // bytes, the digest changes and this fails, forcing both an update here AND a
     // REGISTRY_REVISION bump so previously-installed artifacts read as managed-outdated.
     const expected: Record<string, string> = {
-      'claude-code': '63a59d4a434ccb72948e8dbdef60c9254e942ae7c18e102d04272036193e64e4',
+      'claude-code': '22001355596469c2e0d8484f8254496a829d8fa83e77de2b28ad5ca97d05bccc',
       'codex-cli': '01d9c942ba8f095d6a7853d41a91c719e45e0c558526869f4c89670f15de5e88',
       'gemini-cli': 'e86bd4ae9a7dec4932b136105affeafedf446e07d13d5dacc89813924b099682',
       'copilot-cli': '1ee19562275914d4ff059bfe0d1cd67696b53d4ccec07f6c4eb1ea03d8e90e87',
       'antigravity-cli': '01d9c942ba8f095d6a7853d41a91c719e45e0c558526869f4c89670f15de5e88',
-      'pi-cli': 'daa2e6e6604eeab67b5c7a279ddf088ab92c1837b46da11bc0ffee77c6da65f4',
-      'little-coder': 'daa2e6e6604eeab67b5c7a279ddf088ab92c1837b46da11bc0ffee77c6da65f4',
+      'pi-cli': '359ff24755556eccb155d5ec2b858d41ebbe98f9ecb10f9fc09862c98e9ae3d6',
+      'little-coder': '359ff24755556eccb155d5ec2b858d41ebbe98f9ecb10f9fc09862c98e9ae3d6',
       'opencode-cli': 'b3be65a516d2ac14f90f120e23c0e86e96d1171e7bf852efe6b9693eef3366c0',
     };
     expect(REGISTRY_REVISION).toBe(6); // bump together with the digests above
