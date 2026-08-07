@@ -77,6 +77,7 @@ model this refines.
 
 The consequence: the Store-location question that blocked ADR-0008 is answered — a worktree
 Crew is short-lived and self-contained — and the live launch now actually creates and tears
-down that worktree. The one-shared-Store direction (FR-X07) remains an explicit, deferred item,
-and the question of what happens to a successfully launched worktree afterwards is deferred
-separately.
+down that worktree. The one-shared-Store direction (FR-X07) remains an explicit, deferred item.
+The question of what happens to a **successfully** launched worktree afterwards is no longer
+deferred: [ADR-0018](./0018-worktree-teardown-policy.md) decides it — `crew team stop` never
+removes a worktree, and removing it is the operator's own `git worktree remove`.

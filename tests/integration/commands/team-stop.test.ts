@@ -8,7 +8,7 @@ import { runTeamStop } from '../../../src/launcher/stop.js';
 import type { TmuxAdapter } from '../../../src/launcher/tmux.js';
 import { run } from '../../../src/run.js';
 import { openWorkspaceStore } from '../../../src/store/index.js';
-import { captureIo, recordingRunProcess } from '../../helpers/io.js';
+import { captureIo, recordingRunInteractive, recordingRunProcess } from '../../helpers/io.js';
 
 const made: string[] = [];
 const SESSION = 'crew-demo';
@@ -166,6 +166,50 @@ describe('runTeamStop', () => {
     );
     expect(out).toEqual([`Stopped ${SESSION}; archived 1 Agents.\n`]);
     expect(existsSync(join(cwd, '.crew', 'generated', SESSION, 'pane-map.json'))).toBe(false);
+  });
+
+  it('never removes the Worktree it was running in (ADR-0018)', async () => {
+    // A worktree-enabled Crew's launch root IS the Worktree (ADR-0011): the
+    // Worktree's own `.crew/` is what `team stop` discovers and stops from. That
+    // tree can hold uncommitted Worker output, so stopping the session must leave
+    // it — and git's bookkeeping for it — completely alone. Driven through the REAL
+    // adapter seam, and through BOTH subprocess seams: `runProcess` carries the four
+    // tmux control commands and nothing else, and `runInteractive` carries nothing at
+    // all. Asserting only the first would miss a `git worktree remove` issued through
+    // the second, which `captureIo` otherwise stubs into silence.
+    const worktree = workspace();
+    joinAgent(worktree, 'worker');
+    writePaneMap(worktree, SESSION, paneMap(['worker']));
+    const process = recordingRunProcess([
+      { status: 0, stdout: 'tmux 3.5a\n', stderr: '' }, // -V availability probe
+      { status: 0, stdout: '', stderr: '' }, // has-session: the owned session is live
+      { status: 0, stdout: `${OWNER}\n`, stderr: '' }, // display-message: marker matches
+      { status: 0, stdout: '', stderr: '' }, // kill-session
+    ]);
+    const interactive = recordingRunInteractive();
+    const { io } = captureIo({
+      cwd: worktree,
+      clock: () => 40,
+      runProcess: process.runProcess,
+      runInteractive: interactive.runInteractive,
+    });
+
+    const result = await runTeamStop(io, SESSION, { json: false });
+
+    expect(result).toEqual({ sessionName: SESSION, killed: true, agentsArchived: 1 });
+    expect(process.calls.map((call) => [call.file, ...call.args])).toEqual([
+      ['tmux', '-V'],
+      ['tmux', 'has-session', '-t', `=${SESSION}`],
+      ['tmux', 'display-message', '-p', '-t', SESSION, '#{@crew_ownership}'],
+      ['tmux', 'kill-session', '-t', `=${SESSION}`],
+    ]);
+    // The TTY-owning seam is reserved for `tmux attach`; a stop must not reach it at
+    // all, and a removal issued through it would leave the list above untouched.
+    expect(interactive.calls).toEqual([]);
+    // Nothing removed the tree itself either (a direct filesystem teardown would
+    // leave both call lists above untouched).
+    expect(existsSync(worktree)).toBe(true);
+    expect(existsSync(join(worktree, '.crew', 'state'))).toBe(true);
   });
 
   it('refuses a same-name session whose live ownership marker does not match', async () => {
