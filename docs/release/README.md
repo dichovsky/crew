@@ -37,7 +37,9 @@ cannot leave a `Published` date behind. A release with no committed
 | `0.1.0` | 2026-07-13 | not retained |
 | `0.1.1` | 2026-07-13 | not retained |
 
-Neither gap is back-fillable. The capture records the versions the recorder's probes
+Both releases shipped without a capture. `0.1.0` was the one-time manual bootstrap publish
+that predates this recorder workflow, and `0.1.1` followed it closely enough that the
+practice was still not in place. Neither gap is back-fillable. The capture records the versions the recorder's probes
 found on the maintainer's machine **at the moment it ran**; a capture made today would
 describe today's machine, not either release, so writing one and dating it backwards
 would manufacture evidence rather than recover it. The requirement itself stands — the

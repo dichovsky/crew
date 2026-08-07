@@ -118,9 +118,12 @@ end-to-end test — a launch against real tmux with a fake Participant standing 
 CLI — is in place. Every part of the remaining gates that a machine
 can run has landed: a green `npm publish --dry-run` (the rehearsal half of the npm-name gate), plus the
 recorder and guided checklist for the maintainer-run live smoke test and the `doctor` version
-floor (for the Participant-CLI-matrix and Model-Backend gates). Each release re-runs the
-credentialed live smoke and commits `docs/release/artifacts-<date>.json`; no long-lived
-npm token ever enters CI.
+floor (for the Participant-CLI-matrix and Model-Backend gates). The standing rule for every
+release from here on is to re-run the credentialed live smoke and commit the resulting
+`docs/release/artifacts-<date>.json`; `0.1.0` and `0.1.1` shipped before that was practised, so
+no capture exists for either — see the
+[retained-evidence record](../release/README.md#retained-evidence). No long-lived npm token
+ever enters CI.
 `1.0.0` is reserved for a later milestone, once the CLI and store contracts are declared
 stable.
 
