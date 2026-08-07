@@ -444,7 +444,10 @@ crew clean [--force] [--json]
 - By default, prune deletes Messages that have been read and are older than 30 days, and
   Tasks that are completed or abandoned and older than 90 days (measured by
   `completed_at` and `abandoned_at` respectively). A Task is kept as long as any notification
-  linked to it is still unread.
+  linked to it is still unread. Deleting a Task also deletes every Message linked to it — the
+  same ones that all had to be read for it to be eligible — whatever their age, so the Message
+  cutoff governs only the Messages left behind: those linked to no Task, and those still
+  linked to a Task that survived.
 - `--vacuum` refuses to run while any active Agent exists.
 - `clean` also refuses while active Agents exist; with `--force` it deletes the State Store
   files and nothing else.
@@ -772,8 +775,9 @@ widths are pinned by the snapshot fixtures, not promised as an API.
 - `crew ui` prints exactly two lines on successful startup: `Console listening at <url>
   (workspace <path>)`, which carries the authenticated local-only URL, and a warning that the
   URL embeds this run's secret token and that Ctrl-C stops the server. It then stays in the
-  foreground until Ctrl-C, and never says whether the browser was opened — `--no-open`
-  produces no output of its own.
+  foreground until SIGINT (Ctrl-C) or SIGTERM stops it, or a Console-initiated `clean` shuts
+  it down, and it never says whether the browser was opened — `--no-open` produces no output
+  of its own.
 - Successful `crew team stop` output names the stopped session and how many Agents were
   archived, for example `Stopped crew-demo; archived 3 Agents.`
 
