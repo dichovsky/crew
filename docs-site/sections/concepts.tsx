@@ -195,10 +195,10 @@ export function Concepts() {
       title="Concepts and vocabulary"
       lede={
         <>
-          These {TERMS.length} terms are binding — every term CONTEXT.md defines, and no others.
-          Each one is used with exactly the meaning below across the requirements, the architecture,
-          the commands, and the tests — so reading them is the fastest way to understand everything
-          else. Select a term to see its definition.
+          These {TERMS.length} terms are binding, taken from CONTEXT.md — which stays the authority
+          if this page ever falls behind it. Each one is used with exactly the meaning below across
+          the requirements, the architecture, the commands, and the tests — so reading them is the
+          fastest way to understand everything else. Select a term to see its definition.
         </>
       }
       sources={[{ path: 'CONTEXT.md', label: 'CONTEXT.md — the domain vocabulary' }]}

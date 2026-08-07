@@ -14,17 +14,27 @@ const TERMINAL_STATE = 'abandoned';
 
 /**
  * Row geometry. Box i sits at x = 20 + i * 186, so the forward-path centres are
- * 95 / 281 / 467 / 653. The abandon edges rise from the first three of those
- * into a rail above the row; requeue loops back below it. Keeping the two
- * off-path edges on opposite sides of the row is what keeps them from crossing.
+ * 95 / 281 / 467 / 653. Both off-path transitions are many-to-one, so both are
+ * drawn the same way: the sources drop onto a rail, and the rail carries one
+ * arrow into the target. Abandon runs above the row and requeue below it, which
+ * is what keeps the two from crossing.
  */
 const ROW_Y = 136;
+const ROW_BOTTOM = 190;
 /** The x centres of the three states `task abandon` may be called from. */
 const ABANDON_FROM_X = [95, 281, 467];
 /** The horizontal rail those abandon edges merge into, above the row. */
-const RAIL_Y = 100;
+const ABANDON_RAIL_Y = 100;
 /** The x centre of the terminal `abandoned` box. */
 const TERMINAL_X = 380;
+/**
+ * The x centres of the two states `task requeue` may be called from: a
+ * submitted Task, and an in_progress one whose Lease has expired
+ * (`src/store/tasks.ts` — `status = 'in_progress' AND lease_expires_at <= now`).
+ */
+const REQUEUE_FROM_X = [281, 467];
+/** The rail those requeue edges merge into, below the row, aimed at queued. */
+const REQUEUE_RAIL_Y = 236;
 
 /** Exported for the drift guard in `lifecycle.test.tsx`, which pins this set
  *  against the `task` subcommands the facts file derives from `src/cli.ts`. */
@@ -85,8 +95,9 @@ export function Lifecycle() {
       title="The reviewed Task lifecycle"
       lede={
         <>
-          Each transition is permitted only to the actors named on it, increments a revision, and
-          appends an unchangeable Task Event. The rule the whole design turns on:{' '}
+          Each transition is permitted only to the actors named on it and appends an unchangeable
+          Task Event; every transition after <code>create</code> also increments the Task’s
+          revision. The rule the whole design turns on:{' '}
           <strong>a Submission is not a completed Task</strong> — only an accepting Review completes
           one, and <code>abandoned</code> is the other, terminal way a Task can end. Step through to
           see who may do what.
@@ -145,19 +156,19 @@ export function Lifecycle() {
                 <path
                   key={`a-${String(x)}`}
                   class={`edge is-dashed${index === 5 ? ' is-live' : ''}`}
-                  d={`M${String(x)},${String(ROW_Y)} L${String(x)},${String(RAIL_Y)}`}
+                  d={`M${String(x)},${String(ROW_Y)} L${String(x)},${String(ABANDON_RAIL_Y)}`}
                 />
               ))}
               <path
                 class={`edge is-dashed${index === 5 ? ' is-live' : ''}`}
-                d={`M95,${String(RAIL_Y)} L467,${String(RAIL_Y)}`}
+                d={`M95,${String(ABANDON_RAIL_Y)} L467,${String(ABANDON_RAIL_Y)}`}
               />
               <path
                 class={`edge is-dashed${index === 5 ? ' is-live' : ''}`}
-                d={`M${String(TERMINAL_X)},${String(RAIL_Y)} L${String(TERMINAL_X)},76`}
-                markerEnd="url(#arrow)"
+                d={`M${String(TERMINAL_X)},${String(ABANDON_RAIL_Y)} L${String(TERMINAL_X)},76`}
+                marker-end="url(#arrow)"
               />
-              <text class={`edge-label${index === 5 ? ' is-live' : ''}`} x="606" y="96">
+              <text class={`edge-label${index === 5 ? ' is-live' : ''}`} x="281" y="94">
                 abandon · terminal
               </text>
 
@@ -178,7 +189,7 @@ export function Lifecycle() {
                   key={`f-${String(i)}`}
                   class={`edge${index === i ? ' is-live' : ''}`}
                   d={`M${String(170 + i * 186)},${String(ROW_Y + 27)} L${String(200 + i * 186)},${String(ROW_Y + 27)}`}
-                  markerEnd="url(#arrow)"
+                  marker-end="url(#arrow)"
                 />
               ))}
               {/* Between the abandon rail and the boxes, never level with them —
@@ -193,13 +204,25 @@ export function Lifecycle() {
                 approve
               </text>
 
-              {/* requeue: submitted (and expired in_progress) back to queued */}
+              {/* requeue: submitted, and in_progress once its Lease has expired,
+                  back to queued — the same merge shape as abandon, mirrored below. */}
+              {REQUEUE_FROM_X.map((x) => (
+                <path
+                  key={`r-${String(x)}`}
+                  class={`edge is-dashed${index === 4 ? ' is-live' : ''}`}
+                  d={`M${String(x)},${String(ROW_BOTTOM)} L${String(x)},${String(REQUEUE_RAIL_Y)}`}
+                />
+              ))}
               <path
                 class={`edge is-dashed${index === 4 ? ' is-live' : ''}`}
-                d="M500,190 C470,254 190,254 110,192"
-                markerEnd="url(#arrow)"
+                d={`M467,${String(REQUEUE_RAIL_Y)} L95,${String(REQUEUE_RAIL_Y)}`}
               />
-              <text class={`edge-label${index === 4 ? ' is-live' : ''}`} x="330" y="268">
+              <path
+                class={`edge is-dashed${index === 4 ? ' is-live' : ''}`}
+                d={`M95,${String(REQUEUE_RAIL_Y)} L95,${String(ROW_BOTTOM + 4)}`}
+                marker-end="url(#arrow)"
+              />
+              <text class={`edge-label${index === 4 ? ' is-live' : ''}`} x="281" y="264">
                 requeue (with a reason) · expired Lease recovery
               </text>
             </svg>
