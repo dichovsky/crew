@@ -273,13 +273,16 @@ the [CHANGELOG](./CHANGELOG.md); to work on crew itself, read
   Leases, live Tasks whose owners have left, and edited built-in config. It ends with one
   `health_summary`. `crew doctor --system` runs just the dependency checks and works without
   a Workspace.
-- `crew prune` deletes old data, and only when you run it — nothing is ever deleted
-  automatically. By default it removes only **read** Messages older than 30 days and Tasks in a
-  final state — **completed** or **abandoned** — older than 90 days, each measured from its
-  own timestamp (`completed_at` or `abandoned_at`; override the window with
-  `--messages-before`/`--tasks-before`); a Task of either kind is kept while any notification
-  linked to it is still unread. `--vacuum` gives the freed disk space back to the operating
-  system and is refused while active Agents exist.
+- `crew prune` deletes old data, and only when you run it — crew has no scheduled or
+  background cleanup. The one thing that deletes without you asking is a live launch tidying
+  up after itself when it fails partway: it removes the untouched Agent rows and the worktree
+  that same launch had just created, and nothing else. By default `prune` removes only
+  **read** Messages older than 30 days and Tasks in a final state — **completed** or
+  **abandoned** — older than 90 days, each measured from its own timestamp (`completed_at`
+  or `abandoned_at`; override the window with `--messages-before`/`--tasks-before`); a Task
+  of either kind is kept while any notification linked to it is still unread. `--vacuum`
+  gives the freed disk space back to the operating system and is refused while active
+  Agents exist.
 - `crew clean` removes the State Store files; it refuses while active Agents exist unless
   you pass `--force`, and it never touches the tracked config (`roles/`, `teams/`).
 - **A Message is received at most once.** If the process crashes at exactly the wrong
