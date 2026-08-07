@@ -119,7 +119,7 @@ export function Adrs() {
                     key={`e-${adr.id}`}
                     class="edge"
                     d={`M${String(x)},${String(y)} L${String(x + GAP - 2)},${String(y)}`}
-                    markerEnd="url(#arrow)"
+                    marker-end="url(#arrow)"
                   />
                 );
               }
@@ -129,7 +129,7 @@ export function Adrs() {
                   key={`w-${adr.id}`}
                   class="edge is-dashed"
                   d={`M${String(20 + col * (NODE_W + GAP) + NODE_W / 2)},${String(y + NODE_H / 2)} C740,${String(y + 40)} 20,${String(nextY - 40)} ${String(20 + NODE_W / 2)},${String(nextY - NODE_H / 2)}`}
-                  markerEnd="url(#arrow)"
+                  marker-end="url(#arrow)"
                 />
               );
             })}

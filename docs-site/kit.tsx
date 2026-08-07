@@ -283,7 +283,7 @@ export function Edge({
 }) {
   return (
     <>
-      <path class={`edge${dashed === true ? ' is-dashed' : ''}`} d={d} markerEnd="url(#arrow)" />
+      <path class={`edge${dashed === true ? ' is-dashed' : ''}`} d={d} marker-end="url(#arrow)" />
       {label !== undefined && labelX !== undefined && labelY !== undefined && (
         <text class="edge-label" x={labelX} y={labelY}>
           {label}
