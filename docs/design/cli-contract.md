@@ -333,8 +333,8 @@ crew team resume <session> [--json]
   under) the current directory, and the normal upward `.crew/` discovery finds that
   worktree's own pane-map and Store. If the launch fails partway, a worktree this launch
   newly created is removed once tmux teardown is confirmed; a reused (pre-existing) worktree,
-  or any worktree from a successfully launched session, is left untouched (a stop-time
-  policy for the latter is deferred).
+  or any worktree from a successfully launched session, is left untouched — permanently
+  (ADR-0018, and see `team stop` below).
 - `--workers <n>` overrides how many Worker copies to start (range 1–32); every other Team
   member keeps its declared replica count.
 - `--no-relay` starts no Relay; `--no-attach` creates the session without attaching the
@@ -346,6 +346,13 @@ crew team resume <session> [--json]
   ownership is proven, crew kills the session through its tmux layer, archives the Agents
   named by the pane-map, and retires the pane-map. Human output summarizes the stopped
   session and the number of Agents archived; `--json` emits one `stop_result` record.
+- `team stop` **never removes a worktree** (ADR-0018). Stopping a session that was launched
+  into a worktree leaves that worktree exactly as the session left it — its files, its branch,
+  and git's own worktree bookkeeping are untouched — because it can still hold uncommitted
+  work, and removing it is not something crew will do unprompted. Removing it is yours:
+  `git worktree remove <path>` (add `git worktree prune` and `git branch -d <branch>` to
+  clear up what remains). There is no `--remove-worktree` flag and no remove-if-clean
+  behavior; `stop` runs no `git` command at all.
 - `team stop` failures use the existing error codes and follow the General rules for stdout,
   stderr, and exit status; the command introduces no new error code.
 - `team resume` re-creates a crew-owned session that was stopped cleanly. It requires tmux

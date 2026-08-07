@@ -869,8 +869,10 @@ rather than restating them.
   matches the live tmux session; it shall never kill a stale-map or foreign session. *Verify:
   automated test — `tests/integration/commands/team-stop.test.ts`,
   `tests/integration/commands/teams.test.ts`, `tests/unit/format.test.ts`.*
-- **FR-U27 — Stop through tmux adapter.** An owned-Team stop shall kill the session through the
-  tmux adapter. *Verify: automated test — `tests/integration/commands/team-stop.test.ts`,
+- **FR-U27 — Stop through tmux adapter, and nothing else (ADR-0018).** An owned-Team stop shall
+  kill the session through the tmux adapter and shall remove no Worktree: the Worktree a stopped
+  session ran in shall be left intact, its removal remaining the Operator's own
+  `git worktree remove`. *Verify: automated test — `tests/integration/commands/team-stop.test.ts`,
   `tests/integration/commands/teams.test.ts`, `tests/unit/format.test.ts`.*
 - **FR-U28 — Stop archives mapped Agents.** After the owned session is killed, Team stop shall
   archive the Agents recorded by its pane-map. *Verify: automated test —

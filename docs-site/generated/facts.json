@@ -386,6 +386,11 @@
       "id": "0017",
       "slug": "0017-console-now-view-theme-and-agent-archive",
       "title": "Console v2: Now view, light/dark theme, and Operator Agent archive/restore"
+    },
+    {
+      "id": "0018",
+      "slug": "0018-worktree-teardown-policy",
+      "title": "Stopping a Team never removes its Worktree"
     }
   ]
 }
