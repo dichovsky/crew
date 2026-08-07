@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { execa } from 'execa';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { NODE_FLOOR, isNodeBelow } from '../../../src/node-floor.js';
 
 /**
  * Packaging gate: build, pack, install the tarball into a clean temp prefix, and
@@ -16,10 +17,71 @@ const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8')) 
   version: string;
 };
 
+/**
+ * The Node version the installed entry point is made to observe for the engine-floor
+ * case. Any Node 20 is below every Node 24 floor crew can ever declare (`node:sqlite`
+ * does not exist before Node 22), so this constant does not need revisiting when
+ * {@link NODE_FLOOR} moves up.
+ */
+const BELOW_FLOOR_NODE = '20.19.0';
+
+interface PackEntry {
+  readonly filename: string;
+  readonly files: readonly { readonly path: string }[];
+}
+
+function isPackEntry(value: unknown): value is PackEntry {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as { filename?: unknown; files?: unknown };
+  if (typeof candidate.filename !== 'string' || !Array.isArray(candidate.files)) return false;
+  return candidate.files.every(
+    (file: unknown) =>
+      typeof file === 'object' &&
+      file !== null &&
+      typeof (file as { path?: unknown }).path === 'string',
+  );
+}
+
+/**
+ * `npm pack --json` has two shapes across the npm versions this project must run on:
+ * npm 11 and earlier emit an array of pack entries (`[{filename, files[]}]`), while
+ * npm 12 emits an object keyed by package name
+ * (`{"@dichovsky/crew": {filename, files[], ...}}`). Node 24.18's bundled npm is 11.x,
+ * so CI sees the array while a contributor on npm 12 sees the object. Accept both, and
+ * fail loudly on anything else — indexing blindly into the wrong shape yields
+ * `undefined` and a downstream `TypeError` that says nothing about the real cause.
+ */
+function readPackEntry(stdout: string): PackEntry {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch (cause) {
+    // Parsing outside the shape guard would surface a bare SyntaxError, losing the
+    // context this function exists to provide — e.g. when npm prepends a warning to
+    // stdout despite --ignore-scripts.
+    throw new Error(`npm pack --json did not emit JSON; got: ${stdout.slice(0, 500)}`, { cause });
+  }
+  const candidates: readonly unknown[] = Array.isArray(parsed)
+    ? parsed
+    : typeof parsed === 'object' && parsed !== null
+      ? Object.values(parsed)
+      : [];
+  const entry = candidates[0];
+  if (!isPackEntry(entry)) {
+    throw new Error(
+      `npm pack --json returned an unrecognized shape (expected an array of pack entries ` +
+        `or an object keyed by package name); got: ${stdout.slice(0, 500)}`,
+    );
+  }
+  return entry;
+}
+
 let workDir: string;
 let prefixDir: string;
 let binPath: string;
 let installedEntry: string;
+let installedManifest: string;
+let belowFloorHook: string;
 let packedFiles: string[];
 
 beforeAll(async () => {
@@ -35,8 +97,7 @@ beforeAll(async () => {
     ['pack', '--json', '--ignore-scripts', '--pack-destination', workDir],
     { cwd: projectRoot },
   );
-  const meta = JSON.parse(stdout) as { filename: string; files: { path: string }[] }[];
-  const entry = meta[0]!;
+  const entry = readPackEntry(stdout);
   packedFiles = entry.files.map((f) => f.path);
   const tarball = join(workDir, entry.filename);
 
@@ -48,6 +109,27 @@ beforeAll(async () => {
 
   binPath = join(prefixDir, 'node_modules', '.bin', 'crew');
   installedEntry = join(prefixDir, 'node_modules', '@dichovsky', 'crew', 'dist', 'bin', 'crew.js');
+  installedManifest = join(prefixDir, 'node_modules', '@dichovsky', 'crew', 'package.json');
+
+  // Preload module for the engine-floor case. It runs before the installed entry point
+  // is evaluated, so `assertNodeFloor()` — the first thing the shim does — reads the
+  // spoofed version. The installed file itself is still what executes; only the
+  // runtime version it observes is substituted, because an actual below-floor Node
+  // cannot be installed from inside the suite. So this proves the shim reports clearly
+  // and exits 1 on a below-floor version; it does NOT prove the deeper reason the floor
+  // exists — that `node:sqlite` is absent below Node 24, and that the floor check must
+  // precede the dynamic import. On a real Node 24 host the app graph links either way,
+  // so that ordering stays covered by reasoning rather than by execution.
+  belowFloorHook = join(workDir, 'below-floor-node.mjs');
+  writeFileSync(
+    belowFloorHook,
+    `Object.defineProperty(process.versions, 'node', {\n` +
+      `  value: ${JSON.stringify(BELOW_FLOOR_NODE)},\n` +
+      `  configurable: true,\n` +
+      `  enumerable: true,\n` +
+      `});\n`,
+    'utf8',
+  );
 }, 180_000);
 
 afterAll(() => {
@@ -157,5 +239,165 @@ describe('installed executable', () => {
       status: 'archived',
       activity: 'archived',
     });
+  });
+
+  it('round-trips a Message from send to receive through the packed executable', async () => {
+    const cwd = join(workDir, 'messaging-workspace');
+    mkdirSync(cwd);
+    const init = await execa(binPath, ['init', '--json'], { cwd, reject: false });
+    expect(init.exitCode).toBe(0);
+    for (const id of ['manager', 'worker']) {
+      const joined = await execa(binPath, ['join', id, '--role', id, '--json'], {
+        cwd,
+        reject: false,
+      });
+      expect(joined.exitCode).toBe(0);
+    }
+
+    const content = 'Inspect the packaging gate';
+    const sent = await execa(binPath, ['send', 'manager', 'worker', content, '--json'], {
+      cwd,
+      reject: false,
+    });
+    expect(sent.exitCode).toBe(0);
+    expect(JSON.parse(sent.stdout)).toMatchObject({
+      type: 'message',
+      sender_id: 'manager',
+      recipient_id: 'worker',
+      content,
+      kind: 'note',
+    });
+
+    const received = await execa(binPath, ['receive', 'worker', '--json'], { cwd, reject: false });
+    expect(received.exitCode).toBe(0);
+    const delivered = received.stdout
+      .split('\n')
+      .filter((line) => line !== '')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(delivered).toHaveLength(1);
+    expect(delivered[0]).toMatchObject({
+      type: 'message',
+      sender_id: 'manager',
+      recipient_id: 'worker',
+      content,
+    });
+
+    // A Message is consumed from the Inbox by the receive that returned it: the
+    // returned record carries the committed read timestamp, and a second receive
+    // finds nothing.
+    // Asserting the type, not just non-null: `not.toBeNull()` would also pass on
+    // `undefined`, so dropping `read_at` from the record would silently disarm this.
+    expect(delivered[0]?.read_at).toEqual(expect.any(Number));
+    const drained = await execa(binPath, ['receive', 'worker', '--json'], { cwd, reject: false });
+    expect(drained.exitCode).toBe(0);
+    expect(drained.stdout.trim()).toBe('');
+  });
+
+  it('drives a Task from creation to a Review that completes it', async () => {
+    const cwd = join(workDir, 'task-workspace');
+    mkdirSync(cwd);
+    const init = await execa(binPath, ['init', '--json'], { cwd, reject: false });
+    expect(init.exitCode).toBe(0);
+    for (const id of ['manager', 'worker', 'inspector']) {
+      const joined = await execa(binPath, ['join', id, '--role', id, '--json'], {
+        cwd,
+        reject: false,
+      });
+      expect(joined.exitCode).toBe(0);
+    }
+
+    const created = await execa(
+      binPath,
+      [
+        'task',
+        'create',
+        'manager',
+        'worker',
+        '--reviewer',
+        'inspector',
+        '--title',
+        'Prove the packaging gate covers Tasks',
+        '--json',
+      ],
+      { cwd, reject: false },
+    );
+    expect(created.exitCode).toBe(0);
+    const task = JSON.parse(created.stdout) as { id: string; status: string };
+    expect(task).toMatchObject({
+      type: 'task',
+      creator_id: 'manager',
+      assignee_id: 'worker',
+      reviewer_id: 'inspector',
+      status: 'queued',
+    });
+
+    const started = await execa(binPath, ['task', 'start', 'worker', task.id, '--json'], {
+      cwd,
+      reject: false,
+    });
+    expect(started.exitCode).toBe(0);
+    expect(JSON.parse(started.stdout)).toMatchObject({
+      id: task.id,
+      status: 'in_progress',
+      lease_owner_id: 'worker',
+    });
+
+    // The Worker produces a Submission; the Task is not done until an Inspector's
+    // Review accepts it (CONTEXT.md).
+    const summary = 'Added the packaging assertions';
+    const submitted = await execa(
+      binPath,
+      ['task', 'submit', 'worker', task.id, '--summary', summary, '--json'],
+      { cwd, reject: false },
+    );
+    expect(submitted.exitCode).toBe(0);
+    expect(JSON.parse(submitted.stdout)).toMatchObject({
+      id: task.id,
+      status: 'submitted',
+      submission_summary: summary,
+    });
+
+    const approved = await execa(binPath, ['task', 'approve', 'inspector', task.id, '--json'], {
+      cwd,
+      reject: false,
+    });
+    expect(approved.exitCode).toBe(0);
+    expect(JSON.parse(approved.stdout)).toMatchObject({ id: task.id, status: 'completed' });
+
+    const shown = await execa(binPath, ['task', 'show', task.id, '--json'], { cwd, reject: false });
+    expect(shown.exitCode).toBe(0);
+    expect(JSON.parse(shown.stdout)).toMatchObject({ id: task.id, status: 'completed' });
+  });
+
+  it('refuses to run under a below-floor Node with the shim message and exit 1', async () => {
+    const result = await execa(
+      process.execPath,
+      ['--import', pathToFileURL(belowFloorHook).href, installedEntry, '--version'],
+      { reject: false },
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr.trim()).toBe(
+      `crew requires Node >=${NODE_FLOOR} (found v${BELOW_FLOOR_NODE}). Upgrade Node to run crew.`,
+    );
+    // The floor is refused before the program runs, so nothing is printed on stdout.
+    expect(result.stdout).toBe('');
+  });
+
+  it('declares an engines floor equal to the floor the shim enforces', () => {
+    const manifest = JSON.parse(readFileSync(installedManifest, 'utf8')) as {
+      engines?: { node?: string };
+    };
+    const range = manifest.engines?.node ?? '';
+    expect(range.startsWith('>=')).toBe(true);
+    // Equal in both directions: a manifest that admits a Node the shim would refuse
+    // (or refuses one the shim accepts) is the drift this gate exists to catch.
+    // Read the lower bound rather than assuming the range is exactly `>=X.Y`: adding an
+    // upper bound (`>=24.15 <25`) would otherwise parse to a bogus minimum.
+    const declaredMinimum = /^>=\s*([0-9]+(?:\.[0-9]+){0,2})/.exec(range)?.[1] ?? '';
+    expect(declaredMinimum, `could not read a lower bound from engines.node: ${range}`).not.toBe(
+      '',
+    );
+    expect(isNodeBelow(declaredMinimum, NODE_FLOOR)).toBe(false);
+    expect(isNodeBelow(NODE_FLOOR, declaredMinimum)).toBe(false);
   });
 });

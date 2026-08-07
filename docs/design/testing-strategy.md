@@ -262,20 +262,32 @@ authoritative for the exact assertions.
 - **`installed executable`:** the `#!/usr/bin/env node` shebang and the executable bit on the
   installed entry point; `crew --version` printing the manifest version and `crew --help`
   printing help, both exiting 0; an unknown command producing a `[USAGE]` error on stderr with
-  exit 2; and one lifecycle case running `init`, `join`, `agents`, and `leave` through the
-  packed binary.
+  exit 2; one lifecycle case running `init`, `join`, `agents`, and `leave` through the packed
+  binary; a Message round trip (`send` then `receive`, including that the returned Message is
+  consumed from the Inbox so a second `receive` finds nothing); a Task driven from `create`
+  through `start`, a Worker's `submit`, and the Inspector's `approve` that completes it,
+  re-read with `task show`; and the engine floor — the installed entry point invoked under a
+  Node made to *report* a below-floor version emits the shim's version-bearing message on
+  stderr and exits 1, with the
+  installed manifest's `engines.node` minimum asserted equal to the `NODE_FLOOR` the shim
+  enforces.
 
-Three checks belong to this gate in principle but have no case, so it does not prove them today:
+The suite reads `npm pack --json` through a shape-tolerant parser: npm 11 and earlier return an
+array of pack entries, npm 12 returns an object keyed by package name. Both are accepted and any
+third shape fails with an explicit message, so the gate behaves the same on a contributor's npm
+12 and on the npm 11.x bundled with CI's Node.
 
-1. **`send`, `receive`, and the reviewed Task flow:** the lifecycle case stops at
-   `init`/`join`/`agents`/`leave`. Messaging and the Task state machine are covered at the
-   Program layer in-process, and at the spawn layer by separate OS processes that import the
-   built `run()` seam (`dist/src/run.js`) — never through an installed tarball's binary.
-2. **The engine floor:** `tests/unit/node-floor.test.ts` unit-tests `src/node-floor.js` with
-   literal version strings, and `tests/unit/bin-floor-fail.test.ts` imports `bin/crew.ts`
-   in-process with a spoofed `process.versions.node`. No case invokes the installed binary on
-   a too-old runtime.
-3. **macOS packaging:** every workflow runs on `ubuntu-latest` (see the environment matrix
+Because no below-floor Node can be installed from inside the suite, the floor case spawns the
+*installed* `dist/bin/crew.js` under a `--import` preload that redefines `process.versions.node`.
+The installed file is what executes; only the runtime version it observes is substituted. That
+proves the packaged shim's floor check, its message, and its exit code survive packaging — it
+does not prove the deeper reason the check exists (that `node:sqlite` is absent below Node 24),
+which remains covered by reasoning about the shim's floor-before-dynamic-import ordering rather
+than by execution.
+
+One check belongs to this gate in principle but has no case, so it does not prove it today:
+
+1. **macOS packaging:** every workflow runs on `ubuntu-latest` (see the environment matrix
    above), so the shebang and executable-bit checks are proven on Linux in CI and on whatever
    OS a contributor happens to run locally — never on macOS.
 
