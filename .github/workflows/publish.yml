@@ -59,17 +59,14 @@ jobs:
           fi
 
       # Run the full pre-publish gate explicitly rather than relying on the
-      # prepublishOnly lifecycle hook, so a red gate blocks the publish visibly:
-      # typecheck → lint → format:check → test:coverage (mirrors ci.yml's build-test job).
-      # No explicit build step is needed — dist/ is built twice already, by the test
-      # run's globalSetup (tests/global-build.ts rebuilds it from scratch) and by the
-      # `prepack` hook that runs when the publish step packs the tarball.
+      # prepublishOnly lifecycle hook, so a red gate blocks the publish visibly.
       # tmux is required by the coverage suite's launch/relay tests (mirrors ci.yml).
       - run: sudo apt-get update && sudo apt-get install -y tmux
       - run: tmux -V
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run format:check
+      - run: npm run build
       - run: npm run test:coverage
         env:
           CREW_REQUIRE_TMUX: '1'
