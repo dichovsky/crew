@@ -21,13 +21,15 @@ status: accepted
 > FR-U19 to add Operator Agent archive and restore (FR-U36), and its Consequences rule that
 > FR-U19's enumeration, not this ADR's list, is the Console's actual action boundary. FR-U19
 > today also enumerates resuming a Team — the shipped `POST /api/team/resume` route — which this
-> list predates. `crew team resume`'s own preconditions are specified (FR-U40–FR-U45); what has
-> no requirement of its own is the Console-side action, the analogue of FR-U36. What this ADR
-> decided about the server itself stands unchanged: an explicitly started foreground process
-> bound to `127.0.0.1` with a fresh per-run token, the Operator as an ordinary unprivileged Agent
-> row, every read and write through existing Store domain methods, reads that never consume a
-> Message, `team stop` acting only on a session the crew-written pane-map proves crew owns, and
-> the honest-presentation rule. The text below is kept as the decision was made.
+> list predates. `crew team resume`'s own preconditions are specified (FR-U40–FR-U46), and the
+> Console-side action — the analogue of FR-U36 — is FR-U53, which pins that resume detached,
+> keeps it outside FR-U25's confirmation gate because it is constructive rather than
+> destructive, and covers the resumable-session read the Operations view offers it from. What
+> this ADR decided about the server itself stands unchanged: an explicitly started foreground
+> process bound to `127.0.0.1` with a fresh per-run token, the Operator as an ordinary
+> unprivileged Agent row, every read and write through existing Store domain methods, reads that
+> never consume a Message, `team stop` acting only on a session the crew-written pane-map proves
+> crew owns, and the honest-presentation rule. The text below is kept as the decision was made.
 
 ## Context
 
