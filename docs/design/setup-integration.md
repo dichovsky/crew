@@ -228,7 +228,7 @@ a user file with the same name. crew generates:
 # generated-by: crew setup; registry-revision: 7
 description = "Join and coordinate through the local crew inbox and reviewed task workflow"
 prompt = """
-Role and optional id: {{args}}
+Arguments: {{args}}
 [shared finite workflow rendered here]
 """
 ```

@@ -108,7 +108,7 @@ describe('participant artifact rendering', () => {
 
     const toml = PARTICIPANT_TARGETS.find((t) => t.id === 'gemini-cli')!.render();
     expect(toml.startsWith('# generated-by: crew setup;')).toBe(true);
-    expect(toml).toContain('Role and optional id: {{args}}');
+    expect(toml).toContain('Arguments: {{args}}');
     expect(toml).toContain('prompt = """');
 
     const copilot = PARTICIPANT_TARGETS.find((t) => t.id === 'copilot-cli')!.render();
@@ -266,7 +266,7 @@ describe('participant artifact rendering', () => {
     const expected: Record<string, string> = {
       'claude-code': '71d8b844edd2e972101911a2d3bbdd297d6dcb199fd37bf011bc6e8fc5f29665',
       'codex-cli': '780218952a7ced9aee70c767bffb36883ef9bcbf4ef9be320312096238786c9e',
-      'gemini-cli': '794a1ce17dd9ebe1ab5682333217ee4b66ca06264a0c43c0eb0328a3925d5842',
+      'gemini-cli': '67b82e7aeca564e221b5f56aa85337e13cbbab9a39c489543b08e043237951be',
       'copilot-cli': '17fac36bb3081d0602af2d2e361281556982c3236b6200aa1d96c68f7033ab4e',
       'antigravity-cli': '780218952a7ced9aee70c767bffb36883ef9bcbf4ef9be320312096238786c9e',
       'pi-cli': '6594ad733209f885fc77a98d7676c8165432d0cb0901fa99ea435bfb051d42b3',

@@ -40,7 +40,7 @@ export const geminiTarget: ParticipantTarget = {
       (marker) => `${marker}
 description = "Join and coordinate through the local crew inbox and reviewed task workflow"
 prompt = """
-Role and optional id: {{args}}
+Arguments: {{args}}
 ${renderSharedWorkflow('{{args}}')}
 """
 `,
