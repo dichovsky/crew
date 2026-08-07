@@ -738,7 +738,10 @@ overwrite first backed up an edited or unmanaged file to `<name>.bak.<epoch>`; a
 without `--force` is an `ALREADY_EXISTS` error, not a record. `state` is the drift state as
 it was before the write; `path` is written relative to `~` (global scope) or relative to the
 Workspace (project scope). `registry_revision` is the integer revision of the platform
-registry that produced the file.
+registry that produced the file; `REGISTRY_REVISION` in `src/platforms/shared.ts` is its
+only source of truth, and it advances whenever a registry change alters an artifact's
+bytes. The number in the sample below is illustrative, like the other per-run values
+there; it is not the registry's current revision.
 
 ```json
 {"type":"setup_result","schema_version":1,"id":"claude-code","scope":"global","path":"~/.claude/skills/crew/SKILL.md","action":"written","backup_path":null,"state":"absent","registry_revision":2}
