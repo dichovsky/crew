@@ -22,9 +22,9 @@ status: accepted
 > FR-U19's enumeration, not this ADR's list, is the Console's actual action boundary. FR-U19
 > today also enumerates resuming a Team — the shipped `POST /api/team/resume` route — which this
 > list predates. `crew team resume`'s own preconditions are specified (FR-U40–FR-U46), and the
-> Console-side action — the analogue of FR-U36 — is FR-U53, which pins that resume detached,
+> Console-side action — the analogue of FR-U36 — is FR-U53, which pins that resume detached and
 > keeps it outside FR-U25's confirmation gate because it is constructive rather than
-> destructive, and covers the resumable-session read the Operations view offers it from. What
+> destructive; FR-U54 is the resumable-session read the Operations view offers it from. What
 > this ADR decided about the server itself stands unchanged: an explicitly started foreground
 > process bound to `127.0.0.1` with a fresh per-run token, the Operator as an ordinary
 > unprivileged Agent row, every read and write through existing Store domain methods, reads that

@@ -429,17 +429,18 @@ crew ui [--port <n>] [--no-open] [--json]
   Team sessions that are live right now. It reuses the same pane-map ownership proof as
   `team stop`, so only sessions crew could actually stop are listed; stale, foreign, or
   malformed entries are left out. Each row carries `session_name`, `pane_count`,
-  `agent_count`, and `started_at` (in epoch seconds — seconds since 1970).
-  `GET /api/resumable-sessions` (SRS FR-U53) is its counterpart for stopped sessions: the
-  cleanly stopped sessions that could be resumed right now, each carrying `session_name`,
-  `team`, `stopped_at`, and `agents_archived`. It applies the same gates `team resume`
-  re-checks — a session already live under its own name, a stored plan that no longer matches
-  the current Team and configuration, or a planned Agent that is no longer its archived exact
-  row is left out — and it is empty while any crew-owned session is still live. Broken
-  leftovers are omitted here and reported by `doctor` instead. The browser app
+  `agent_count`, and `started_at` (in epoch seconds — seconds since 1970). The browser app
   itself has six views (Now, Overview, Agents, Tasks, Messages, Operations), as specified in
   SRS FR-U34/FR-U37, and supports a light/dark presentation toggle in the header, persisted in
   the browser only (SRS FR-U38) — a purely cosmetic preference with no wire-protocol effect.
+- `GET /api/resumable-sessions` (SRS FR-U54) is the counterpart of `GET /api/sessions` for
+  stopped sessions: the cleanly stopped sessions `POST /api/team/resume` could resume right
+  now, each carrying `session_name`, `team`, `stopped_at` (also epoch seconds), and
+  `agents_archived`. It applies the same gates `team resume` re-checks — a stored plan that no
+  longer matches the current Team and configuration, or a planned Agent that is no longer its
+  archived exact row, leaves a session out — and where tmux is present it also omits a session
+  already live under its own name and returns nothing at all while any crew-owned session is
+  live. Broken leftovers are omitted here and reported by `doctor` instead.
 - A successful `clean` run from the Console shuts that `crew ui` process down after the
   response has been sent. While winding down, the server rejects further requests, closes the
   Store connection it opened at startup, and never serves data from the deleted database or
