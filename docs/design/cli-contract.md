@@ -410,7 +410,15 @@ crew ui [--port <n>] [--no-open] [--json]
   the browser shows a dialog naming the irreversible or hard-to-reverse effect, and the
   request must carry a `confirm: true` flag the server checks before acting (a bare,
   unconfirmed POST is rejected). Restoring an archived Agent is not gated this way — it is
-  the reversible corrective action.
+  the reversible corrective action — and neither is resuming a Team, which re-creates a
+  session rather than destroying one.
+- `POST /api/team/resume` (SRS FR-U53) is the exact same operation as
+  `crew team resume <session>`: the same recovery entrypoint, the same strict preconditions
+  listed above under `team resume`, and the same Store authority — the Console invents no new
+  launch capability. The request names only the session and carries no `confirm` flag. Like a
+  Console launch it is always detached, so the `resume_result` it returns reports
+  `attached: false` even where the same stored plan would have attached a terminal
+  `crew team resume`.
 - `POST /api/agents/:id/archive` and `POST /api/agents/:id/restore` (SRS FR-U36) are the exact
   same operations as `crew leave <id>` and `crew join <id> --resume`, over the same Store
   domain methods with the same authority — the Console invents no new Agent lifecycle
@@ -425,6 +433,14 @@ crew ui [--port <n>] [--no-open] [--json]
   itself has six views (Now, Overview, Agents, Tasks, Messages, Operations), as specified in
   SRS FR-U34/FR-U37, and supports a light/dark presentation toggle in the header, persisted in
   the browser only (SRS FR-U38) — a purely cosmetic preference with no wire-protocol effect.
+- `GET /api/resumable-sessions` (SRS FR-U54) is the counterpart of `GET /api/sessions` for
+  stopped sessions: the cleanly stopped sessions `POST /api/team/resume` could resume right
+  now, each carrying `session_name`, `team`, `stopped_at` (also epoch seconds), and
+  `agents_archived`. It applies the same gates `team resume` re-checks — a stored plan that no
+  longer matches the current Team and configuration, or a planned Agent that is no longer its
+  archived exact row, leaves a session out — and where tmux is present it also omits a session
+  already live under its own name and returns nothing at all while any crew-owned session is
+  live. Broken leftovers are omitted here and reported by `doctor` instead.
 - A successful `clean` run from the Console shuts that `crew ui` process down after the
   response has been sent. While winding down, the server rejects further requests, closes the
   Store connection it opened at startup, and never serves data from the deleted database or
