@@ -13,10 +13,12 @@
  * The Store's own vocabularies (Task status, Task Event type, Message kind,
  * Agent status/activity) are spelled out as literal unions rather than
  * referenced as `TaskRecord['status']` and friends, because those aliases live
- * in modules that do import `node:sqlite`. They are not left to drift: the
- * builders in `./snapshot.js` assign Store records straight into these fields,
- * so widening a Store vocabulary without widening its mirror here is a compile
- * error there.
+ * in modules that do import `node:sqlite`. They are not left to *widen*
+ * silently: the builders in `./snapshot.js` assign Store records straight into
+ * these fields, so widening a Store vocabulary without widening its mirror here
+ * is a compile error there. Narrowing is not caught — retiring a member from a
+ * Store vocabulary leaves a stale, unreachable member here and a dead branch in
+ * `web/` until someone prunes it by hand.
  */
 import type { ParticipantId } from '../participants.js';
 
@@ -35,6 +37,19 @@ export interface AgentSnapshotRecord {
   readonly schema_version: 1;
   readonly id: string;
   readonly role: string;
+  /**
+   * The producer asserts this narrow type (`src/store/agents.ts` casts the raw
+   * column on read), and the Store rejects an unknown id at the single write
+   * boundary — but the column itself is plain `TEXT` with only a length CHECK,
+   * and the browser parses this record from JSON without validating it. So a
+   * Workspace written by a different crew version can put a string here that is
+   * not a `ParticipantId`, and no type will have caught it.
+   *
+   * Browser code must therefore not index a total `Record<ParticipantId, …>`
+   * with this field directly, however well it typechecks. Go through
+   * `engineMeta()` in `web/view-model.ts`, which re-guards with
+   * `isParticipantId` and falls back to a neutral badge.
+   */
   readonly platform_id: ParticipantId | null;
   readonly status: 'active' | 'archived';
   readonly activity: 'recent' | 'idle' | 'stale' | 'archived';

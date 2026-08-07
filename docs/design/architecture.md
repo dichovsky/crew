@@ -189,11 +189,12 @@ src/
     index.ts                    `crew ui` lifecycle: port, per-run token, foreground server
     server.ts                   token-guarded loopback HTTP/SSE server + static assets; routes GET /api/snapshot,/api/events,/api/health,/api/sessions,/api/resumable-sessions,/api/peek and the action POSTs
     snapshot.ts                 bounded, non-consuming Store snapshot projection
+    snapshot-records.ts         the snapshot wire shapes, declared once for both sides; must stay a leaf — an import of ../store/ here would drag node:sqlite into the DOM-only web/ program and force the shapes to be duplicated again
     actions.ts                  Operator action handlers (send/create/approve/requeue, launch/resume/stop, listSessions/listResumableTeamSessions, peek, prune/clean, archive/restore)
 web/                            Preact + TypeScript dashboard source
   main.tsx                      browser entry point
   api.ts                        typed Console API client (snapshot fetch + SSE subscribe)
-  types.ts                      local Console API type definitions
+  types.ts                      re-exports the shared snapshot shapes from src/ui/snapshot-records.ts; declares only the two records that originate in src/ui/server.ts
   view-model.ts                 pure selectors + colour vocabularies (relative time, status/role/activity, review queue, attention, Now worklist, activity feed, pill backgrounds)
   app.tsx                       sidebar shell + six-view router + toasts + one-click confirm modal
   components/                   the six views + sidebar, toasts, confirm-dialog, message modal, health, peek, recovery-banner
