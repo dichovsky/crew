@@ -55,7 +55,8 @@ finished by the Worker; this decision extends that same boundary to "safe to cle
 **The trigger is a Sign-off sent by the Manager, not an automatic signal from crew.** crew has
 no way of its own to observe "merged" or "worktree removed": merging is always a manual git
 operation outside crew's scope, and worktree teardown belongs to the whole Crew's session
-(ADR-0011), not to a single Task, with its stop-time policy still undecided. So once
+(ADR-0011), not to a single Task — and its stop-time policy is now decided: crew never removes
+it ([ADR-0018](./0018-worktree-teardown-policy.md)). So once
 the Manager (or the Operator acting as Manager) has confirmed for itself that a Task's work has
 fully landed, it sends the Worker an ordinary Message — e.g.
 `crew send <you> <worker> "Task <id>: landed, safe to clear your context."` — and the Worker

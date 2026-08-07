@@ -39,11 +39,17 @@ nobody built; the code has never done it. This ADR is the correction, and since 
 sit at the top of the authority order, its wording — not ADR-0015's aside — is what the rest of
 the documentation and the code must match.
 
-Note that none of this is in tension with ADR-0015's own lifecycle. A **Task** Worktree and a
-**Review** Worktree are removed by `task land` and `task abandon` (`removeTaskWorktree`, guarded
-by `hasUnlandedChanges`), because a Task has a definite end that crew itself observes. A
-launched Crew's Worktree has no such moment: stopping a session is a statement about tmux, not
-about the work in the tree.
+Note that none of this is in tension with ADR-0015's own lifecycle. A **Task** Worktree is
+removed by `task land` and `task abandon` (`removeTaskWorktree`, `src/tasks.ts:649` and `:454`),
+and rolled back at `src/tasks.ts:276` when `task start` fails after creating one — because a
+Task has a definite end that crew itself observes. Only `task land` consults
+`hasUnlandedChanges` first (`src/tasks.ts:635`); `abandon` passes `force` unconditionally,
+because abandoning explicitly means discarding the work. The **Review** Worktree is removed by
+nothing at all: it is persistent by design (`CONTEXT.md`, FR-W07), reused by the Inspector
+across Reviews, and no code path deletes it or its row.
+
+A launched Crew's Worktree has no such moment either: stopping a session is a statement about
+tmux, not about the work in the tree.
 
 ## Decision
 
@@ -102,8 +108,9 @@ never reached a running Crew — the one case where crew genuinely knows the tre
   `tests/integration/commands/team-stop.test.ts` pins it, so a future change that makes `stop`
   spawn a `git worktree remove` fails a test rather than shipping quietly.
 - ADR-0015's description of the whole-Crew Worktree as "removed with the session" is superseded
-  by this ADR on that one point. Its own subject — per-Task Worker Worktrees and the persistent
-  Review Worktree, whose removal `task land`/`task abandon` own — is unaffected.
+  by this ADR on that one point. Its own subject is unaffected: per-Task Worker Worktrees, whose
+  removal `task land`/`task abandon` own, and the Review Worktree, which is persistent and which
+  nothing removes.
 - Reopening this is cheap. Nothing here forecloses a later opt-in teardown: because the decision
   is "crew never removes it," adding a removal would be a new capability with its own ADR, FR,
   and dirty-state policy, rather than a quiet loosening of an existing one.

@@ -4,6 +4,12 @@ status: accepted
 
 # Each Worker gets its own opt-in, per-Task git worktree while sharing one State Store
 
+> **Amended by [ADR-0018](./0018-worktree-teardown-policy.md).** The parenthetical below
+> describes ADR-0011's whole-Crew worktree as "short-lived and removed with the session." That
+> was never built: `crew team stop` removes no worktree, and ADR-0018 makes that the decided
+> policy rather than an accident. This ADR's own subject — per-Task Worker worktrees — is
+> unaffected.
+
 ADR-0011 named this decision before it existed: while settling where a whole-Crew worktree's
 State Store lives, it explicitly kept "several worktrees, one shared Store" out of scope,
 filing it as "the deferred per-Agent-worktrees goal (FR-X07)" — it needed answers about
