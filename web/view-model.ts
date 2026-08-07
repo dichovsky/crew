@@ -7,6 +7,7 @@
  * milliseconds so callers and tests control the clock. These functions never
  * touch the DOM, so they carry the Console's logic under unit test.
  */
+import { isParticipantId, type ParticipantId } from '../src/participants.js';
 import type {
   AgentSnapshotRecord,
   MessageSnapshotRecord,
@@ -139,12 +140,15 @@ export interface EngineMeta {
 }
 
 /**
- * One badge per Participant CLI id. Exported so a test can pin its key set to
- * `PARTICIPANT_IDS`: a missing entry is invisible at runtime (the unknown-engine
- * fallback below renders the raw id), so only an equality guard catches the next
- * engine landing in the shared vocabulary without a Console badge.
+ * One badge per Participant CLI id. Keyed by `ParticipantId` rather than
+ * `string` on purpose: a missing entry is invisible at runtime (the
+ * unknown-engine fallback below just renders the raw id), so the only way to
+ * catch the next engine landing in the shared vocabulary without a Console
+ * badge is to make its absence a COMPILE error. An id added to
+ * `PARTICIPANT_IDS` now fails `npm run typecheck` here until it has a badge,
+ * and a key that is not a Participant id fails too.
  */
-export const ENGINE_META: Record<string, EngineMeta> = {
+const ENGINE_META: Record<ParticipantId, EngineMeta> = {
   'claude-code': {
     label: 'Claude Code',
     glyph: '✳',
@@ -180,7 +184,7 @@ export const ENGINE_META: Record<string, EngineMeta> = {
  * "unknown" badge naming whatever id was given (or "unknown" for `null`).
  */
 export function engineMeta(platformId: string | null): EngineMeta {
-  if (platformId !== null && platformId in ENGINE_META) return ENGINE_META[platformId]!;
+  if (platformId !== null && isParticipantId(platformId)) return ENGINE_META[platformId];
   return {
     label: platformId ?? 'unknown',
     glyph: '·',
