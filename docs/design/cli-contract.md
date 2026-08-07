@@ -376,8 +376,9 @@ crew ui [--port <n>] [--no-open] [--json]
   keeps running on its own); Ctrl-C shuts it down. Every other crew feature works without
   this server and never requires it.
 - Without `--port`, crew chooses a random available port. `--port <n>` requires a decimal TCP
-  port from 1 through 65535 and uses that port instead; an invalid or unavailable explicit
-  port makes the command fail — crew never silently falls back to a different port.
+  port from 1 through 65535 and uses that port instead. An invalid port value is `USAGE`; an
+  unavailable explicit port is `LAUNCH_FAILED` — crew never silently falls back to a different
+  port.
 - Every run generates a new secret token, includes it in the authenticated Console URL, and
   requires it on every HTTP request. The token is not emitted as a separate field or record.
 - The authenticated URL is a secret: anyone on the same machine who obtains it can act as the
@@ -765,8 +766,10 @@ widths are pinned by the snapshot fixtures, not promised as an API.
   followed by `…` only when something was cut off.
 - A broadcast that reached nobody prints `Broadcast reached 0 recipients.` in human output
   and emits no JSON lines.
-- `crew ui` prints the authenticated local-only URL and whether it opened the browser, then
-  stays in the foreground until Ctrl-C. `--no-open` reports that the browser was not opened.
+- `crew ui` prints `Console listening at <url> (workspace <path>)` and `The URL embeds this
+  run's secret token — do not share it. Ctrl-C stops the server.`, then stays in the foreground
+  until Ctrl-C. It never reports whether the browser was opened; the opener runs silently and a
+  failed opener is swallowed by design.
 - Successful `crew team stop` output names the stopped session and how many Agents were
   archived, for example `Stopped crew-demo; archived 3 Agents.`
 
