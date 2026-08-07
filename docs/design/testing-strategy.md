@@ -267,7 +267,8 @@ authoritative for the exact assertions.
   consumed from the Inbox so a second `receive` finds nothing); a Task driven from `create`
   through `start`, a Worker's `submit`, and the Inspector's `approve` that completes it,
   re-read with `task show`; and the engine floor — the installed entry point invoked under a
-  below-floor Node emits the shim's version-bearing message on stderr and exits 1, with the
+  Node made to *report* a below-floor version emits the shim's version-bearing message on
+  stderr and exits 1, with the
   installed manifest's `engines.node` minimum asserted equal to the `NODE_FLOOR` the shim
   enforces.
 

@@ -52,7 +52,15 @@ function isPackEntry(value: unknown): value is PackEntry {
  * `undefined` and a downstream `TypeError` that says nothing about the real cause.
  */
 function readPackEntry(stdout: string): PackEntry {
-  const parsed: unknown = JSON.parse(stdout);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch (cause) {
+    // Parsing outside the shape guard would surface a bare SyntaxError, losing the
+    // context this function exists to provide — e.g. when npm prepends a warning to
+    // stdout despite --ignore-scripts.
+    throw new Error(`npm pack --json did not emit JSON; got: ${stdout.slice(0, 500)}`, { cause });
+  }
   const candidates: readonly unknown[] = Array.isArray(parsed)
     ? parsed
     : typeof parsed === 'object' && parsed !== null
@@ -107,7 +115,11 @@ beforeAll(async () => {
   // is evaluated, so `assertNodeFloor()` — the first thing the shim does — reads the
   // spoofed version. The installed file itself is still what executes; only the
   // runtime version it observes is substituted, because an actual below-floor Node
-  // cannot be installed from inside the suite.
+  // cannot be installed from inside the suite. So this proves the shim reports clearly
+  // and exits 1 on a below-floor version; it does NOT prove the deeper reason the floor
+  // exists — that `node:sqlite` is absent below Node 24, and that the floor check must
+  // precede the dynamic import. On a real Node 24 host the app graph links either way,
+  // so that ordering stays covered by reasoning rather than by execution.
   belowFloorHook = join(workDir, 'below-floor-node.mjs');
   writeFileSync(
     belowFloorHook,
@@ -273,7 +285,9 @@ describe('installed executable', () => {
     // A Message is consumed from the Inbox by the receive that returned it: the
     // returned record carries the committed read timestamp, and a second receive
     // finds nothing.
-    expect(delivered[0]?.read_at).not.toBeNull();
+    // Asserting the type, not just non-null: `not.toBeNull()` would also pass on
+    // `undefined`, so dropping `read_at` from the record would silently disarm this.
+    expect(delivered[0]?.read_at).toEqual(expect.any(Number));
     const drained = await execa(binPath, ['receive', 'worker', '--json'], { cwd, reject: false });
     expect(drained.exitCode).toBe(0);
     expect(drained.stdout.trim()).toBe('');
@@ -377,7 +391,12 @@ describe('installed executable', () => {
     expect(range.startsWith('>=')).toBe(true);
     // Equal in both directions: a manifest that admits a Node the shim would refuse
     // (or refuses one the shim accepts) is the drift this gate exists to catch.
-    const declaredMinimum = range.slice(2);
+    // Read the lower bound rather than assuming the range is exactly `>=X.Y`: adding an
+    // upper bound (`>=24.15 <25`) would otherwise parse to a bogus minimum.
+    const declaredMinimum = /^>=\s*([0-9]+(?:\.[0-9]+){0,2})/.exec(range)?.[1] ?? '';
+    expect(declaredMinimum, `could not read a lower bound from engines.node: ${range}`).not.toBe(
+      '',
+    );
     expect(isNodeBelow(declaredMinimum, NODE_FLOOR)).toBe(false);
     expect(isNodeBelow(NODE_FLOOR, declaredMinimum)).toBe(false);
   });
