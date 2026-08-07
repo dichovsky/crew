@@ -16,10 +16,55 @@ const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8')) 
   version: string;
 };
 
+interface PackEntry {
+  readonly filename: string;
+  readonly files: readonly { readonly path: string }[];
+}
+
+function isPackEntry(value: unknown): value is PackEntry {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as { filename?: unknown; files?: unknown };
+  if (typeof candidate.filename !== 'string' || !Array.isArray(candidate.files)) return false;
+  return candidate.files.every(
+    (file: unknown) =>
+      typeof file === 'object' &&
+      file !== null &&
+      typeof (file as { path?: unknown }).path === 'string',
+  );
+}
+
+/**
+ * `npm pack --json` has two shapes across the npm versions this project must run on:
+ * npm 11 and earlier emit an array of pack entries (`[{filename, files[]}]`), while
+ * npm 12 emits an object keyed by package name
+ * (`{"@dichovsky/crew": {filename, files[], ...}}`). Node 24.18's bundled npm is 11.x,
+ * so CI sees the array while a contributor on npm 12 sees the object. Accept both, and
+ * fail loudly on anything else — indexing blindly into the wrong shape yields
+ * `undefined` and a downstream `TypeError` that says nothing about the real cause.
+ */
+function readPackEntry(stdout: string): PackEntry {
+  const parsed: unknown = JSON.parse(stdout);
+  const candidates: readonly unknown[] = Array.isArray(parsed)
+    ? parsed
+    : typeof parsed === 'object' && parsed !== null
+      ? Object.values(parsed)
+      : [];
+  const entry = candidates[0];
+  if (!isPackEntry(entry)) {
+    throw new Error(
+      `npm pack --json returned an unrecognized shape (expected an array of pack entries ` +
+        `or an object keyed by package name); got: ${stdout.slice(0, 500)}`,
+    );
+  }
+  return entry;
+}
+
 let workDir: string;
 let prefixDir: string;
 let binPath: string;
 let installedEntry: string;
+let installedManifest: string;
+let belowFloorHook: string;
 let packedFiles: string[];
 
 beforeAll(async () => {
@@ -35,8 +80,7 @@ beforeAll(async () => {
     ['pack', '--json', '--ignore-scripts', '--pack-destination', workDir],
     { cwd: projectRoot },
   );
-  const meta = JSON.parse(stdout) as { filename: string; files: { path: string }[] }[];
-  const entry = meta[0]!;
+  const entry = readPackEntry(stdout);
   packedFiles = entry.files.map((f) => f.path);
   const tarball = join(workDir, entry.filename);
 
