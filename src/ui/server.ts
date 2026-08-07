@@ -421,6 +421,8 @@ export function startUiServer(options: UiServerOptions): Promise<UiServer> {
     adapter: options.tmuxAdapter ?? createTmuxAdapter(io),
     delay: options.launchDelay ?? realDelay,
     relayBin: options.relayBin ?? defaultRelayBin(),
+    // The single site that decides it, for every Console launch path (FR-U20).
+    noAttach: true,
   };
   const reopenStore =
     options.reopenStore ??

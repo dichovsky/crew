@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { initWorkspace } from '../../src/init.js';
 import type { Io } from '../../src/io.js';
+import { runTeamResume } from '../../src/launcher/resume.js';
 import { createTmuxAdapter, type TmuxAdapter } from '../../src/launcher/tmux.js';
 import { openWorkspaceStore, type Store } from '../../src/store/index.js';
 import { OPERATOR_AGENT_ID, peekPane } from '../../src/ui/actions.js';
@@ -24,12 +25,20 @@ import { captureIo } from '../helpers/io.js';
 const TOKEN = 'a-test-console-token';
 const SESSION = 'crew-demo';
 const ROSTER = ['manager', 'worker', 'worker-2', 'inspector'];
+/**
+ * The fixture's Participant client. Shared with {@link fakeTmux}, which must
+ * register panes on this exact platform: `team resume` refuses an archived
+ * Agent whose `platformId` is not the stored plan's client (TEAM_DRIFT), so a
+ * fake that hardcoded a different id would silently make the resume test
+ * vacuous instead of failing loudly.
+ */
+const CLIENT = 'codex-cli';
 const LAUNCHER_YAML = `version: 1
 project:
   name: crew-demo
   session_name: crew-demo
 runtime:
-  client: codex-cli
+  client: ${CLIENT}
 relay:
   enabled: true
   poll_seconds: 2
@@ -135,6 +144,12 @@ function fakeTmux(
     hasSession?: boolean;
     captureThrows?: boolean;
     ownerMismatch?: boolean;
+    /**
+     * Opt out of the FR-U20 tripwire below. Only the terminal-path test sets
+     * it — that path is SUPPOSED to attach, and asserting it still does is what
+     * proves this PR left `crew team resume` from a TTY unchanged.
+     */
+    allowAttach?: boolean;
   } = {},
 ): FakeTmux {
   const ops: string[] = [];
@@ -221,7 +236,7 @@ function fakeTmux(
           store.joinAgent({
             id: pendingJoin.id,
             role: pendingJoin.role,
-            platformId: 'codex-cli',
+            platformId: CLIENT,
             ...(pendingJoin.resume ? { resume: true as const } : {}),
             ...(launchToken !== undefined ? { launchToken } : {}),
           });
@@ -241,9 +256,19 @@ function fakeTmux(
       sessionAlive = false;
       return Promise.resolve();
     },
+    // Every consumer of this fake is a Console route unless `allowAttach` says
+    // otherwise, and FR-U20 forbids all of them from attaching. Throwing rather
+    // than recording makes that a failure for ANY route — present or future —
+    // instead of only the ones that assert `ops` excludes 'attach'.
     attach: () => {
       ops.push('attach');
-      return Promise.resolve(0);
+      return opts.allowAttach === true
+        ? Promise.resolve(0)
+        : Promise.reject(
+            new Error(
+              'FR-U20: the Console must never attach; this server process is not a terminal',
+            ),
+          );
     },
   };
   return {
@@ -532,6 +557,33 @@ describe('POST /api/team/resume (FR-U20)', () => {
     expect(fake.ops).toContain('newSession');
     expect(fake.ops).not.toContain('attach');
   });
+
+  /**
+   * The other half of the same fix: widening `runTeamResume`'s deps slice must
+   * NOT have made every resume detached. `crew team resume` from a terminal
+   * omits `noAttach`, so its plan-driven attach still fires — without this, a
+   * later "harden by default" change flipping the default would pass the whole
+   * suite while silently removing the CLI's attach.
+   */
+  it('the terminal resume path still attaches when noAttach is omitted', async () => {
+    const { cwd, io } = teamWorkspace();
+    const fake = fakeTmux(cwd, { allowAttach: true });
+    const { port } = await serve(io, cwd, fake);
+
+    await post(port, '/api/team/launch', { team: 'dev' });
+    await post(port, '/api/team/stop', { session: SESSION, confirm: true });
+    fake.ops.length = 0;
+
+    // Exactly what src/cli.ts passes for `crew team resume <session>`: no
+    // `noAttach`, so the resumed plan's own `attach: true` governs.
+    await runTeamResume(
+      io,
+      SESSION,
+      { json: true },
+      { adapter: fake.adapter, delay: () => Promise.resolve(), relayBin: ['node', 'crew'] },
+    );
+    expect(fake.ops).toContain('attach');
+  });
 });
 
 describe('GET /api/sessions (owned live sessions for Operations)', () => {
@@ -701,6 +753,7 @@ describe('GET /api/peek (FR-U24 sanitized, ownership-gated)', () => {
           adapter: createTmuxAdapter(killedIo),
           delay: () => Promise.resolve(),
           relayBin: ['node', 'crew'],
+          noAttach: true,
         },
         SESSION,
         null,
@@ -740,6 +793,7 @@ describe('GET /api/peek (FR-U24 sanitized, ownership-gated)', () => {
           adapter: createTmuxAdapter(killedIo),
           delay: () => Promise.resolve(),
           relayBin: ['node', 'crew'],
+          noAttach: true,
         },
         SESSION,
         null,

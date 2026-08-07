@@ -297,6 +297,15 @@ export interface TeamActionDeps {
   readonly delay: (ms: number) => Promise<void>;
   /** Base argv for the launched Relay window command. */
   readonly relayBin: readonly string[];
+  /**
+   * FR-U20 as a type, not a convention: pinned to the literal `true` and
+   * REQUIRED, so every Console path into `runLiveLaunch`/`runTeamResume` gets
+   * the detached seam by spreading these deps, and a future route that forgets
+   * it fails to compile here instead of silently reaching `tmux attach` in the
+   * headless server process. Nothing may set it to `false` — the Console is
+   * never the Operator's terminal, so attaching stays a terminal-only action.
+   */
+  readonly noAttach: true;
 }
 
 /**
@@ -331,9 +340,10 @@ async function capturedRecord(
 /**
  * `POST /api/team/launch` — a DETACHED live launch of a configured Team
  * (FR-U19/U20): the plan resolves through the existing Team config exactly as
- * `crew team <name> --launch` would, and Task 1's `noAttach` seam guarantees
- * no attach call ever reaches the tmux adapter (ADR-0012: attach stays a
- * terminal-only action). Unconfirmed: a launch is not destructive.
+ * `crew team <name> --launch` would, and spreading {@link TeamActionDeps}
+ * carries its required `noAttach: true` through, so no attach call ever reaches
+ * the tmux adapter (ADR-0012: attach stays a terminal-only action).
+ * Unconfirmed: a launch is not destructive.
  */
 export async function launchTeam(
   deps: TeamActionDeps,
@@ -355,10 +365,7 @@ export async function launchTeam(
     await runLiveLaunch(
       io,
       {
-        adapter: deps.adapter,
-        delay: deps.delay,
-        relayBin: deps.relayBin,
-        noAttach: true,
+        ...deps,
         onLaunched: (result) => {
           renderLaunchResult(captured, result, true);
         },
@@ -373,9 +380,10 @@ export async function launchTeam(
  * `POST /api/team/resume` — a DETACHED recovery launch of a cleanly stopped
  * Team session. The stored launch plan must still match the current Team
  * config exactly; broken leftovers are for `doctor` to diagnose, not repair.
- * Like {@link launchTeam}, the `noAttach` seam is passed explicitly: the
- * resumed plan carries the same `attach: true` a terminal launch would, and
- * this server process is not the Operator's terminal (FR-U20).
+ * Like {@link launchTeam}, spreading {@link TeamActionDeps} carries the
+ * `noAttach: true` seam through: the resumed plan carries the same
+ * `attach: true` a terminal launch would, and this server process is not the
+ * Operator's terminal (FR-U20).
  */
 export async function resumeTeam(
   deps: TeamActionDeps,
@@ -384,17 +392,7 @@ export async function resumeTeam(
   const fields = bodyFields(body, ['session']);
   const session = requiredString(fields, 'session');
   const resume = await capturedRecord(deps.io, async (captured) => {
-    await runTeamResume(
-      captured,
-      session,
-      { json: true },
-      {
-        adapter: deps.adapter,
-        delay: deps.delay,
-        relayBin: deps.relayBin,
-        noAttach: true,
-      },
-    );
+    await runTeamResume(captured, session, { json: true }, { ...deps });
   });
   return { resume };
 }
