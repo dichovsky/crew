@@ -117,6 +117,9 @@ const ACTION_PATHS = (taskId: string): string[] => [
   `/api/tasks/${taskId}/requeue`,
   `/api/agents/${ABSENT_UUID}/archive`,
   `/api/agents/${ABSENT_UUID}/restore`,
+  // FR-U53's write route. Every sweep below rejects before the handler runs
+  // (401/403 pre-dispatch, malformed body at the parse), so it needs no tmux.
+  '/api/team/resume',
 ];
 
 afterEach(async () => {

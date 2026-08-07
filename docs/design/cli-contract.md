@@ -410,7 +410,15 @@ crew ui [--port <n>] [--no-open] [--json]
   the browser shows a dialog naming the irreversible or hard-to-reverse effect, and the
   request must carry a `confirm: true` flag the server checks before acting (a bare,
   unconfirmed POST is rejected). Restoring an archived Agent is not gated this way — it is
-  the reversible corrective action.
+  the reversible corrective action — and neither is resuming a Team, which re-creates a
+  session rather than destroying one.
+- `POST /api/team/resume` (SRS FR-U53) is the exact same operation as
+  `crew team resume <session>`: the same recovery entrypoint, the same strict preconditions
+  listed above under `team resume`, and the same Store authority — the Console invents no new
+  launch capability. The request names only the session and carries no `confirm` flag. Like a
+  Console launch it is always detached, so the `resume_result` it returns reports
+  `attached: false` even where the same stored plan would have attached a terminal
+  `crew team resume`.
 - `POST /api/agents/:id/archive` and `POST /api/agents/:id/restore` (SRS FR-U36) are the exact
   same operations as `crew leave <id>` and `crew join <id> --resume`, over the same Store
   domain methods with the same authority — the Console invents no new Agent lifecycle
@@ -421,7 +429,14 @@ crew ui [--port <n>] [--no-open] [--json]
   Team sessions that are live right now. It reuses the same pane-map ownership proof as
   `team stop`, so only sessions crew could actually stop are listed; stale, foreign, or
   malformed entries are left out. Each row carries `session_name`, `pane_count`,
-  `agent_count`, and `started_at` (in epoch seconds — seconds since 1970). The browser app
+  `agent_count`, and `started_at` (in epoch seconds — seconds since 1970).
+  `GET /api/resumable-sessions` (SRS FR-U53) is its counterpart for stopped sessions: the
+  cleanly stopped sessions that could be resumed right now, each carrying `session_name`,
+  `team`, `stopped_at`, and `agents_archived`. It applies the same gates `team resume`
+  re-checks — a session already live under its own name, a stored plan that no longer matches
+  the current Team and configuration, or a planned Agent that is no longer its archived exact
+  row is left out — and it is empty while any crew-owned session is still live. Broken
+  leftovers are omitted here and reported by `doctor` instead. The browser app
   itself has six views (Now, Overview, Agents, Tasks, Messages, Operations), as specified in
   SRS FR-U34/FR-U37, and supports a light/dark presentation toggle in the header, persisted in
   the browser only (SRS FR-U38) — a purely cosmetic preference with no wire-protocol effect.

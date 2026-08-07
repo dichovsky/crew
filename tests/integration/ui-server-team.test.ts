@@ -306,6 +306,9 @@ async function serve(
 
 const TEAM_POSTS: ReadonlyArray<[string, Record<string, unknown>]> = [
   ['/api/team/launch', { team: 'dev' }],
+  // No `confirm`: a resume is constructive, so it is deliberately not FR-U25-gated
+  // (FR-U53). It belongs here for the token/Host and malformed-body sweeps.
+  ['/api/team/resume', { session: SESSION }],
   ['/api/team/stop', { session: SESSION, confirm: true }],
   ['/api/prune', { confirm: true }],
   ['/api/clean', { confirm: true }],

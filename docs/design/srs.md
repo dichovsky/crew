@@ -824,8 +824,8 @@ rather than restating them.
   as the CLI; non-consumption re-proven after every POST).*
 - **FR-U19 — Console action scope.** The Console action surface shall be limited to sending a
   Message, creating a Task, approving or sending back a Submission, launching a Team, stopping
-  a Team, resuming a Team, peeking at a pane, running `prune` or `clean`, and archiving or
-  restoring an Agent (FR-U36). *Verify: inspection — Console route inventory in
+  a Team, resuming a Team (FR-U53), peeking at a pane, running `prune` or `clean`, and archiving
+  or restoring an Agent (FR-U36). *Verify: inspection — Console route inventory in
   `src/ui/server.ts`/`src/ui/actions.ts`, unknown routes and methods rejected in
   `tests/integration/ui-server-actions.test.ts`, `tests/integration/ui-server-team.test.ts`.*
 - **FR-U20 — Detached browser launch.** A Team launch from the Console shall be detached, and
@@ -916,8 +916,8 @@ rather than restating them.
   - **Messages** — the newest-window Message history (unread Operator Messages marked) beside a
     compose form (recipient select + body) that sends under FR-U14.
   - **Operations** — Team launch (FR-U20), the live owned-session list with owned-stop
-    (FR-U26–U29, FR-U35), pane peek (FR-U24), workspace health, and the `prune`/`clean`
-    maintenance actions gated by FR-U25.
+    (FR-U26–U29, FR-U35), the resumable clean-stop list with resume (FR-U53), pane peek
+    (FR-U24), workspace health, and the `prune`/`clean` maintenance actions gated by FR-U25.
   *Verify: automated test — `web/app.test.tsx` (navigation + per-view rendering),
   `web/view-model.test.ts`,
   `web/components/{now-view,overview,agents,tasks-view,messages-view,operations,message-modal}.test.tsx`.*
@@ -966,7 +966,10 @@ rather than restating them.
   resume` consumes (FR-U41). *Verify: inspection — `src/launcher/stop.ts` (the marker is written
   after the mapped Agents are archived and before the ownership proof is retired),
   `src/launcher/artifacts.ts` (`writeResumeMarker`, and the marker fields `readResumeMarker`
-  validates); no automated test asserts the written marker today.*
+  validates); automated test — `tests/integration/ui-server-team.test.ts` resumes a session it
+  launched and stopped through the Console, which the FR-U41 gate refuses unless that stop wrote
+  a marker `readResumeMarker` accepts, so the write is proven indirectly; no test reads the
+  marker file itself.*
 - **FR-U40 — Resume requires tmux.** `crew team resume <session>` shall fail with
   `DEPENDENCY_MISSING` when tmux is not present. *Verify: automated test —
   `tests/unit/launcher/resume.test.ts` (tmux absent).*
@@ -1005,12 +1008,13 @@ rather than restating them.
   named by the stored plan back to active rather than allocating new ones. *Note: crew never runs
   the join itself — each resumed pane's Participant CLI is invited to `crew join <id> --resume`
   and the roster gate is what enforces the outcome, failing the relaunch with `LAUNCH_FAILED`
-  when those exact ids never register. Verify: inspection and automated test —
+  when those exact ids never register. Verify: automated test —
   `tests/unit/platforms.test.ts` (the exact `--resume` invocation for all eight Participant
   CLIs), `tests/integration/commands/team-launch-live.test.ts` (the shared roster gate fails with
-  `LAUNCH_FAILED` when the planned ids never register); the resume-specific wiring — the resume
-  flag set in `src/launcher/resume.ts` reaching `paneLaunch` and `awaitRoster` in
-  `src/launcher/session.ts` — has no end-to-end success test yet.*
+  `LAUNCH_FAILED` when the planned ids never register), `tests/integration/ui-server-team.test.ts`
+  (the resume-specific wiring end to end: a Console resume of a stopped session succeeds against a
+  fake adapter whose panes join with `--resume`, which `awaitRoster` can only satisfy — it reads
+  active rows only — if the planned ids were reactivated rather than suffixed).*
 - **FR-U48 — Best-effort marker retirement.** A resume shall not depend on retiring the session's
   clean-stop marker: removal shall be attempted only after `runLiveLaunch` returns successfully,
   shall be skipped when the relaunch fails, and a removal that itself fails shall leave the
@@ -1049,6 +1053,31 @@ rather than restating them.
   `timingSafeEqual`, so `&&` short-circuits past `timingSafeEqual` on a length mismatch);
   automated test — `tests/integration/ui-server.test.ts` (equal-length and different-length
   wrong tokens are both a plain 401, never a throw); no test measures timing.*
+- **FR-U53 — Console Team-resume authority (additive post-v1).** Extends FR-U19's Console
+  action-scope enumeration to also cover resuming a cleanly stopped Team session. The Operator
+  may resume through the Console exactly as `crew team resume <session>` does — the same
+  `runTeamResume` entrypoint, the same preconditions (FR-U40–FR-U46), the same Store authority
+  and invariants (FR-U18), no new capability invented. The resume shall be detached, like a
+  Console launch (FR-U20): the Console pins the no-attach seam, so its `resume_result` (FR-U49)
+  reports `attached: false` even where a terminal `crew team resume` of the same stored plan
+  would attach. A resume re-creates a session and reactivates the ids its own stop archived, so
+  it is constructive rather than destructive and is deliberately NOT FR-U25-gated — the request
+  names only the session and carries no `confirm` flag. The Console shall also read the resume
+  candidates: the clean-stop sessions that could be resumed now, each with `session_name`,
+  `team`, `stopped_at`, and `agents_archived` (the FR-U35 analogue for stopped sessions),
+  filtered by the same gates the action re-checks — a session already live under its own name, a
+  stored plan that no longer matches a freshly built one, or a planned Agent that is not its
+  archived exact row is omitted rather than offered, and the list is empty while any crew-owned
+  session is live. *Verify: automated test — `tests/integration/ui-server-team.test.ts` (a
+  Console launch, stop, and resume rebuilds the session with zero attach calls, from a body
+  naming only the session; the same route swept for the token/Host posture and a malformed
+  body), `tests/integration/ui-server-actions.test.ts` (the same sweeps),
+  `tests/unit/launcher/resume.test.ts` (`listResumableSessions`: the live, drifted,
+  never-joined, still-active, wrong-Role, and wrong-platform omissions),
+  `web/components/operations.test.tsx` (the Operations affordance resumes by name); inspection —
+  `src/ui/server.ts` (`noAttach: true` is set once, for every Console launch path) and
+  `src/ui/actions.ts` (`resumeTeam` accepts only `session`); no server-side test asserts the
+  `GET /api/resumable-sessions` response body today.*
 
 #### W. Worker and review worktrees
 
@@ -1438,7 +1467,7 @@ that says so.
 Counts: **98** old v1 ids → **183** new v1 single-rule ids; **66** old ids were split. Those
 counts describe the renumbering this table records and are not a live count of in-scope
 requirements: `FR-H08` was later retired (deferred as `FR-X09`), so 182 of the 183 still state
-a rule. The additive post-v1 ids `FR-U01`–`FR-U52`, `FR-E22`–`FR-E24`, `FR-H29`, and
+a rule. The additive post-v1 ids `FR-U01`–`FR-U53`, `FR-E22`–`FR-E24`, `FR-H29`, and
 `FR-W01`–`FR-W15` did not exist in the retired v1 set and are intentionally excluded from those
 counts. Deferred `FR-X01`–`FR-X09` are unchanged, except `FR-X07`, which is promoted to the
 group W contract (`FR-W01`–`FR-W15`, ADR-0015), and `FR-X09`, which is new — the retired
@@ -1501,7 +1530,7 @@ which states no rule and so has nothing to grade; its group-H row records that.
 | I | FR-I01–FR-I14 | all nine P (except FR-I04, FR-I05, FR-I09) |
 | J | FR-J01–FR-J15 | all nine P |
 | K | FR-K01–FR-K10 | all nine P (except FR-K01) |
-| U | FR-U01–FR-U52 | all nine P (except FR-U48) |
+| U | FR-U01–FR-U53 | all nine P (except FR-U48) |
 | W | FR-W01–FR-W15 | all nine P |
 | NFR | all NFR-\* | all nine P |
 
