@@ -99,8 +99,9 @@ requires one process that stays alive for as long as the tmux session does.
 - A Worker's Submission can never be reported as accepted before a Review transition.
 - The Relay can nudge an idle launched pane without consuming Messages and without typing any
   Message content into the pane.
-- Package contents, templates, the shebang line, and the required Node version are verified
-  from the output of `npm pack`.
+- The published file list, the shebang line, and the executable bit are verified from the
+  output of `npm pack`, and the tarball is installed into a clean temporary prefix so an
+  `init`/`join`/`agents`/`leave` run goes through the packed executable.
 
 ## Release gates
 
