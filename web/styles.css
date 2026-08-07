@@ -1105,6 +1105,17 @@ option {
   overflow-x: auto;
 }
 
+.board-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 11px;
+}
+
+.btn-new-task {
+  padding: 8px 14px;
+  font-size: 12.5px;
+}
+
 .board {
   display: grid;
   grid-template-columns: repeat(5, minmax(148px, 1fr));
@@ -1829,6 +1840,17 @@ option {
   margin: -8px 0 16px;
   font-size: 12.5px;
   color: #c04532;
+}
+
+.modal.create-task-modal {
+  width: 440px;
+  padding: 22px;
+}
+
+.create-task-modal .input,
+.create-task-modal .select,
+.create-task-modal .textarea {
+  margin: 6px 0 13px;
 }
 
 /* ---- Recovery banner --------------------------------------------------- */

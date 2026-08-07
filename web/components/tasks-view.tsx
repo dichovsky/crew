@@ -2,12 +2,14 @@
  * Tasks view: the reviewed-work board (five honest status columns, including a
  * real, selectable Abandoned column) beside a sticky detail panel
  * with the FR-U16/U17 approve and requeue controls. A submitted Task is shown
- * as "In review" — a Submission awaiting its reviewer, never as done. The POST
+ * as "In review" — a Submission awaiting its reviewer, never as done. A "New
+ * task" button opens the FR-U15 create-Task modal. The POST
  * itself is delegated to the App via async callbacks; this component owns only
- * the board/detail render and the requeue draft.
+ * the board/detail render, the requeue draft, and whether the create modal is open.
  */
 import { useEffect, useState } from 'preact/hooks';
 import type { TaskSnapshotRecord } from '../types.js';
+import { CreateTaskModal, type CreateTaskInput } from './create-task-modal.js';
 import {
   ACCENT,
   canApprove,
@@ -49,6 +51,7 @@ export interface TasksViewProps {
   readonly onSelect: (taskId: string) => void;
   readonly onApprove: (taskId: string) => Promise<void>;
   readonly onRequeue: (taskId: string, input: { reason: string; to?: string }) => Promise<void>;
+  readonly onCreateTask: (input: CreateTaskInput) => Promise<void>;
 }
 
 export function TasksView({
@@ -61,12 +64,14 @@ export function TasksView({
   onSelect,
   onApprove,
   onRequeue,
+  onCreateTask,
 }: TasksViewProps) {
   const selected = tasks.find((task) => task.id === selectedId) ?? null;
   const [reason, setReason] = useState('');
   const [to, setTo] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   // Reset the requeue draft whenever the selection changes.
   useEffect(() => {
@@ -110,90 +115,110 @@ export function TasksView({
   }
 
   return (
-    <div class="tasks-layout">
-      <div class="board-scroll">
-        <div class="board">
-          {COLUMNS.map((column) => {
-            const list = tasks.filter((task) => task.status === column.status);
-            const meta = statusMeta(column.status);
-            return (
-              <section key={column.status} data-status={column.status}>
-                <div class="column-head">
-                  <span class="dot-sm" style={{ background: meta.dot }} />
-                  <span class="column-label">{column.label}</span>
-                  <span class="column-count">{list.length}</span>
-                </div>
-                <div class="column-cards">
-                  {list.length === 0 ? (
-                    <div class="column-empty">Empty</div>
-                  ) : (
-                    list.map((task) => (
-                      <button
-                        type="button"
-                        key={task.id}
-                        class={`task-card${task.id === selectedId ? ' selected' : ''}`}
-                        aria-pressed={task.id === selectedId}
-                        onClick={() => onSelect(task.id)}
-                      >
-                        <div class="task-card-top">
-                          <span class="task-id">{shortId(task.id)}</span>
-                          {task.stale_lease && <span class="stale-tag">STALE</span>}
-                        </div>
-                        <div class="task-card-title">{task.title}</div>
-                        <div class="task-card-foot">
-                          <span class="avatar" style={{ background: roleColor('worker') }}>
-                            {initials(task.assignee_id)}
-                          </span>
-                          <span class="task-card-assignee">{task.assignee_id}</span>
-                          <span class="task-card-updated">{relTime(task.updated_at, now)}</span>
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </section>
-            );
-          })}
+    <>
+      <div class="tasks-layout">
+        <div class="board-scroll">
+          <div class="board-toolbar">
+            <button
+              type="button"
+              class="btn btn-primary btn-new-task"
+              disabled={disabled}
+              onClick={() => setCreating(true)}
+            >
+              New task
+            </button>
+          </div>
+          <div class="board">
+            {COLUMNS.map((column) => {
+              const list = tasks.filter((task) => task.status === column.status);
+              const meta = statusMeta(column.status);
+              return (
+                <section key={column.status} data-status={column.status}>
+                  <div class="column-head">
+                    <span class="dot-sm" style={{ background: meta.dot }} />
+                    <span class="column-label">{column.label}</span>
+                    <span class="column-count">{list.length}</span>
+                  </div>
+                  <div class="column-cards">
+                    {list.length === 0 ? (
+                      <div class="column-empty">Empty</div>
+                    ) : (
+                      list.map((task) => (
+                        <button
+                          type="button"
+                          key={task.id}
+                          class={`task-card${task.id === selectedId ? ' selected' : ''}`}
+                          aria-pressed={task.id === selectedId}
+                          onClick={() => onSelect(task.id)}
+                        >
+                          <div class="task-card-top">
+                            <span class="task-id">{shortId(task.id)}</span>
+                            {task.stale_lease && <span class="stale-tag">STALE</span>}
+                          </div>
+                          <div class="task-card-title">{task.title}</div>
+                          <div class="task-card-foot">
+                            <span class="avatar" style={{ background: roleColor('worker') }}>
+                              {initials(task.assignee_id)}
+                            </span>
+                            <span class="task-card-assignee">{task.assignee_id}</span>
+                            <span class="task-card-updated">{relTime(task.updated_at, now)}</span>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+
+        <div class="detail">
+          {selected === null ? (
+            <div class="detail-empty">
+              <div class="glyph">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 18 18"
+                  fill="none"
+                  stroke="#b0b6bf"
+                  stroke-width="1.6"
+                >
+                  <rect x="2.5" y="2.5" width="13" height="13" rx="2.5" />
+                  <path d="M5.5 6.5h7M5.5 9h7M5.5 11.5h4.5" />
+                </svg>
+              </div>
+              <p>Select a task to view its detail and act on it.</p>
+            </div>
+          ) : (
+            <TaskDetail
+              task={selected}
+              now={now}
+              dark={dark}
+              disabled={disabled}
+              pending={pending}
+              error={error}
+              reason={reason}
+              to={to}
+              recipientOptions={recipientOptions}
+              onReason={setReason}
+              onTo={setTo}
+              onApprove={() => void approve(selected.id)}
+              onRequeue={() => void requeue(selected.id)}
+            />
+          )}
         </div>
       </div>
 
-      <div class="detail">
-        {selected === null ? (
-          <div class="detail-empty">
-            <div class="glyph">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 18 18"
-                fill="none"
-                stroke="#b0b6bf"
-                stroke-width="1.6"
-              >
-                <rect x="2.5" y="2.5" width="13" height="13" rx="2.5" />
-                <path d="M5.5 6.5h7M5.5 9h7M5.5 11.5h4.5" />
-              </svg>
-            </div>
-            <p>Select a task to view its detail and act on it.</p>
-          </div>
-        ) : (
-          <TaskDetail
-            task={selected}
-            now={now}
-            dark={dark}
-            disabled={disabled}
-            pending={pending}
-            error={error}
-            reason={reason}
-            to={to}
-            recipientOptions={recipientOptions}
-            onReason={setReason}
-            onTo={setTo}
-            onApprove={() => void approve(selected.id)}
-            onRequeue={() => void requeue(selected.id)}
-          />
-        )}
-      </div>
-    </div>
+      {creating && (
+        <CreateTaskModal
+          recipientOptions={recipientOptions}
+          onClose={() => setCreating(false)}
+          onCreate={onCreateTask}
+        />
+      )}
+    </>
   );
 }
 

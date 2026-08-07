@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { fetchSnapshot, getToken, subscribeToChanges } from './api.js';
 import { Agents } from './components/agents.js';
 import { ConfirmDialog } from './components/confirm-dialog.js';
+import type { CreateTaskInput } from './components/create-task-modal.js';
 import type { HealthState } from './components/health.js';
 import { MessageModal } from './components/message-modal.js';
 import { MessagesView } from './components/messages-view.js';
@@ -303,6 +304,13 @@ export function App() {
     }
   }
 
+  /** `POST /api/tasks` — the Operator is the creator server-side (FR-U15). */
+  async function createTask(input: CreateTaskInput): Promise<void> {
+    await postAction('/api/tasks', { ...input });
+    pushToast('Task created', `assigned to ${input.assignee}`, '#27a05f');
+    await refetch();
+  }
+
   async function approveTask(taskId: string): Promise<void> {
     await postAction(`/api/tasks/${encodeURIComponent(taskId)}/approve`, {});
     pushToast(`Approved ${shortId(taskId)}`, 'task completed', '#27a05f');
@@ -535,6 +543,7 @@ export function App() {
               onSelect={setSelectedTaskId}
               onApprove={approveTask}
               onRequeue={requeueTask}
+              onCreateTask={createTask}
             />
           )}
           {view === 'messages' && (

@@ -4,6 +4,7 @@
  * navigation across the six views, the SSE-driven refetch (no polling),
  * close() on unmount, the honest error state and recovery, the message send
  * (POST then refetch), the quick-message modal opened by clicking an Agent,
+ * the create-Task modal opened from the Tasks view (POST then refetch),
  * the light/dark theme toggle (persisted, FR-U38), and the one-click
  * destructive confirm (including Agent archive, FR-U36).
  */
@@ -314,6 +315,49 @@ describe('App actions', () => {
     expect(post.body).toEqual({ to: 'manager-1', content: 'ping' });
     // The modal closes and a refetch follows the completed POST.
     await vi.waitFor(() => expect(host.querySelector('.message-modal')).toBeNull());
+    expect(mocks.fetchSnapshot.mock.calls.length).toBeGreaterThan(1);
+    unmount(host);
+  });
+
+  it('creates a task from the Tasks view and refetches', async () => {
+    const posts = stubFetch();
+    mocks.fetchSnapshot.mockResolvedValue(snapshotOf([]));
+    const host = mount();
+    await vi.waitFor(() => expect(host.textContent).toContain('manager-1'));
+    navigate(host, 'Tasks');
+    await vi.waitFor(() => expect(host.querySelector('.btn-new-task')).not.toBeNull());
+
+    (host.querySelector('.btn-new-task') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(host.querySelector('.create-task-modal')).not.toBeNull());
+
+    const title = host.querySelector('#create-task-title') as HTMLInputElement;
+    title.value = 'Ship the widget';
+    title.dispatchEvent(new Event('input'));
+    // The roster select carries the snapshot agents — no free-text agent id.
+    const assignee = host.querySelector('#create-task-assignee') as HTMLSelectElement;
+    assignee.value = 'manager-1';
+    assignee.dispatchEvent(new Event('change'));
+    const reviewer = host.querySelector('#create-task-reviewer') as HTMLSelectElement;
+    reviewer.value = 'manager-1';
+    reviewer.dispatchEvent(new Event('change'));
+    // Let the controlled-input state commit before the create reads it.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const create = [...host.querySelectorAll('.create-task-modal button')].find((b) =>
+      b.textContent?.includes('Create task'),
+    ) as HTMLButtonElement;
+    create.click();
+
+    await vi.waitFor(() => {
+      expect(posts.some((p) => p.url.includes('/api/tasks'))).toBe(true);
+    });
+    const post = posts.find((p) => p.url.includes('/api/tasks'))!;
+    expect(post.body).toEqual({
+      assignee: 'manager-1',
+      reviewer: 'manager-1',
+      title: 'Ship the widget',
+    });
+    // The modal closes and a refetch follows the completed POST.
+    await vi.waitFor(() => expect(host.querySelector('.create-task-modal')).toBeNull());
     expect(mocks.fetchSnapshot.mock.calls.length).toBeGreaterThan(1);
     unmount(host);
   });
