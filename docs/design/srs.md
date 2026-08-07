@@ -721,9 +721,10 @@ rather than restating them.
 - **FR-K02 — Prune eligibility (widened by FR-E24).** Prune shall delete read Messages past
   the explicit or default Message cutoff, completed Tasks past the Task cutoff, and — per
   FR-E24 — abandoned Tasks past that same Task cutoff on `abandonedAt`, plus every Message
-  linked to a Task it deletes; nothing else shall be deleted. A linked Message goes with its
-  Task whatever its own age: the Message cutoff never applies to it (it is necessarily already
-  read, since FR-K03 makes an unread linked Message block the Task's eligibility outright).
+  linked to a Task it deletes; nothing else shall be deleted beyond the FR-K03 cascade. A
+  linked Message goes with its Task whatever its own age: the Message cutoff never applies to
+  it (it is necessarily already read, since FR-K03 makes an unread linked Message block the
+  Task's eligibility outright).
   *Verify: automated test — `tests/integration/commands/prune.test.ts`,
   `tests/store/maintenance.test.ts` ("deletes a completed Task and folds its cascaded Messages
   into one count" prunes five linked Messages under a Message window so wide that the
