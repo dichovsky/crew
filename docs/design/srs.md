@@ -152,8 +152,7 @@ Model Backend, Operator, Console, Worktree, Review Worktree.** See
   [setup integration](./setup-integration.md), [testing strategy](./testing-strategy.md),
   [decision index](./decisions.md).
 - [CONTEXT.md](../../CONTEXT.md) — binding domain vocabulary.
-- Accepted [ADRs](../adr/README.md) (ADR-0001…ADR-0011) and
-  [ADR-0012](../adr/0012-optional-local-ui-server.md).
+- Accepted [ADRs](../adr/README.md) (ADR-0001…ADR-0017).
 
 **Compliance (requirements imported by citation):** the CLI contract fixes the exact command
 syntax and JSON output shapes; the data model fixes the database schema and the rules the
