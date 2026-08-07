@@ -57,9 +57,12 @@ export const MAX_ACTION_BODY_BYTES = 1_048_576;
 
 /**
  * The exact Store surface the server may touch: the snapshot reads, the
- * change-signature poll, and the four FR-U19 action writes. Narrowing the
- * parameter type keeps a consuming call such as `receiveMessages` a compile
- * error (FR-U11/FR-U12 boundary).
+ * change-signature poll, and exactly the action writes `ActionStore` declares.
+ * This interface EXTENDS that one, so `./actions.js` stays the single
+ * authority on which writes are sanctioned and there is no second inventory
+ * here to fall out of step with it. Narrowing the parameter type keeps a
+ * consuming call such as `receiveMessages` a compile error (FR-U11/FR-U12
+ * boundary).
  */
 export interface UiStore extends SnapshotStore, ActionStore {
   getChangeSignature(): ChangeSignature;
