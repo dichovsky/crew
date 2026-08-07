@@ -48,16 +48,15 @@
     "build:web": "esbuild web/main.tsx --bundle --minify --format=esm --jsx=automatic --jsx-import-source=preact --loader:.css=text --outdir=dist/ui-assets && cp web/index.html dist/ui-assets/index.html",
     "build:docs": "esbuild docs-site/main.tsx --bundle --minify --format=esm --jsx=automatic --jsx-import-source=preact --loader:.css=text --outdir=dist-docs && cp docs-site/index.html dist-docs/index.html",
     "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json && tsc -p docs-site/tsconfig.json && tsc -p e2e/ui/tsconfig.json",
-    "lint": "eslint . --ignore-pattern dist-docs",
-    "lint:fix": "eslint . --ignore-pattern dist-docs --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:stress": "CREW_STRESS_ITERS=300 vitest run tests/spawn",
     "test:watch": "vitest",
-    "e2e:ui": "playwright test --config e2e/ui/playwright.config.ts",
-    "prepack": "npm run build"
+    "e2e:ui": "playwright test --config e2e/ui/playwright.config.ts"
   },
   "dependencies": {
     "commander": "^15.0.0",
