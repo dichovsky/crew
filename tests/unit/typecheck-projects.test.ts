@@ -38,15 +38,27 @@ const TSCONFIG = /^tsconfig(\..+)?\.json$/;
  * This binds the test to a git checkout; the repo is only ever built from one.
  */
 function projectConfigs(): string[] {
-  const listed = execFileSync(
-    'git',
-    ['ls-files', '-z', '--cached', '--others', '--exclude-standard'],
-    {
-      cwd: ROOT,
-      encoding: 'utf8',
-    },
-  );
-  return listed.split('\0').filter((path) => path !== '' && TSCONFIG.test(basename(path)));
+  let listed: string;
+  try {
+    listed = execFileSync(
+      'git',
+      // The pathspec is a pre-filter, not the test: it keeps the output proportional to
+      // the tsconfigs rather than to every untracked file in the tree (execFileSync
+      // caps at 1 MiB). `TSCONFIG` below remains the actual predicate.
+      ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', '*tsconfig*.json'],
+      { cwd: ROOT, encoding: 'utf8' },
+    );
+  } catch (cause) {
+    throw new Error(
+      'this guard enumerates projects with `git ls-files`, so it requires a git checkout',
+      { cause },
+    );
+  }
+  // An unmerged path has three index entries, so dedupe: during a conflict the same
+  // tsconfig would otherwise be reported three times.
+  return [
+    ...new Set(listed.split('\0').filter((path) => path !== '' && TSCONFIG.test(basename(path)))),
+  ];
 }
 
 const scripts = (

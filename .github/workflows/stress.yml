@@ -45,6 +45,11 @@ jobs:
       # this gate can never silently false-green.
       - run: sudo apt-get update && sudo apt-get install -y tmux
       - run: tmux -V
+      # Kept deliberately, though vitest's globalSetup (tests/global-build.ts) removes
+      # dist/ and rebuilds it moments later: on a nightly job nobody is watching, a
+      # broken build should fail on its own named step rather than surface as a
+      # test-runner error inside globalSetup. The publish paths made the opposite
+      # trade for a different reason (see #45); this one is worth the extra ~15s.
       - run: npm run build
       - name: Forced-contention stress
         run: npx vitest run tests/spawn
