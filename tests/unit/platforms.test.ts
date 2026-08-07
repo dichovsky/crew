@@ -530,16 +530,23 @@ describe('official sources mirror setup-integration.md', () => {
   it('§4.0 quotes the shared workflow with its {{ROLE_ARGS}} token intact', () => {
     const heading = doc.indexOf('### 4.0 ');
     expect(heading, 'setup-integration.md no longer has a "### 4.0 " heading').toBeGreaterThan(-1);
-    const open = doc.indexOf('```text\n', heading);
+
+    // Bound the search to §4.0's own section. Unbounded, a change to the fence's
+    // language tag would silently retarget the next `text` block in the file (§5.1 and
+    // later ones exist) and report a word-for-word failure against unrelated content.
+    const nextHeading = doc.indexOf('\n### ', heading + 1);
+    const section = nextHeading === -1 ? doc.slice(heading) : doc.slice(heading, nextHeading);
+
+    const open = section.indexOf('```text\n');
     expect(open, 'no fenced text block follows the §4.0 heading').toBeGreaterThan(-1);
     const bodyStart = open + '```text\n'.length;
-    const close = doc.indexOf('\n```', bodyStart);
+    const close = section.indexOf('\n```', bodyStart);
     expect(close, 'the §4.0 fenced text block is never closed').toBeGreaterThan(-1);
 
     // `{{ROLE_ARGS}}` is its own substitution, so rendering with the token itself
     // returns the unrendered canonical text — no need to export the private const.
     expect(
-      doc.slice(bodyStart, close),
+      section.slice(bodyStart, close),
       'setup-integration.md §4.0 no longer quotes the shared workflow word for word',
     ).toBe(renderSharedWorkflow('{{ROLE_ARGS}}'));
   });
