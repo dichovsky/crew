@@ -61,6 +61,12 @@ the same plan), the live tmux Launcher and Relay with per-Worker isolated git wo
 concurrent use and security attacks, and the `crew ui` Console — a dashboard reachable
 only from your own computer, with live updates (SSE) and Operator actions.
 
+One exception is deliberate and marked everywhere it appears: full-text search over Messages and
+Task Events ([ADR-0019](./adr/0019-fts5-search.md), SRS group S, the CLI contract's Search
+section, and data-model schema version 8) is **specified but not implemented**. It was promoted
+through the design documents first, on purpose, and the code that satisfies them is a separate
+change.
+
 `0.1.1` is the current published release on npm and the first published through the OIDC
 pipeline, so it carries build provenance. `0.1.0` does not: npm's OIDC Trusted Publishing
 can only attach to a package that already exists, so the first publish was a one-time

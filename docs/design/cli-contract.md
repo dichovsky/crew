@@ -3,7 +3,10 @@
 This is the binding ("normative") contract for version 1 of the crew command line: what each
 command accepts, what it prints, and how it fails. The `crew ui` and `crew team stop` commands
 were added after v1; they only add to the contract and take nothing away from it. Examples use
-the `crew` executable regardless of the final npm package name.
+the `crew` executable regardless of the final npm package name. One section — **Search** — is
+marked *specified, not implemented*: it is the contract [ADR-0019](../adr/0019-fts5-search.md)
+agreed for issue 8, written ahead of the code that must satisfy it, and every part of this
+document that mentions it says so.
 
 ## General rules
 
@@ -455,6 +458,77 @@ crew ui [--port <n>] [--no-open] [--json]
 - `ui` failures use the existing error codes and follow the General rules for stdout, stderr,
   and exit status; the command introduces no new error code.
 
+### Search (post-v1; specified, not implemented)
+
+> This section specifies the command agreed in [ADR-0019](../adr/0019-fts5-search.md) for issue
+> 8 and required by SRS group S. **`crew search` does not exist yet** — it is registered by no
+> program, and running it today is an unknown-command `USAGE` error like any other. The section
+> is written as a binding contract so that the implementation has one to satisfy; until that
+> lands, it describes intent, not behavior.
+
+```text
+crew search <query...> [--scope <messages|task-events|all>] [--agent <id>]
+            [--since <timestamp>] [--limit <1..500>] [--json]
+crew search --reindex [--json]
+```
+
+- `search` finds stored text by matching words. It is lexical: it compares the words you typed
+  against the words that were stored, and it never runs a model, computes an embedding, or
+  reaches the network.
+- Two things are searchable: a Message's content and a Task Event's detail. Task titles and
+  bodies are **not** searchable; use `task list` and `task show` for those. The reason is
+  recorded in ADR-0019 and is a property of how Task rows are keyed, not a judgment about their
+  value.
+- The query is crew's own small language, not raw FTS5 syntax:
+  - words separated by spaces — every word must appear (`lease inspector` finds text containing
+    both);
+  - `"quoted phrases"` — the words must appear together, in that order;
+  - a trailing `*` on a word — a prefix match (`leas*` finds `lease` and `leasing`).
+  Everything else is matched literally, including words such as `AND`, `OR`, and `NEAR`, and
+  including punctuation: crew compiles what you typed into a search expression rather than
+  handing it to SQLite, so no query can be a syntax error and no query can reach beyond the two
+  searchable columns. Matching ignores case and diacritics, so `cafe` finds `CAFÉ`.
+- The query is 1 to 500 Unicode code points once the arguments are joined with single spaces.
+  A query that matches nothing prints `No results.` and exits 0 — finding nothing is a
+  successful search.
+- `--scope` selects what to search; the default is `all`. Its values are plural and hyphenated
+  (`messages`, `task-events`) while a `--json` record's own `scope` field is singular and
+  underscored (`message`, `task_event`). That is deliberate and not a typo: the option names a
+  set to search over, the field labels the one record it sits on, and the underscored form
+  matches the record vocabulary the rest of the JSON surface already uses. A consumer mapping
+  one to the other drops the `s` and swaps `-` for `_`. `--agent x` matches Messages where `x`
+  is the sender or the recipient and Task Events where `x` is the actor, following the same rule
+  `history --agent` already uses; the Agent must exist but may be archived. `--since` is
+  inclusive and takes the same epoch-second or ISO-8601 forms `history` accepts.
+- `--limit` (default 50, range 1 through 500) bounds **each scope independently**, so
+  `--scope all --limit 50` returns up to 50 Messages and up to 50 Task Events. A single total
+  cap was deliberately not chosen: because the two scopes are listed rather than merged (see
+  ordering below), a shared budget would let a full first list hide the second one entirely.
+- Results within one scope are ordered best match first, using the `bm25()` relevance score,
+  with ties broken by newest first and then by descending record id — a total order, so the same
+  query over the same Store always returns the same sequence. With `--scope all`, Messages are
+  listed first and Task Events second, each ranked within itself. crew does **not** interleave
+  them by score: a relevance score is computed from the statistics of one index, so a Message's
+  score and a Task Event's score are not comparable, and pretending otherwise would invent a
+  number. Every record carries its own `rank`, so a consumer can order the union however it
+  likes.
+- A result carries a short excerpt of the matched text — at most 32 matched-and-surrounding
+  words, then the same 200-code-point preview rule `pending` and `history` use, with `…` only
+  where something was cut. It does not carry the full stored content. To fetch that: for a
+  Message, use the reported `id` with `crew history`; for a Task Event, use its `task_id` — not
+  its `id` — with `crew task show <task-id> --events`, since `task show` is keyed by Task.
+- `search` only looks. It marks no Message read, refreshes no Agent's activity, and writes
+  nothing to the State Store.
+- `crew search --reindex` is the one exception: it rebuilds both indexes from the Messages and
+  Task Events they index and writes nothing else. It takes no query and no filter — combining it
+  with either is `USAGE`. Rebuilding is always safe because an index holds no fact of its own.
+  It is the repair for the `SEARCH_INDEX_STALE` finding `doctor` reports when the number of
+  indexed documents no longer matches the number of stored rows; an index whose *objects* are
+  missing or altered is schema drift instead, and fails the command that opened the store with
+  `INTEGRITY`.
+- `search` introduces no new error code: a malformed query or flag combination is `USAGE`, an
+  unknown `--agent` is `NOT_FOUND`, and a Workspace is required as for any stateful command.
+
 ### Maintenance
 
 ```text
@@ -583,6 +657,41 @@ status does not change.
 {"type":"task_review","schema_version":1,"task_id":"uuid","agent_id":"inspector","path":"/home/user/.local/share/crew/worktrees/<repo-hash>/review-696e73706563746f72","branch":"crew/review-696e73706563746f72","base_ref":"main"}
 ```
 
+### Search result and reindex result (specified, not implemented)
+
+`crew search --json` will emit one `search_result` per match, Messages first and then Task
+Events, each block in its own rank order (ADR-0019). One record shape covers both scopes: the
+fields that do not apply to a scope are `null`, the way the Task record already nulls its
+worktree trio together.
+
+```json
+{"type":"search_result","schema_version":1,"scope":"message","id":12,"rank":-0.0000015018450184501845,"snippet":"the Inspector approved the Submission after the lease…","created_at":0,"sender_id":"manager","recipient_id":"worker","kind":"note","task_id":null,"actor_id":null,"event_type":null,"revision":null}
+{"type":"search_result","schema_version":1,"scope":"task_event","id":3,"rank":-9.187358916478555e-7,"snippet":"renewed the lease and resumed work","created_at":0,"sender_id":null,"recipient_id":null,"kind":null,"task_id":"uuid","actor_id":"worker","event_type":"submitted","revision":2}
+```
+
+`scope` is `message` or `task_event`, and `id` is that record's own id in its own table — a
+Message id for the first, a Task Event id for the second. `rank` is the raw `bm25()` score, where
+a more negative number is a better match; it is comparable only among records sharing the same
+`scope`. `snippet` is a **derived** excerpt, not stored content: it is cut to a word boundary and
+marked with `…` where it was cut, and it is the one field in crew's JSON output that is computed
+from stored text rather than reproducing it.
+
+Within that excerpt the bytes are **not** rewritten: control characters survive into the JSON
+`snippet` exactly as stored (escaped by the JSON serializer, as any string is), because the
+stripping the human surface performs exists to stop stored text from driving a terminal, and
+`--json` is not one. So the two surfaces deliberately emit **different** `snippet` strings for
+the same result — human strips, `--json` does not — which is the same split every other field
+already follows. Fetch the full text with `crew history` for a
+Message, using its `id`; for a Task Event use `crew task show <task-id> --events` with the
+record's **`task_id`** — `task show` is keyed by Task, so the Task Event's own `id` will not
+resolve there.
+
+`crew search --reindex --json` emits exactly one record instead:
+
+```json
+{"type":"reindex_result","schema_version":1,"messages_indexed":1240,"task_events_indexed":88}
+```
+
 ### Health finding and summary
 
 `doctor` emits zero or more `health_finding` records (most noteworthy first) followed by
@@ -590,7 +699,8 @@ exactly one `health_summary`. `severity` is one of `info`, `warn`, `error`; `det
 optional object. The finding `code` comes from this closed list: `DEPENDENCY_MISSING`,
 `VERSION_FLOOR`, `STATE_PATH`, `NETWORK_FILESYSTEM`, `NESTED_WORKSPACE`, `NO_STATE_STORE`,
 `UNSUPPORTED_SCHEMA`, `INTEGRITY`, `SCHEMA_DRIFT`, `STALE_LEASE`, `ARCHIVED_OWNER`,
-`ROLE_DRIFT`, `TEAM_DRIFT`, `SETUP_DRIFT`, `RESUME_DRIFT`, `INVALID_CONFIG`, `UNSAFE_PATH`.
+`ROLE_DRIFT`, `TEAM_DRIFT`, `SETUP_DRIFT`, `RESUME_DRIFT`, `INVALID_CONFIG`, `UNSAFE_PATH`, and
+— once the Search section above is implemented — `SEARCH_INDEX_STALE`.
 `DEPENDENCY_MISSING`, `UNSUPPORTED_SCHEMA`, `INTEGRITY`, `TEAM_DRIFT`, `INVALID_CONFIG`, and
 `UNSAFE_PATH` are shared with the error-code vocabulary, so findings and errors speak one
 language wherever they overlap; the remaining codes are diagnostic-only names with no
@@ -610,7 +720,11 @@ config file that cannot be read does not abort `doctor`: it becomes a `warn` fin
 or invalid project file produces its own finding (with the file's `name` in `details`) while
 every remaining valid Role/Team config is still listed and checked for drift. If the whole
 listing fails (e.g. the `roles/` or `teams/` directory itself cannot be read), that becomes a
-single finding the same way.
+single finding the same way. `SEARCH_INDEX_STALE` will report a search index whose indexed-document
+count no longer matches the number of stored Messages or Task Events (`warn`); its `details` carry
+the affected `scope` and the two counts, and the message names `crew search --reindex` as the fix.
+It is diagnosed read-only, so it proves that rows are missing from an index, not that the indexed
+text is right.
 
 ```json
 {"type":"health_finding","schema_version":1,"severity":"warn","code":"STALE_LEASE","message":"Task lease expired","details":{"task_id":"uuid"}}
@@ -806,6 +920,15 @@ widths are pinned by the snapshot fixtures, not promised as an API.
   of its own.
 - Successful `crew team stop` output names the stopped session and how many Agents were
   archived, for example `Stopped crew-demo; archived 3 Agents.`
+- `crew search` (specified, not implemented) renders one labeled block per scope, each with its
+  own header row, in the fixed order Messages then Task Events; a scope with no match prints its
+  header and a single `No matching messages.` / `No matching task events.` line, and a search
+  where neither scope matched prints `No results.` alone. Excerpts follow the same preview and
+  control-character rules as `pending` and `history` — stripping applies to this human surface
+  only; the `--json` `snippet` keeps its bytes — and the relevance score is not shown: human
+  output presents the ranked order, `--json` carries the number.
+- `crew search --reindex` prints one line naming what it reindexed, for example
+  `Reindexed 1240 messages and 88 task events.`
 
 Representative examples (the whitespace shows the idea; it is not part of the contract):
 
@@ -828,6 +951,17 @@ Lease   none
 
 $ crew agents   # when none exist
 No agents.
+
+$ crew search lease            # specified, not implemented
+MESSAGES
+#12  manager -> worker    2026-06-29T10:00:00Z
+  the Inspector approved the Submission after the lease…
+#9   worker -> manager    2026-06-29T09:40:00Z
+  renewing the lease on the auth task
+
+TASK EVENTS
+#3   worker  submitted    2026-06-29T09:55:00Z  task 4f2c…
+  renewed the lease and resumed work
 ```
 
 ## Human rendering safety

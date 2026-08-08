@@ -176,7 +176,8 @@ contract documents and are not repeated here.
 
 - **CLI command surface** — subcommands `init`, `join`, `leave`, `agents`, `send`, `receive`,
   `pending`, `history`, `task …`, `roles`/`role …`, `teams`/`team …`, `setup`, `doctor`,
-  `prune`, `clean`, `ui`, and the internal `relay`. Purpose, arguments, valid ranges, and
+  `prune`, `clean`, `ui`, and the internal `relay` — plus `search`, which group S specifies and
+  which is not yet built. Purpose, arguments, valid ranges, and
   command formats are defined by [cli-contract.md](./cli-contract.md). Source of input:
   operator arguments and stdin; destination of output: stdout/stderr.
 - **Human + NDJSON output contract** — every command that produces records emits either a
@@ -203,8 +204,10 @@ contract documents and are not repeated here.
 
 ### 3.2 Functions (§9.5.11)
 
-Functional requirements are grouped A–K, U, and W. Groups A–K are mandatory ("shall") for v1;
-groups U and W were added after v1 and are just as mandatory. Behavior requirements for
+Functional requirements are grouped A–K, U, W, and S. Groups A–K are mandatory ("shall") for v1;
+groups U and W were added after v1 and are just as mandatory. Group S was added after those and
+is mandatory for the search feature it specifies, which is **designed but not yet built** — see
+the note at the head of the group. Behavior requirements for
 storage (group I), output (group J), and maintenance (group K) stay here in §3.2 by design;
 the quality sections (§3.3–§3.7) add quality-attribute NFRs and point to these functions
 rather than restating them.
@@ -1166,6 +1169,88 @@ rather than restating them.
   remove the worktree on disk, warning on stderr on failure without blocking the abandon.
   *Verify: automated test — `tests/store/tasks.test.ts`, `tests/integration/commands/tasks.test.ts`.*
 
+#### S. Full-text search over Messages and Task Events
+
+> **Specified, not implemented.** Group S records the design agreed in
+> [ADR-0019](../adr/0019-fts5-search.md) for issue 8. No part of it is built: `src/cli.ts`
+> registers no `search` command, `src/store/schema.ts` still declares schema v7, and no test
+> covers any requirement below. Every **Verify:** line in this group is therefore an
+> *inspection* line naming the design source, never a citation of a test that does not exist.
+> The implementation change replaces each of them with an automated test in the same change
+> that makes the requirement true; a group-S requirement that ships without one has not
+> shipped. The group is numbered `FR-S*` and, like group W, is not part of the retired v1 set.
+
+- **FR-S01 — Lexical search only (ADR-0019).** Search shall match stored tokens and shall never
+  compute or consult an embedding, call a model provider, or reach the network; it adds no
+  exception to FR-A06. *Verify: inspection — ADR-0019 ("Search is lexical, and never
+  semantic"); unimplemented, see the group note.*
+- **FR-S02 — Searchable content boundary.** Exactly two columns shall be searchable — a
+  Message's content and a Task Event's detail; Task titles and bodies shall not be indexed,
+  because `tasks` has no explicit `INTEGER PRIMARY KEY` and `VACUUM` may renumber the rowids of
+  such a table. *Verify: inspection — ADR-0019 ("What is searchable"); data-model.md schema-v8
+  section; unimplemented, see the group note.*
+- **FR-S03 — External-content indexes.** Each index shall be an FTS5 external-content virtual
+  table reading its text from the indexed table, so no Message or Task Event text is stored
+  twice and the index remains derived state that can be dropped and rebuilt. *Verify:
+  inspection — ADR-0019 ("The index is external-content"); data-model.md; unimplemented, see
+  the group note.*
+- **FR-S04 — Trigger-maintained synchronization.** Every insert, update, and delete on an
+  indexed table shall carry into its index through SQLite triggers declared in the schema, so
+  that no write path — including `prune`'s direct deletes and the `ON DELETE CASCADE` edges from
+  `tasks` — can bypass index maintenance. *Verify: inspection — ADR-0019 ("kept in sync by
+  SQLite triggers"); unimplemented, see the group note.*
+- **FR-S05 — Compiled query, never pass-through.** crew shall compile the Operator's query from
+  its own closed language (whitespace-separated terms, `"quoted phrases"`, and a trailing `*`
+  prefix marker) into an FTS5 `MATCH` expression in which every user token appears as a string
+  literal, shall pass that expression as a bound parameter, and shall never forward the raw
+  query to FTS5. *Verify: inspection — ADR-0019 ("The query is compiled by crew");
+  cli-contract.md; unimplemented, see the group note.*
+- **FR-S06 — Scope and filters.** Search shall accept a scope of Messages, Task Events, or both,
+  and shall narrow results by acting Agent and by time using the same semantics `history`
+  already defines for `--agent` and `--since`. *Verify: inspection — cli-contract.md
+  (Search); unimplemented, see the group note.*
+- **FR-S07 — Deterministic total order.** Results within one scope shall be ordered by
+  `bm25()` ascending, then `created_at` descending, then record id descending — a total order,
+  so two runs over the same Store return the same sequence. *Verify: inspection — ADR-0019
+  ("Ranking is `bm25()` within one index"); unimplemented, see the group note.*
+- **FR-S08 — No cross-index score fusion.** A search covering both scopes shall emit its Message
+  results and then its Task Event results, each ranked within itself, and shall never order the
+  two together by comparing `bm25()` scores computed from different indexes. *Verify:
+  inspection — ADR-0019; cli-contract.md (Search); unimplemented, see the group note.*
+- **FR-S09 — Search observes without changing.** Search shall mark no Message read, refresh no
+  Agent's activity timestamp, and write nothing to the State Store; the explicit reindex
+  request (FR-S13) shall be the only writing mode of the command. *Verify: inspection —
+  ADR-0019 ("Search reads what `crew history` already reads"); unimplemented, see the group
+  note.*
+- **FR-S10 — Derived snippet, not stored content.** Each result shall carry a derived excerpt of
+  the matched text plus the id needed to fetch the full record elsewhere, and shall not emit the
+  stored content itself, so FR-J-class output rules that forbid rewriting stored bytes in JSON
+  remain satisfied. *Verify: inspection — cli-contract.md (Search record); unimplemented, see
+  the group note.*
+- **FR-S11 — Dual output surfaces.** Search shall render both a human listing and one NDJSON
+  record per result under `--json`, and an empty result shall print the empty-list line and exit
+  0. *Verify: inspection — cli-contract.md (Search); unimplemented, see the group note.*
+- **FR-S12 — A missing index is schema drift.** An absent or altered search index object shall
+  fail the standing schema check as `INTEGRITY`, never degrade silently into a search that
+  returns nothing. *Verify: inspection — ADR-0019 ("A missing index fails loudly");
+  data-model.md; unimplemented, see the group note.*
+- **FR-S13 — Stale index is detected and repairable.** `doctor` shall report a stale index as a
+  distinct read-only finding derived from comparing indexed-document counts against row counts,
+  and an explicit reindex request shall rebuild both indexes from the rows they index. *Verify:
+  inspection — ADR-0019 ("a stale one is detected and repairable"); cli-contract.md;
+  unimplemented, see the group note.*
+- **FR-S14 — Upgrade backfills the index.** The schema migration that introduces the indexes
+  shall populate them from the Messages and Task Events already stored, within the same
+  migration transaction, so an upgraded Workspace searches its whole history and not only what
+  it stores afterwards. *Verify: inspection — data-model.md (schema-v8 migration);
+  unimplemented, see the group note.*
+- **FR-S15 — Narrow drift exception for index-owned objects.** The schema check shall accept
+  FTS5's own shadow tables only when `pragma_table_list` reports them as shadow tables belonging
+  to a virtual table crew expects, shall not compare their SQL against pinned text, and shall not
+  require them to be `STRICT`; every other unexpected object shall remain a failure. *Verify:
+  inspection — ADR-0019 ("the drift check ... learns two new categories"); data-model.md;
+  unimplemented, see the group note.*
+
 ### 3.3 Usability requirements (§9.5.12)
 
 Usability is largely enforced by functions in §3.2 (dual output FR-J01, sanitization FR-J08–J10,
@@ -1208,7 +1293,10 @@ locality (FR-I02, FR-I03), hardened open (FR-I04, FR-I05), versioning/migration
 (FR-I06–FR-I08), STRICT constraints and indexes (FR-I09), contention handling (FR-I10, FR-I11),
 transaction ordering (FR-I12), a single operation clock (FR-I13), and crash integrity (FR-I14).
 Retention and deletion are governed by FR-K02–FR-K04. This section points to those
-requirements rather than restating them.
+requirements rather than restating them. Group S adds the Store's first *derived* content — two
+full-text indexes over Message content and Task Event detail (FR-S02–FR-S04), which hold no fact
+of their own and can always be rebuilt from the rows they index — specified in data-model.md as
+schema version 8 and not yet built.
 
 ### 3.6 Design constraints (§9.5.15)
 
@@ -1492,8 +1580,8 @@ Counts: **98** old v1 ids → **183** new v1 single-rule ids; **66** old ids wer
 counts describe the renumbering this table records and are not a live count of in-scope
 requirements: `FR-H08` was later retired (deferred as `FR-X09`), so 182 of the 183 still state
 a rule. The additive post-v1 ids `FR-U01`–`FR-U54`, `FR-E22`–`FR-E24`, `FR-H29`, and
-`FR-W01`–`FR-W15` did not exist in the retired v1 set and are intentionally excluded from those
-counts. Deferred `FR-X01`–`FR-X09` are unchanged, except `FR-X07`, which is promoted to the
+`FR-W01`–`FR-W15` and `FR-S01`–`FR-S15` did not exist in the retired v1 set and are
+intentionally excluded from those counts. Deferred `FR-X01`–`FR-X09` are unchanged, except `FR-X07`, which is promoted to the
 group W contract (`FR-W01`–`FR-W15`, ADR-0015), and `FR-X09`, which is new — the retired
 `FR-H08`; see Appendix D.
 
@@ -1556,7 +1644,13 @@ which states no rule and so has nothing to grade; its group-H row records that.
 | K | FR-K01–FR-K10 | all nine P (except FR-K01) |
 | U | FR-U01–FR-U54 | all nine P (except FR-U48) |
 | W | FR-W01–FR-W15 | all nine P |
+| S | FR-S01–FR-S15 | all nine P (except FR-S13, FR-S15) |
 | NFR | all NFR-\* | all nine P |
+
+Group S grades **V** (Verifiable) as a pass because each requirement states a checkable rule, not
+because a check exists: none of group S is implemented, so its **Verify:** lines name the design
+source by inspection. "Verifiable" is a property of the wording; "verified" is a property of the
+build, and group S has the first without the second.
 
 #### Override rows (non-P cells)
 
@@ -1571,6 +1665,8 @@ which states no rule and so has nothing to grade; its group-H row records that.
 | FR-I09 | P | P | P | P | P | NE | P | P | P | Bundles STRICT + constraint kinds + indexes; could split. |
 | FR-K01 | P | P | P | P | P | NE | P | P | P | Enumerates eleven diagnostics; could split per diagnostic. |
 | FR-U48 | P | P | P | P | P | NE | P | P | P | Bundles a timing rule (retire only after a successful relaunch) with a tolerance rule (a failed removal still succeeds); could split into two. |
+| FR-S13 | P | P | P | P | P | NE | P | P | P | Bundles the `doctor` staleness finding with the reindex repair; could split into two. |
+| FR-S15 | P | NE | P | P | P | NE | P | P | P | Bundles three drift-check allowances and names `pragma_table_list` as the mechanism; could split, and could state the outcome with data-model.md as the mechanism source. |
 
 All other in-scope requirements grade **P** on all nine per their section default. Deferred
 `FR-X*` requirements are out of scope and are not graded here.
@@ -1599,5 +1695,12 @@ All other in-scope requirements grade **P** on all nine per their section defaul
 - **FR-U48** (S): split into a timing requirement (retirement is attempted only after a
   successful relaunch, and skipped otherwise) and a tolerance requirement (a failed removal
   leaves the resume successful) if per-rule verification is wanted.
+- **FR-S13** (S): split into a diagnosis requirement (`doctor` reports a stale index) and a
+  repair requirement (an explicit reindex rebuilds both indexes) if per-rule verification is
+  wanted.
+- **FR-S15** (IF, S): restate as the required outcome (index-owned objects are accepted only as
+  such, everything else still fails) and cite data-model.md for the `pragma_table_list`
+  mechanism; split the shadow-table, pinned-text, and `STRICT` allowances if finer rules are
+  wanted.
 - **NFR-PERF-01** (Cm, U, V): **resolved** — latency is declared out of contract for v1 (a
   deliberate non-constraint with rationale), rather than committing a measurable figure.

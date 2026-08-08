@@ -391,6 +391,11 @@
       "id": "0018",
       "slug": "0018-worktree-teardown-policy",
       "title": "Stopping a Team never removes its Worktree"
+    },
+    {
+      "id": "0019",
+      "slug": "0019-fts5-search",
+      "title": "Lexical FTS5 search over Messages and Task Events"
     }
   ]
 }

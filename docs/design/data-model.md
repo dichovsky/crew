@@ -4,6 +4,10 @@ This document defines the binding v1 contract for how crew stores data, plus con
 added after v1 on top of the unchanged schema. The SQL names below are for implementers; the
 surrounding prose uses the domain vocabulary from [CONTEXT.md](../../CONTEXT.md).
 
+One section — [Schema version 8](#schema-version-8-specified-not-implemented) — specifies a
+change that is **designed but not built** ([ADR-0019](../adr/0019-fts5-search.md), SRS group S).
+Everything else in this document describes the schema that exists today, which is version 7.
+
 ## Store location and opening
 
 The State Store — the SQLite database every Agent in a Workspace shares — is
@@ -284,6 +288,139 @@ the reads by `task_id` and the reads by `(task_id, revision)` (the explicit
 to `agents`; the triggers make `cursor` only ever increase within the lifetime of one
 database file, and a missing row is read as cursor 0.
 
+## Schema version 8 (specified, not implemented)
+
+> This section specifies the schema change [ADR-0019](../adr/0019-fts5-search.md) decided for
+> issue 8 and SRS group S. **It is not built.** `CURRENT_SCHEMA_VERSION` and the stamp on the
+> last line of the binding block above are still 7, this section deliberately writes no
+> `PRAGMA user_version` line of its own (the sole stamp in this document is pinned by
+> `tests/store/schema.test.ts` to the *released* version), and no code creates any object below.
+> The implementation change moves the SQL into the block above, renames its heading, moves the
+> stamp, and adds the migration tests — in one change, as the change discipline requires.
+
+Version 8 adds full-text search over the two columns where durable free text accumulates: a
+Message's `content` and a Task Event's `detail`. Each index is an **external-content** FTS5
+virtual table — it stores the inverted index only and reads the document text back from the
+table it names, so no Message or Task Event text is stored twice and the `STRICT` tables above
+remain the single source of truth for what was said. The indexes are derived state: they can be
+dropped and rebuilt from the rows they index, and nothing is lost when they are.
+
+`content_rowid` is `id` in both cases, and that is a requirement rather than a convenience.
+`messages` and `task_events` both declare `id INTEGER PRIMARY KEY AUTOINCREMENT`, which is an
+explicit `INTEGER PRIMARY KEY`, so `VACUUM` (which `prune --vacuum` runs) leaves those rowids
+alone. `tasks`, whose `id` is a `TEXT PRIMARY KEY`, has no explicit `INTEGER PRIMARY KEY` and is
+exactly the kind of table SQLite documents `VACUUM` as free to renumber — which is why Task
+titles and bodies are **not** indexed (ADR-0019).
+
+```sql
+CREATE VIRTUAL TABLE messages_fts USING fts5(
+  content,
+  content='messages',
+  content_rowid='id',
+  tokenize='unicode61 remove_diacritics 2'
+);
+
+CREATE VIRTUAL TABLE task_events_fts USING fts5(
+  detail,
+  content='task_events',
+  content_rowid='id',
+  tokenize='unicode61 remove_diacritics 2'
+);
+
+CREATE TRIGGER trg_messages_fts_insert AFTER INSERT ON messages
+BEGIN
+  INSERT INTO messages_fts (rowid, content) VALUES (new.id, new.content);
+END;
+
+CREATE TRIGGER trg_messages_fts_update AFTER UPDATE OF content ON messages
+BEGIN
+  INSERT INTO messages_fts (messages_fts, rowid, content) VALUES ('delete', old.id, old.content);
+  INSERT INTO messages_fts (rowid, content) VALUES (new.id, new.content);
+END;
+
+CREATE TRIGGER trg_messages_fts_delete AFTER DELETE ON messages
+BEGIN
+  INSERT INTO messages_fts (messages_fts, rowid, content) VALUES ('delete', old.id, old.content);
+END;
+
+CREATE TRIGGER trg_task_events_fts_insert AFTER INSERT ON task_events
+BEGIN
+  INSERT INTO task_events_fts (rowid, detail) VALUES (new.id, new.detail);
+END;
+
+CREATE TRIGGER trg_task_events_fts_update AFTER UPDATE OF detail ON task_events
+BEGIN
+  INSERT INTO task_events_fts (task_events_fts, rowid, detail) VALUES ('delete', old.id, old.detail);
+  INSERT INTO task_events_fts (rowid, detail) VALUES (new.id, new.detail);
+END;
+
+CREATE TRIGGER trg_task_events_fts_delete AFTER DELETE ON task_events
+BEGIN
+  INSERT INTO task_events_fts (task_events_fts, rowid, detail) VALUES ('delete', old.id, old.detail);
+END;
+```
+
+Notes on the shape above, each of which was measured against a connection opened with exactly
+the options and pragmas listed under [Store location and opening](#store-location-and-opening)
+(Node `v24.19.0`, SQLite `3.53.3` as bundled in `node:sqlite`):
+
+- **The update triggers are column-scoped (`AFTER UPDATE OF …`) on purpose.** `receive` marks up
+  to 500 Messages read in one statement, and every one of those is an `UPDATE` that does not
+  touch `content`; a blanket `AFTER UPDATE` trigger would delete and re-insert 500 identical
+  index entries for no change. Both indexed columns are write-once in practice — a Message's
+  content and a Task Event's detail are never rewritten — so the column-scoped trigger is the
+  correctness guard for a case that should not arise, not a hot path.
+- **Triggers reach writes that no crew code names.** `prune` deletes Messages and Task Events
+  with its own statements, and the `ON DELETE CASCADE` edges from `tasks` remove both without
+  any crew SQL mentioning them. A cascaded delete was measured to fire the `AFTER DELETE`
+  triggers with `recursive_triggers` at its default `OFF`, so no pragma change is made; the
+  staleness check below exists so that a wrong assumption here is detected rather than believed.
+- **`trusted_schema = OFF` and `defensive: true` permit all of this.** Creating the virtual
+  tables, creating triggers whose bodies write them, and driving them through insert/update/delete
+  all succeed under those settings. `defensive: true` refuses a direct write to a shadow table,
+  which this design never performs — every write goes through the virtual table.
+- **Each virtual table brings four shadow tables** (`…_data`, `…_idx`, `…_docsize`, `…_config`
+  on this SQLite version). They appear in `sqlite_schema` as ordinary tables, none is `STRICT`,
+  and their SQL text is written by FTS5 rather than by crew. The standing schema check therefore
+  gains a narrow exception: an expected virtual table is pinned by its declaration SQL like any
+  other object, and a shadow table is accepted only when `PRAGMA table_list` reports it with type
+  `shadow` and it belongs to one of those virtual tables. Their SQL is deliberately not pinned —
+  a future SQLite version writing it differently is not corruption — and neither category is
+  subject to the `STRICT` requirement, which a virtual table cannot meet.
+
+### Reading and repairing the indexes
+
+- A search runs `MATCH` against one index and joins back to the indexed table on `rowid = id`.
+  Relevance is `bm25()`, whose scores were measured identical for the same corpus whether the
+  index was built incrementally by the triggers or rebuilt in one pass; the CLI contract turns
+  that score into a total order by adding `created_at DESC, id DESC`.
+- The query text always reaches SQLite as a bound parameter, never as concatenated SQL, and crew
+  compiles it from its own closed language rather than forwarding raw FTS5 syntax (ADR-0019).
+- **Rebuild** is `INSERT INTO <index>(<index>) VALUES('rebuild')`, which discards the index and
+  regenerates it from the content table. This is the migration's backfill step and the repair
+  behind `crew search --reindex`.
+- **Staleness** is diagnosed read-only by comparing `count(*)` over the indexed table against
+  `count(*)` over that index's `…_docsize` shadow table; a mismatch is the `SEARCH_INDEX_STALE`
+  finding. FTS5's own integrity check is stronger, but only in its **two-argument** form
+  `INSERT INTO <index>(<index>, rank) VALUES('integrity-check', 1)`, which was measured to raise
+  `database disk image is malformed` on an index that had missed an insert, missed a delete, or
+  held wrong text. The one-argument `VALUES('integrity-check')` — and the explicit `rank = 0`
+  form — returned **no error** in all three of those cases, so writing the command without
+  `rank = 1` would produce a check that reports health on a broken index. Either way it is issued
+  as an `INSERT`, and `doctor` opens read-only by contract, so it is not used there.
+
+### The specified `7 -> 8` migration
+
+The step creates the two virtual tables and the six triggers, then runs `'rebuild'` on each
+index so that every Message and Task Event already stored is indexed before the step commits — an
+upgraded Workspace searches its whole history, not only what it stores afterwards. Like the
+released `6 -> 7` step it destroys nothing and rebuilds no table, so its validation is the same
+shape: refuse to run if stray objects already occupy the new v8 names, apply the released SQL,
+run `PRAGMA foreign_key_check`, and stamp the new `user_version` last. A crash before the step
+commits leaves the database at version 7 with no half-created objects, and because the backfill
+happens inside the same transaction, there is no window in which the objects exist but the index
+is empty.
+
 ## Entity invariants
 
 An invariant is a rule that must hold at all times; the rules below hold for every row of
@@ -530,7 +667,9 @@ creates `observable_mutations` and its nine Message, Task, and Task Event trigge
 applying the released SQL it refuses to run if stray objects already occupy the new v7
 names. The `user_version` stamp on the last line of the binding SQL block above always
 equals the implementation's `CURRENT_SCHEMA_VERSION`; a test asserts the two can never drift
-apart. Once several schema versions have shipped, at least the two most
+apart. The specified — and unbuilt — `7 -> 8` step is described under
+[Schema version 8](#schema-version-8-specified-not-implemented) and follows this same contract.
+Once several schema versions have shipped, at least the two most
 recently released versions can be migrated. Anything older receives an instruction to export
 and upgrade, rather than a best-effort attempt to change it in place.
 
@@ -558,6 +697,10 @@ and upgrade, rather than a best-effort attempt to change it in place.
   the command exits 1 (`ACTIVE_AGENTS`).
 - Agent rows are kept until a full `clean`; that way every old Message and Task still points
   at a real Agent.
+- Once schema version 8 is built, each of those deletes also removes the deleted rows from the
+  search indexes, because the removal is carried by triggers on the tables themselves rather
+  than by `prune`'s own statements; `--vacuum` is safe for the same reason the indexes key on
+  `id` (see [Schema version 8](#schema-version-8-specified-not-implemented)).
 - `clean` removes `crew.db` and its `-wal` and `-shm` helper files, and leaves all tracked
   configuration untouched. Without `--force` it refuses while active Agents exist — or when
   the store cannot even be opened to count them. `clean --force` never opens the database at
@@ -587,3 +730,8 @@ checks cover:
   Role/Team seed files (`ROLE_DRIFT`/`TEAM_DRIFT`).
 - One check is **skipped in read-only diagnosis**: whether a normal writable open ends up in
   WAL mode, because that cannot be established without writing.
+
+Schema version 8 adds one more read-only check — a search index whose indexed-document count no
+longer matches its table's row count (`SEARCH_INDEX_STALE`) — which is specified but not built;
+see [Schema version 8](#schema-version-8-specified-not-implemented) for why it is a count
+comparison rather than FTS5's own integrity command.
