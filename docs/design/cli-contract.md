@@ -491,7 +491,12 @@ crew search --reindex [--json]
 - The query is 1 to 500 Unicode code points once the arguments are joined with single spaces.
   A query that matches nothing prints `No results.` and exits 0 — finding nothing is a
   successful search.
-- `--scope` selects what to search; the default is `all`. `--agent x` matches Messages where `x`
+- `--scope` selects what to search; the default is `all`. Its values are plural and hyphenated
+  (`messages`, `task-events`) while a `--json` record's own `scope` field is singular and
+  underscored (`message`, `task_event`). That is deliberate and not a typo: the option names a
+  set to search over, the field labels the one record it sits on, and the underscored form
+  matches the record vocabulary the rest of the JSON surface already uses. A consumer mapping
+  one to the other drops the `s` and swaps `-` for `_`. `--agent x` matches Messages where `x`
   is the sender or the recipient and Task Events where `x` is the actor, following the same rule
   `history --agent` already uses; the Agent must exist but may be archived. `--since` is
   inclusive and takes the same epoch-second or ISO-8601 forms `history` accepts.
@@ -509,8 +514,9 @@ crew search --reindex [--json]
   likes.
 - A result carries a short excerpt of the matched text — at most 32 matched-and-surrounding
   words, then the same 200-code-point preview rule `pending` and `history` use, with `…` only
-  where something was cut. It does not carry the full stored content: use the `id` it reports
-  with `crew history` or `crew task show` to fetch that.
+  where something was cut. It does not carry the full stored content. To fetch that: for a
+  Message, use the reported `id` with `crew history`; for a Task Event, use its `task_id` — not
+  its `id` — with `crew task show <task-id> --events`, since `task show` is keyed by Task.
 - `search` only looks. It marks no Message read, refreshes no Agent's activity, and writes
   nothing to the State Store.
 - `crew search --reindex` is the one exception: it rebuilds both indexes from the Messages and
@@ -668,8 +674,17 @@ Message id for the first, a Task Event id for the second. `rank` is the raw `bm2
 a more negative number is a better match; it is comparable only among records sharing the same
 `scope`. `snippet` is a **derived** excerpt, not stored content: it is cut to a word boundary and
 marked with `…` where it was cut, and it is the one field in crew's JSON output that is computed
-from stored text rather than reproducing it. Fetch the full text with `crew history` (Messages) or
-`crew task show` (Task Events) using the reported ids.
+from stored text rather than reproducing it.
+
+Within that excerpt the bytes are **not** rewritten: control characters survive into the JSON
+`snippet` exactly as stored (escaped by the JSON serializer, as any string is), because the
+stripping the human surface performs exists to stop stored text from driving a terminal, and
+`--json` is not one. So the two surfaces deliberately emit **different** `snippet` strings for
+the same result — human strips, `--json` does not — which is the same split every other field
+already follows. Fetch the full text with `crew history` for a
+Message, using its `id`; for a Task Event use `crew task show <task-id> --events` with the
+record's **`task_id`** — `task show` is keyed by Task, so the Task Event's own `id` will not
+resolve there.
 
 `crew search --reindex --json` emits exactly one record instead:
 
@@ -909,8 +924,9 @@ widths are pinned by the snapshot fixtures, not promised as an API.
   own header row, in the fixed order Messages then Task Events; a scope with no match prints its
   header and a single `No matching messages.` / `No matching task events.` line, and a search
   where neither scope matched prints `No results.` alone. Excerpts follow the same preview and
-  control-character rules as `pending` and `history`, and the relevance score is not shown —
-  human output presents the ranked order, `--json` carries the number.
+  control-character rules as `pending` and `history` — stripping applies to this human surface
+  only; the `--json` `snippet` keeps its bytes — and the relevance score is not shown: human
+  output presents the ranked order, `--json` carries the number.
 - `crew search --reindex` prints one line naming what it reindexed, for example
   `Reindexed 1240 messages and 88 task events.`
 

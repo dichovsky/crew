@@ -41,11 +41,12 @@ gives a wrong answer with the same confidence as a right one. Deciding what does
 and how a wrong answer is detected and repaired rather than believed, is most of what this ADR
 decides.
 
-Two existing constraints shape those decisions. The Store opens defensively (`trusted_schema =
-OFF`, `defensive: true`, `foreign_keys = ON`, WAL, no extension loading — FR-I04, FR-I05), and
-`trusted_schema = OFF` specifically restricts which virtual tables and functions may be named
-from inside schema objects such as triggers, so whether FTS5 can be driven from a trigger at all
-had to be measured rather than assumed. And `findSchemaDrift` (`src/store/schema.ts`) compares
+Two existing constraints shape those decisions. The Store opens defensively — `defensive: true`,
+`foreign_keys = ON`, no extension loading (FR-I04), WAL (FR-I05), and `trusted_schema = OFF`,
+which is set at `src/store/index.ts:252` but which no requirement currently names (tracked
+separately). That last pragma restricts which virtual tables and functions may be named from
+inside schema objects such as triggers, so whether FTS5 can be driven from a trigger at all had
+to be measured rather than assumed. And `findSchemaDrift` (`src/store/schema.ts`) compares
 every application object in `sqlite_schema` against the released SQL on every open and **rejects
 anything it does not expect**, which an FTS5 table cannot satisfy unaided: creating one adds a
 virtual table plus four shadow tables, none of which is `STRICT` and whose SQL text is written by
@@ -204,7 +205,8 @@ result carries.
 - `doctor` gains a finding that can be false-negative. Equal row counts do not prove equal
   contents — a Message whose text was somehow reindexed wrongly counts the same as one indexed
   correctly. The check catches the failure that can actually occur here (a write that never
-  reached the index), and the deeper `'integrity-check'` remains available to a future writable
+  reached the index), and the deeper check — `'integrity-check', 1`, whose `rank` argument is
+  load-bearing because the one-argument form detects nothing — remains available to a future writable
   diagnostic if one is ever wanted.
 - Task text stays unsearchable, and that will be noticed. The reason is a rowid-stability
   property of `tasks`, not a judgment that Task titles do not matter; fixing it means giving

@@ -401,9 +401,13 @@ the options and pragmas listed under [Store location and opening](#store-locatio
   behind `crew search --reindex`.
 - **Staleness** is diagnosed read-only by comparing `count(*)` over the indexed table against
   `count(*)` over that index's `…_docsize` shadow table; a mismatch is the `SEARCH_INDEX_STALE`
-  finding. FTS5's own `'integrity-check'` command is stronger — it was measured to detect an
-  index that had missed a write, raising `database disk image is malformed` — but it is issued as
-  an `INSERT`, and `doctor` opens read-only by contract, so it is not used there.
+  finding. FTS5's own integrity check is stronger, but only in its **two-argument** form
+  `INSERT INTO <index>(<index>, rank) VALUES('integrity-check', 1)`, which was measured to raise
+  `database disk image is malformed` on an index that had missed an insert, missed a delete, or
+  held wrong text. The one-argument `VALUES('integrity-check')` — and the explicit `rank = 0`
+  form — returned **no error** in all three of those cases, so writing the command without
+  `rank = 1` would produce a check that reports health on a broken index. Either way it is issued
+  as an `INSERT`, and `doctor` opens read-only by contract, so it is not used there.
 
 ### The specified `7 -> 8` migration
 
