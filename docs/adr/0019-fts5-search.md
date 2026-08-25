@@ -42,11 +42,11 @@ and how a wrong answer is detected and repaired rather than believed, is most of
 decides.
 
 Two existing constraints shape those decisions. The Store opens defensively — `defensive: true`,
-`foreign_keys = ON`, no extension loading (FR-I04), WAL (FR-I05), and `trusted_schema = OFF`,
-which is set at `src/store/index.ts:252` but which no requirement currently names (tracked
-separately). That last pragma restricts which virtual tables and functions may be named from
-inside schema objects such as triggers, so whether FTS5 can be driven from a trigger at all had
-to be measured rather than assumed. And `findSchemaDrift` (`src/store/schema.ts`) compares
+`foreign_keys = ON`, no extension loading, `trusted_schema = OFF`, and `cell_size_check = ON`
+(FR-I04), plus WAL (FR-I05). The trusted-schema pragma restricts which virtual tables and
+functions may be named from inside schema objects such as triggers, so whether FTS5 can be
+driven from a trigger at all had to be measured rather than assumed. And `findSchemaDrift`
+(`src/store/schema.ts`) compares
 every application object in `sqlite_schema` against the released SQL on every open and **rejects
 anything it does not expect**, which an FTS5 table cannot satisfy unaided: creating one adds a
 virtual table plus four shadow tables, none of which is `STRICT` and whose SQL text is written by
