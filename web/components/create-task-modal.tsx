@@ -39,6 +39,7 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
   const [body, setBody] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasRecipients = recipientOptions.length > 0;
 
   useDialogFocus({
     open: true,
@@ -138,6 +139,11 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
             {error}
           </p>
         )}
+        {!hasRecipients && (
+          <p id="create-task-roster-empty" class="empty-action-note" role="status">
+            No active Agents are available. Restore an Agent before creating a Task.
+          </p>
+        )}
         <label class="field-label" for="create-task-title">
           Title
         </label>
@@ -157,10 +163,11 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
           id="create-task-assignee"
           class="select"
           value={recipientOptions.some((option) => option.id === assignee) ? assignee : ''}
-          disabled={pending}
+          disabled={pending || !hasRecipients}
+          aria-describedby={!hasRecipients ? 'create-task-roster-empty' : undefined}
           onChange={(e) => setAssignee((e.target as HTMLSelectElement).value)}
         >
-          <option value="">Select agent…</option>
+          <option value="">{hasRecipients ? 'Select agent…' : 'No active agents available'}</option>
           {recipientOptions.map((option) => (
             <option key={option.id} value={option.id}>
               {option.label}
@@ -174,10 +181,11 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
           id="create-task-reviewer"
           class="select"
           value={recipientOptions.some((option) => option.id === reviewer) ? reviewer : ''}
-          disabled={pending}
+          disabled={pending || !hasRecipients}
+          aria-describedby={!hasRecipients ? 'create-task-roster-empty' : undefined}
           onChange={(e) => setReviewer((e.target as HTMLSelectElement).value)}
         >
-          <option value="">Select agent…</option>
+          <option value="">{hasRecipients ? 'Select agent…' : 'No active agents available'}</option>
           {recipientOptions.map((option) => (
             <option key={option.id} value={option.id}>
               {option.label}
@@ -202,7 +210,7 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
           <button
             type="button"
             class="btn btn-primary"
-            disabled={pending}
+            disabled={pending || !hasRecipients}
             onClick={() => void create()}
           >
             {pending ? 'Creating…' : 'Create task'}

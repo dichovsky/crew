@@ -449,9 +449,9 @@ export function App() {
   const worklist = nowWorklist(snapshot.tasks, snapshot.agents, snapshot.messages, now);
   // Message sends and Task assignment/reassignment all require active Agents.
   // Keep archived rows in the snapshot for history and restore, but never offer
-  // them as Message or Task-participant candidates. The Console startup/recovery
-  // invariant ensures the plain active `operator` row exists, so this production
-  // list is non-empty.
+  // them as Message or Task-participant candidates. Startup and recovery ensure
+  // an active `operator`, but a concurrent CLI may archive the final active row;
+  // the receiving controls render that live empty state explicitly.
   const recipientOptions = snapshot.agents
     .filter((agent) => agent.status === 'active')
     .map((agent) => ({ id: agent.id, label: `${agent.id} · ${agent.role}` }));

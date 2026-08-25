@@ -98,6 +98,25 @@ describe('CreateTaskModal', () => {
     host.remove();
   });
 
+  it('explains and blocks creation when no active Agents are available', async () => {
+    const onCreate = vi.fn(() => Promise.resolve());
+    const host = mount({ recipientOptions: [], onCreate });
+    const assignee = host.querySelector('#create-task-assignee') as HTMLSelectElement;
+    const reviewer = host.querySelector('#create-task-reviewer') as HTMLSelectElement;
+    expect(assignee.options[0]?.textContent).toBe('No active agents available');
+    expect(assignee.disabled).toBe(true);
+    expect(reviewer.disabled).toBe(true);
+    expect((createButton(host) as HTMLButtonElement).disabled).toBe(true);
+    expect(host.querySelector('[role="status"]')?.textContent).toContain(
+      'Restore an Agent before creating a Task',
+    );
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(host.querySelector('#create-task-title')),
+    );
+    expect(onCreate).not.toHaveBeenCalled();
+    host.remove();
+  });
+
   it('posts the trimmed draft with the optional brief and closes', async () => {
     const onCreate = vi.fn(() => Promise.resolve());
     const onClose = vi.fn();

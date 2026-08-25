@@ -810,17 +810,22 @@ rather than restating them.
 - **FR-U14 — Operator send authority.** The Operator shall send Messages only under the ordinary
   active-Agent rules. Every browser affordance that starts a direct send shall therefore offer
   active Agents only; an archived Agent may remain visible for history or Restore but shall not
-  be presented as a Message target. *Verify: automated test —
+  be presented as a Message target. A live refresh with no active target shall identify that
+  empty state explicitly and disable the send action until an Agent is restored. *Verify:
+  automated test —
   `tests/integration/ui-server-actions.test.ts`, `web/app.test.tsx`,
   `web/components/{overview,agents}.test.tsx`, `e2e/ui/actions.spec.ts`.*
 - **FR-U15 — Operator Task creation.** The Operator shall be able to create a Task with any
   reviewer, subject to the ordinary Task-creation preconditions. Roster-backed assignee and
-  reviewer controls shall offer active Agents only. They need no empty-roster fallback in a
-  running Console because FR-U13's plain `operator` row is created or reactivated at startup and
-  after Store recovery. *Verify: automated test — `tests/integration/ui-server-actions.test.ts`,
+  reviewer controls shall offer active Agents only. If a live refresh finds no active Agent, the
+  controls shall identify that empty state explicitly and shall keep candidate-dependent actions
+  disabled until an active Agent is restored. The plain `operator` row is created or reactivated
+  at startup and after Store recovery, but another CLI session may archive it while the Console
+  remains open. *Verify: automated test — `tests/integration/ui-server-actions.test.ts`,
   `web/components/create-task-modal.test.tsx` (roster-backed assignee/reviewer, the
-  client-side guard against an obviously-invalid POST, and a rejected create left visible),
-  `web/app.test.tsx` (active-only candidates; Tasks-view create modal: POST then refetch).*
+  explicit empty-roster state, the client-side guard against an obviously-invalid POST, and a
+  rejected create left visible), `web/app.test.tsx` (active-only candidates, including a live
+  transition to none; Tasks-view create modal: POST then refetch).*
 - **FR-U16 — Operator approval authority.** The Operator shall approve a Submission only when
   it is that Task's reviewer. *Verify: automated test —
   `tests/integration/ui-server-actions.test.ts`, `web/components/tasks-view.test.tsx`.*

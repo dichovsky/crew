@@ -424,11 +424,14 @@ describe('App actions', () => {
     });
     mocks.onChange.current!();
 
-    await vi.waitFor(() => expect(recipient.value).toBe(''));
-    (host.querySelector('.compose .btn-primary') as HTMLButtonElement).click();
-    await vi.waitFor(() =>
-      expect(host.querySelector('.compose .modal-error')?.textContent).toContain('recipient'),
-    );
+    await vi.waitFor(() => {
+      expect(recipient.value).toBe('');
+      expect(recipient.disabled).toBe(true);
+      expect(host.querySelector('.compose [role="status"]')?.textContent).toContain(
+        'Restore an Agent',
+      );
+    });
+    expect((host.querySelector('.compose .btn-primary') as HTMLButtonElement).disabled).toBe(true);
     expect(posts.some((post) => post.url.includes('/api/messages'))).toBe(false);
     unmount(host);
   });
