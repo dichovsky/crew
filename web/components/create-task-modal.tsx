@@ -11,7 +11,7 @@
  * local and the Tasks view mounts this component only while the modal is open,
  * so every opening starts from an empty form.
  */
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { useDialogFocus } from './dialog-focus.js';
 import type { RecipientOption } from './tasks-view.js';
 
@@ -48,6 +48,18 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
     dismissDisabled: pending,
   });
 
+  // Snapshot-backed options can change while this modal is open. Reconcile
+  // retained state so a removed or archived Agent is not silently held behind
+  // a select that has visually fallen back to its placeholder.
+  useEffect(() => {
+    if (assignee !== '' && !recipientOptions.some((option) => option.id === assignee)) {
+      setAssignee('');
+    }
+    if (reviewer !== '' && !recipientOptions.some((option) => option.id === reviewer)) {
+      setReviewer('');
+    }
+  }, [assignee, recipientOptions, reviewer]);
+
   // Mirror only what keeps an obviously-invalid POST off the wire; every other
   // precondition (unknown or inactive Agent, self-review rules) stays server-side.
   async function create(): Promise<void> {
@@ -60,8 +72,16 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
       setError('Pick an assignee.');
       return;
     }
+    if (!recipientOptions.some((option) => option.id === assignee)) {
+      setError('Pick an active assignee.');
+      return;
+    }
     if (reviewer === '') {
       setError('Pick a reviewer.');
+      return;
+    }
+    if (!recipientOptions.some((option) => option.id === reviewer)) {
+      setError('Pick an active reviewer.');
       return;
     }
     const trimmedBody = body.trim();
@@ -136,7 +156,7 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
         <select
           id="create-task-assignee"
           class="select"
-          value={assignee}
+          value={recipientOptions.some((option) => option.id === assignee) ? assignee : ''}
           disabled={pending}
           onChange={(e) => setAssignee((e.target as HTMLSelectElement).value)}
         >
@@ -153,7 +173,7 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
         <select
           id="create-task-reviewer"
           class="select"
-          value={reviewer}
+          value={recipientOptions.some((option) => option.id === reviewer) ? reviewer : ''}
           disabled={pending}
           onChange={(e) => setReviewer((e.target as HTMLSelectElement).value)}
         >

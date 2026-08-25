@@ -397,6 +397,42 @@ describe('App actions', () => {
     unmount(host);
   });
 
+  it('clears the Messages compose recipient when a live refresh archives it', async () => {
+    const posts = stubFetch();
+    mocks.fetchSnapshot.mockResolvedValue(snapshotOf([]));
+    const host = mount();
+    await vi.waitFor(() => expect(host.textContent).toContain('manager-1'));
+    navigate(host, 'Messages');
+    await vi.waitFor(() => expect(host.querySelector('#compose-recipient')).not.toBeNull());
+    const recipient = host.querySelector('#compose-recipient') as HTMLSelectElement;
+    recipient.value = 'manager-1';
+    recipient.dispatchEvent(new Event('change'));
+    const body = host.querySelector('#compose-body') as HTMLTextAreaElement;
+    body.value = 'must not reach an archived Agent';
+    body.dispatchEvent(new Event('input'));
+    await vi.waitFor(() => expect(recipient.value).toBe('manager-1'));
+
+    mocks.fetchSnapshot.mockResolvedValue({
+      ...snapshotOf([]),
+      agents: [
+        agent('manager-1', {
+          status: 'archived',
+          activity: 'archived',
+          archived_at: 3,
+        }),
+      ],
+    });
+    mocks.onChange.current!();
+
+    await vi.waitFor(() => expect(recipient.value).toBe(''));
+    (host.querySelector('.compose .btn-primary') as HTMLButtonElement).click();
+    await vi.waitFor(() =>
+      expect(host.querySelector('.compose .modal-error')?.textContent).toContain('recipient'),
+    );
+    expect(posts.some((post) => post.url.includes('/api/messages'))).toBe(false);
+    unmount(host);
+  });
+
   it('cancels the quick-message modal without sending', async () => {
     const posts = stubFetch();
     mocks.fetchSnapshot.mockResolvedValue(snapshotOf([]));

@@ -18,17 +18,20 @@ function click(el: Element | null | undefined): void {
 interface Overrides {
   onClose?: () => void;
   onCreate?: (input: CreateTaskInput) => Promise<void>;
+  recipientOptions?: readonly { readonly id: string; readonly label: string }[];
 }
+
+const RECIPIENT_OPTIONS = [
+  { id: 'grace', label: 'grace · worker' },
+  { id: 'linus', label: 'linus · inspector' },
+] as const;
 
 function mount(opts: Overrides = {}): HTMLElement {
   const host = document.createElement('div');
   document.body.appendChild(host);
   render(
     <CreateTaskModal
-      recipientOptions={[
-        { id: 'grace', label: 'grace · worker' },
-        { id: 'linus', label: 'linus · inspector' },
-      ]}
+      recipientOptions={opts.recipientOptions ?? RECIPIENT_OPTIONS}
       onClose={opts.onClose ?? (() => {})}
       onCreate={opts.onCreate ?? (() => Promise.resolve())}
     />,
@@ -156,6 +159,34 @@ describe('CreateTaskModal', () => {
       expect(host.querySelector('.modal-error')?.textContent).toContain('Pick a reviewer');
     });
     expect(onCreate).not.toHaveBeenCalled();
+    host.remove();
+  });
+
+  it('clears a selected Agent removed by a live roster refresh and does not create', async () => {
+    const onCreate = vi.fn(() => Promise.resolve());
+    const onClose = vi.fn();
+    const host = mount({ onCreate, onClose });
+    await fill(host, 'Add X', 'grace', 'linus');
+
+    // Preserve the mounted modal and its local draft while replacing the
+    // snapshot-backed options. Before reconciliation, the select looked empty
+    // but the retained `reviewer` still posted "linus".
+    render(
+      <CreateTaskModal
+        recipientOptions={[{ id: 'grace', label: 'grace · worker' }]}
+        onClose={onClose}
+        onCreate={onCreate}
+      />,
+      host,
+    );
+    click(createButton(host));
+
+    await vi.waitFor(() => {
+      expect(host.querySelector('.modal-error')?.textContent).toContain('reviewer');
+      expect(host.querySelector<HTMLSelectElement>('#create-task-reviewer')?.value).toBe('');
+    });
+    expect(onCreate).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
     host.remove();
   });
 

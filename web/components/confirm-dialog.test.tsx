@@ -115,6 +115,10 @@ describe('ConfirmDialog (one-click)', () => {
     // the new guard.
     render(<ConfirmDialog {...props} pending />, host);
     expect((host.querySelector('.btn-confirm') as HTMLButtonElement).disabled).toBe(true);
+    const dialog = host.querySelector('.modal') as HTMLElement;
+    expect(document.activeElement).toBe(dialog);
+    expect(dialog.contains(document.activeElement)).toBe(true);
+
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     host
       .querySelector('.modal-backdrop')!
@@ -127,10 +131,12 @@ describe('ConfirmDialog (one-click)', () => {
       cancelable: true,
     });
     document.dispatchEvent(tab);
-    const dialog = host.querySelector('.modal') as HTMLElement;
     expect(tab.defaultPrevented).toBe(true);
     expect(document.activeElement).toBe(dialog);
     expect(dialog.contains(document.activeElement)).toBe(true);
+
+    render(<ConfirmDialog {...props} />, host);
+    expect(document.activeElement).toBe(host.querySelector('.btn-confirm'));
     render(null, host);
     host.remove();
   });

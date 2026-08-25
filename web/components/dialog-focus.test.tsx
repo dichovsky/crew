@@ -108,7 +108,9 @@ describe('dialog focus', () => {
       });
       return (
         <div ref={containerRef} tabIndex={-1}>
-          <button ref={initialFocusRef}>Initial</button>
+          <button ref={initialFocusRef} disabled={dismissDisabled}>
+            Initial
+          </button>
         </div>
       );
     }
@@ -121,11 +123,13 @@ describe('dialog focus', () => {
     await vi.waitFor(() => expect(document.activeElement).toBe(host.querySelector('button')));
 
     render(<Harness dismissDisabled onDismiss={latestDismiss} />, host);
+    expect(document.activeElement).toBe(host.firstElementChild);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
     expect(firstDismiss).not.toHaveBeenCalled();
     expect(latestDismiss).not.toHaveBeenCalled();
 
     render(<Harness dismissDisabled={false} onDismiss={latestDismiss} />, host);
+    expect(document.activeElement).toBe(host.querySelector('button'));
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
     expect(firstDismiss).not.toHaveBeenCalled();
     expect(latestDismiss).toHaveBeenCalledTimes(1);

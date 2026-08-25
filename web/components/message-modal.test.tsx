@@ -132,6 +132,10 @@ describe('MessageModal', () => {
     // installed for the open dialog must observe the new pending value now.
     render(<MessageModal {...props} pending />, host);
     expect((host.querySelector('textarea') as HTMLTextAreaElement).disabled).toBe(true);
+    const dialog = host.querySelector('.modal') as HTMLElement;
+    expect(document.activeElement).toBe(dialog);
+    expect(dialog.contains(document.activeElement)).toBe(true);
+
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     host
       .querySelector('.modal-backdrop')!

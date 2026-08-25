@@ -55,6 +55,7 @@ interface Overrides {
   onApprove?: (id: string) => Promise<void>;
   onRequeue?: (id: string, input: { reason: string; to?: string }) => Promise<void>;
   onCreateTask?: (input: CreateTaskInput) => Promise<void>;
+  recipientOptions?: readonly { readonly id: string; readonly label: string }[];
 }
 
 function mount(tasks: readonly TaskSnapshotRecord[], opts: Overrides = {}): HTMLElement {
@@ -67,7 +68,7 @@ function mount(tasks: readonly TaskSnapshotRecord[], opts: Overrides = {}): HTML
       now={0}
       dark={false}
       disabled={false}
-      recipientOptions={[{ id: 'grace', label: 'grace · worker' }]}
+      recipientOptions={opts.recipientOptions ?? [{ id: 'grace', label: 'grace · worker' }]}
       onSelect={opts.onSelect ?? (() => {})}
       onApprove={opts.onApprove ?? (() => Promise.resolve())}
       onRequeue={opts.onRequeue ?? (() => Promise.resolve())}
@@ -219,6 +220,45 @@ describe('TasksView detail actions', () => {
     await vi.waitFor(() =>
       expect(onRequeue).toHaveBeenCalledWith(id, { reason: 'needs rework', to: 'grace' }),
     );
+    host.remove();
+  });
+
+  it('clears a reassignee removed by a live roster refresh and does not requeue to it', async () => {
+    const onRequeue = vi.fn(() => Promise.resolve());
+    const id = 'r'.repeat(36);
+    const selectedTask = task({ id, status: 'in_progress', creator_id: OPERATOR });
+    const host = mount([selectedTask], { selectedId: id, onRequeue });
+    const reason = host.querySelector('.requeue-box input') as HTMLInputElement;
+    reason.value = 'needs rework';
+    reason.dispatchEvent(new Event('input'));
+    const select = host.querySelector('.requeue-box select') as HTMLSelectElement;
+    select.value = 'grace';
+    select.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => expect(select.value).toBe('grace'));
+
+    render(
+      <TasksView
+        tasks={[selectedTask]}
+        selectedId={id}
+        now={0}
+        dark={false}
+        disabled={false}
+        recipientOptions={[]}
+        onSelect={() => {}}
+        onApprove={() => Promise.resolve()}
+        onRequeue={onRequeue}
+        onCreateTask={() => Promise.resolve()}
+      />,
+      host,
+    );
+    click(
+      [...host.querySelectorAll('button')].find((b) => b.textContent?.includes('Requeue task')),
+    );
+
+    await vi.waitFor(() =>
+      expect((host.querySelector('.requeue-box select') as HTMLSelectElement).value).toBe(''),
+    );
+    expect(onRequeue).not.toHaveBeenCalled();
     host.remove();
   });
 

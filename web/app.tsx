@@ -280,6 +280,18 @@ export function App() {
     if (!stillActive) closeMsgModal();
   }, [closeMsgModal, msgModal, msgModalPending, snapshot]);
 
+  // The Messages compose recipient is owned here rather than inside
+  // MessagesView. Clear it when a live snapshot removes that Agent from the
+  // active roster; the render-time guard below also makes the visible value
+  // safe before this effect has run.
+  useEffect(() => {
+    if (draftRecipient === '' || snapshot === null) return;
+    const stillActive = snapshot.agents.some(
+      (agent) => agent.id === draftRecipient && agent.status === 'active',
+    );
+    if (!stillActive) setDraftRecipient('');
+  }, [draftRecipient, snapshot]);
+
   /** Selects a Task and switches to the Tasks view — the Now worklist's task-item action. */
   function goToTask(taskId: string): void {
     setSelectedTaskId(taskId);
@@ -443,6 +455,9 @@ export function App() {
   const recipientOptions = snapshot.agents
     .filter((agent) => agent.status === 'active')
     .map((agent) => ({ id: agent.id, label: `${agent.id} · ${agent.role}` }));
+  const visibleDraftRecipient = recipientOptions.some((option) => option.id === draftRecipient)
+    ? draftRecipient
+    : '';
   // Hide an idle modal in the same render that makes its recipient invalid;
   // the effect above then clears the retained draft state. A pending send was
   // valid when started and remains visible until its response is surfaced.
@@ -584,7 +599,7 @@ export function App() {
             <MessagesView
               messages={snapshot.messages}
               recipientOptions={recipientOptions}
-              recipient={draftRecipient}
+              recipient={visibleDraftRecipient}
               now={now}
               dark={dark}
               disabled={recovering}

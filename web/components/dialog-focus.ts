@@ -3,7 +3,7 @@
  * the dialog's preferred control, keeps Tab navigation inside the dialog, and
  * restores focus to the opener (or the page fallback) when the dialog closes.
  */
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 
 interface ElementRef {
   readonly current: HTMLElement | null;
@@ -67,7 +67,7 @@ export function useDialogFocus({
   onDismissRef.current = onDismiss;
   dismissDisabledRef.current = dismissDisabled;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
 
     const active = document.activeElement;
@@ -79,6 +79,32 @@ export function useDialogFocus({
       previousFocusRef.current = null;
     };
   }, [initialFocusRef, open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const container = containerRef.current;
+    if (container === null) return;
+
+    const nodes = dialogFocusableNodes(container);
+    if (dismissDisabled && nodes.length === 0) {
+      // Disabling a focused control can move focus to <body>. Correct that in
+      // the pending render itself, before paint or any subsequent key event.
+      container.focus();
+      return;
+    }
+
+    const preferred = initialFocusRef.current;
+    if (
+      !dismissDisabled &&
+      document.activeElement === container &&
+      preferred !== null &&
+      nodes.includes(preferred)
+    ) {
+      // A failed action re-enables the controls. Move focus back off the
+      // temporary container target and onto the dialog's preferred control.
+      preferred.focus();
+    }
+  }, [containerRef, dismissDisabled, initialFocusRef, open]);
 
   useEffect(() => {
     if (!open) return;
