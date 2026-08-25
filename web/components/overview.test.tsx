@@ -1,7 +1,7 @@
 /**
- * Overview tests: the four stat cards, the roster (with the message click and
- * "View all"), the needs-attention list (stale lease + idle agent) with its
- * empty state, and the recent-events feed.
+ * Overview tests: the four stat cards, the active-only live roster (with the
+ * message click and "View all"), the needs-attention list (stale lease + idle
+ * agent) with its empty state, and the recent-events feed.
  */
 import { render } from 'preact';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -110,6 +110,28 @@ describe('Overview', () => {
     expect(onMessageAgent).toHaveBeenCalledWith('grace');
     host.querySelector('.link-btn')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(onGoAgents).toHaveBeenCalled();
+  });
+
+  it('omits archived Agents from the live message roster and headline denominator', () => {
+    const onMessageAgent = vi.fn();
+    const host = mount(
+      [
+        agent({ id: 'ada' }),
+        agent({ id: 'archived', status: 'archived', activity: 'archived', archived_at: 3 }),
+      ],
+      [],
+      { onMessageAgent },
+    );
+
+    const rosterRows = host.querySelectorAll<HTMLButtonElement>('.roster-row');
+    expect(rosterRows).toHaveLength(1);
+    expect(rosterRows[0]?.textContent).toContain('ada');
+    expect(host.querySelector('.stat-value')?.textContent).toBe('1/1');
+    expect(host.textContent).not.toContain('archived');
+    rosterRows[0]?.click();
+    expect(onMessageAgent).toHaveBeenCalledWith('ada');
+    expect(onMessageAgent).not.toHaveBeenCalledWith('archived');
+    host.remove();
   });
 
   it('lists stale leases and idle agents under needs-attention', () => {

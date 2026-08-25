@@ -46,6 +46,7 @@ export function MessagesView({
   const [content, setContent] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasRecipients = recipientOptions.length > 0;
 
   async function send(): Promise<void> {
     if (recipient === '') {
@@ -123,16 +124,22 @@ export function MessagesView({
           id="compose-recipient"
           class="select"
           value={recipient}
-          disabled={pending || disabled}
+          disabled={pending || disabled || !hasRecipients}
+          aria-describedby={!hasRecipients ? 'compose-recipient-empty' : undefined}
           onChange={(e) => onRecipientChange((e.target as HTMLSelectElement).value)}
         >
-          <option value="">Select agent…</option>
+          <option value="">{hasRecipients ? 'Select agent…' : 'No active agents available'}</option>
           {recipientOptions.map((option) => (
             <option key={option.id} value={option.id}>
               {option.label}
             </option>
           ))}
         </select>
+        {!hasRecipients && (
+          <p id="compose-recipient-empty" class="empty-action-note" role="status">
+            Restore an Agent before sending a Message.
+          </p>
+        )}
         <label class="field-label" for="compose-body">
           Message
         </label>
@@ -147,7 +154,7 @@ export function MessagesView({
         <button
           type="button"
           class="btn btn-primary"
-          disabled={pending || disabled}
+          disabled={pending || disabled || !hasRecipients}
           onClick={() => void send()}
         >
           {pending ? 'Sending…' : 'Send message'}

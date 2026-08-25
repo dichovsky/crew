@@ -596,6 +596,13 @@ option {
   font-weight: 500;
 }
 
+.empty-action-note {
+  margin: -5px 0 13px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--quiet);
+}
+
 /* ---- Now ----------------------------------------------------------------- */
 .now-wrap {
   max-width: 800px;

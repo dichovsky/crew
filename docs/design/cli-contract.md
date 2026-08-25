@@ -410,7 +410,18 @@ crew ui [--port <n>] [--no-open] [--json]
   is always the plain Operator row, and the server decides that by itself; a request body
   cannot name a different actor, and every action goes through the same Store operations
   (with the same authority checks) as the equivalent CLI command. `crew ui` makes sure the
-  Operator row exists at startup.
+  Operator row exists at startup and after Store recovery. Browser recipient, assignee,
+  reviewer, and reassignment controls therefore offer active Agents only; archived rows remain
+  available for history and Restore, never as a Message or Task-participant candidate. Another
+  CLI session can archive the Operator or the last other active Agent while the Console remains
+  open. A live refresh that leaves no active candidates therefore labels that empty state
+  explicitly and disables candidate-dependent Message and Task-creation actions until an Agent
+  is restored.
+- The Message, create-Task, and destructive-confirm dialogs share one keyboard focus trap and
+  restore focus to their opener (or the page fallback) on close. Escape and backdrop clicks
+  dismiss an idle dialog. Once its action request is in flight, all form controls are disabled
+  and those implicit dismissal paths are ignored until the request succeeds or its failure is
+  visible; the Operator's draft and result surface are not discarded mid-request.
 - The Console's actions additionally cover launching a Team (always detached — attaching
   stays terminal-only), stopping or resuming a Team crew owns, peeking at a pane, running
   `prune` or `clean`, and archiving or restoring an Agent — and nothing else. Pane peek returns the

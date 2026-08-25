@@ -267,6 +267,31 @@ export function App() {
     setMsgModalError(null);
   }, []);
 
+  // A snapshot refresh can archive or remove the addressed Agent while the
+  // modal is open. Reconcile the modal with the same active-recipient rule as
+  // every selector/roster affordance, and discard the now-invalid draft rather
+  // than leave a send control that can only fail with AGENT_INACTIVE. A send
+  // already in flight keeps its result surface until it settles.
+  useEffect(() => {
+    if (msgModal === null || snapshot === null || msgModalPending) return;
+    const stillActive = snapshot.agents.some(
+      (agent) => agent.id === msgModal.to && agent.status === 'active',
+    );
+    if (!stillActive) closeMsgModal();
+  }, [closeMsgModal, msgModal, msgModalPending, snapshot]);
+
+  // The Messages compose recipient is owned here rather than inside
+  // MessagesView. Clear it when a live snapshot removes that Agent from the
+  // active roster; the render-time guard below also makes the visible value
+  // safe before this effect has run.
+  useEffect(() => {
+    if (draftRecipient === '' || snapshot === null) return;
+    const stillActive = snapshot.agents.some(
+      (agent) => agent.id === draftRecipient && agent.status === 'active',
+    );
+    if (!stillActive) setDraftRecipient('');
+  }, [draftRecipient, snapshot]);
+
   /** Selects a Task and switches to the Tasks view — the Now worklist's task-item action. */
   function goToTask(taskId: string): void {
     setSelectedTaskId(taskId);
@@ -295,8 +320,9 @@ export function App() {
       setMsgModalText('');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Send failed';
-      // A toast survives the modal closing (Escape/backdrop/× are not
-      // gated by `pending`), so a failed send is never silently lost.
+      // Keep the persistent toast as a second failure surface. Pending
+      // dismissal is gated in MessageModal, so the draft and this inline error
+      // also remain available for a retry.
       pushToast('Message not sent', message, '#d15540');
       setMsgModalError(message);
     } finally {
@@ -385,8 +411,12 @@ export function App() {
     setConfirmError(null);
     try {
       await runConfirmed(action);
-      setConfirm(null);
+      // Refresh while the modal still owns focus. If success removes or
+      // disables the opener (archive/stop), the close-time restore can observe
+      // that final DOM and choose the page fallback instead of briefly focusing
+      // a trigger that disappears one render later.
       await refetch();
+      setConfirm(null);
     } catch (err) {
       setConfirmError(err instanceof Error ? err.message : 'Action failed');
     } finally {
@@ -417,7 +447,26 @@ export function App() {
   const queue = reviewQueue(snapshot.tasks);
   const unread = unreadCount(snapshot.messages);
   const worklist = nowWorklist(snapshot.tasks, snapshot.agents, snapshot.messages, now);
-  const recipientOptions = snapshot.agents.map((a) => ({ id: a.id, label: `${a.id} · ${a.role}` }));
+  // Message sends and Task assignment/reassignment all require active Agents.
+  // Keep archived rows in the snapshot for history and restore, but never offer
+  // them as Message or Task-participant candidates. Startup and recovery ensure
+  // an active `operator`, but a concurrent CLI may archive the final active row;
+  // the receiving controls render that live empty state explicitly.
+  const recipientOptions = snapshot.agents
+    .filter((agent) => agent.status === 'active')
+    .map((agent) => ({ id: agent.id, label: `${agent.id} · ${agent.role}` }));
+  const visibleDraftRecipient = recipientOptions.some((option) => option.id === draftRecipient)
+    ? draftRecipient
+    : '';
+  // Hide an idle modal in the same render that makes its recipient invalid;
+  // the effect above then clears the retained draft state. A pending send was
+  // valid when started and remains visible until its response is surfaced.
+  const visibleMsgModal =
+    msgModal !== null &&
+    (msgModalPending ||
+      snapshot.agents.some((agent) => agent.id === msgModal.to && agent.status === 'active'))
+      ? msgModal
+      : null;
   const roleOf = (id: string): string =>
     snapshot.agents.find((a) => a.id === id)?.role ?? (id === OPERATOR_ID ? 'operator' : 'worker');
   const [title, subtitle] = TITLES[view];
@@ -550,7 +599,7 @@ export function App() {
             <MessagesView
               messages={snapshot.messages}
               recipientOptions={recipientOptions}
-              recipient={draftRecipient}
+              recipient={visibleDraftRecipient}
               now={now}
               dark={dark}
               disabled={recovering}
@@ -589,7 +638,7 @@ export function App() {
       <Toasts toasts={toasts} />
 
       <MessageModal
-        to={msgModal?.to ?? null}
+        to={visibleMsgModal?.to ?? null}
         text={msgModalText}
         pending={msgModalPending}
         error={msgModalError}

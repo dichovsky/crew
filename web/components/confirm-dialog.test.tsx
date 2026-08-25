@@ -35,6 +35,7 @@ function mount(overrides: Partial<ConfirmDialogProps> = {}): {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   document.body.innerHTML = '';
 });
 
@@ -90,6 +91,53 @@ describe('ConfirmDialog (one-click)', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       expect(onCancel).toHaveBeenCalled();
     });
+    host.remove();
+  });
+
+  it('guards dismissal immediately and traps focus when pending becomes true', async () => {
+    const onCancel = vi.fn();
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const props: ConfirmDialogProps = {
+      open: true,
+      title: 't',
+      description: 'd',
+      confirmLabel: 'Go',
+      onConfirm: () => {},
+      onCancel,
+    };
+
+    render(<ConfirmDialog {...props} />, host);
+    await vi.waitFor(() => expect(document.activeElement).toBe(host.querySelector('.btn-confirm')));
+
+    // Dispatch synchronously after the pending render, before deferred effects
+    // could replace a stale listener. The existing listener must already read
+    // the new guard.
+    render(<ConfirmDialog {...props} pending />, host);
+    expect((host.querySelector('.btn-confirm') as HTMLButtonElement).disabled).toBe(true);
+    const dialog = host.querySelector('.modal') as HTMLElement;
+    expect(document.activeElement).toBe(dialog);
+    expect(dialog.contains(document.activeElement)).toBe(true);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    host
+      .querySelector('.modal-backdrop')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onCancel).not.toHaveBeenCalled();
+
+    const tab = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(dialog);
+    expect(dialog.contains(document.activeElement)).toBe(true);
+
+    render(<ConfirmDialog {...props} />, host);
+    expect(document.activeElement).toBe(host.querySelector('.btn-confirm'));
+    render(null, host);
     host.remove();
   });
 

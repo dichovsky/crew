@@ -139,13 +139,18 @@ export function Agents({
               </div>
 
               <div class="agent-actions">
-                <button
-                  type="button"
-                  class="btn btn-outline"
-                  onClick={() => onMessageAgent(agent.id)}
-                >
-                  Message {agent.id}
-                </button>
+                {/* Direct sends require an active recipient. Archived cards stay
+                    visible for history and Restore, but must not offer an action
+                    that can only fail with AGENT_INACTIVE. */}
+                {!archived && (
+                  <button
+                    type="button"
+                    class="btn btn-outline"
+                    onClick={() => onMessageAgent(agent.id)}
+                  >
+                    Message {agent.id}
+                  </button>
+                )}
                 {/* The operator's own row can never be archived (FR-U36) — a visible
                     control that can only ever fail is dishonest presentation, so it's
                     omitted entirely rather than shown disabled with no explanation. */}

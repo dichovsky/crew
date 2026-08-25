@@ -362,6 +362,80 @@ describe('App actions', () => {
     unmount(host);
   });
 
+  it('offers only active Agents in Message and Task action selects', async () => {
+    stubFetch();
+    mocks.fetchSnapshot.mockResolvedValue({
+      ...snapshotOf([]),
+      agents: [
+        agent('manager-1'),
+        agent('archived-1', {
+          status: 'archived',
+          activity: 'archived',
+          archived_at: 3,
+        }),
+      ],
+    });
+    const host = mount();
+    await vi.waitFor(() => expect(host.textContent).toContain('manager-1'));
+
+    navigate(host, 'Messages');
+    await vi.waitFor(() => expect(host.querySelector('#compose-recipient')).not.toBeNull());
+    const messageValues = [
+      ...host.querySelectorAll<HTMLOptionElement>('#compose-recipient option'),
+    ].map((option) => option.value);
+    expect(messageValues).toEqual(['', 'manager-1']);
+
+    navigate(host, 'Tasks');
+    await vi.waitFor(() => expect(host.querySelector('.btn-new-task')).not.toBeNull());
+    (host.querySelector('.btn-new-task') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(host.querySelector('.create-task-modal')).not.toBeNull());
+    const taskValues = [
+      ...host.querySelectorAll<HTMLOptionElement>('#create-task-assignee option'),
+    ].map((option) => option.value);
+    expect(taskValues).toEqual(['', 'manager-1']);
+    expect(host.textContent).not.toContain('archived-1');
+    unmount(host);
+  });
+
+  it('clears the Messages compose recipient when a live refresh archives it', async () => {
+    const posts = stubFetch();
+    mocks.fetchSnapshot.mockResolvedValue(snapshotOf([]));
+    const host = mount();
+    await vi.waitFor(() => expect(host.textContent).toContain('manager-1'));
+    navigate(host, 'Messages');
+    await vi.waitFor(() => expect(host.querySelector('#compose-recipient')).not.toBeNull());
+    const recipient = host.querySelector('#compose-recipient') as HTMLSelectElement;
+    recipient.value = 'manager-1';
+    recipient.dispatchEvent(new Event('change'));
+    const body = host.querySelector('#compose-body') as HTMLTextAreaElement;
+    body.value = 'must not reach an archived Agent';
+    body.dispatchEvent(new Event('input'));
+    await vi.waitFor(() => expect(recipient.value).toBe('manager-1'));
+
+    mocks.fetchSnapshot.mockResolvedValue({
+      ...snapshotOf([]),
+      agents: [
+        agent('manager-1', {
+          status: 'archived',
+          activity: 'archived',
+          archived_at: 3,
+        }),
+      ],
+    });
+    mocks.onChange.current!();
+
+    await vi.waitFor(() => {
+      expect(recipient.value).toBe('');
+      expect(recipient.disabled).toBe(true);
+      expect(host.querySelector('.compose [role="status"]')?.textContent).toContain(
+        'Restore an Agent',
+      );
+    });
+    expect((host.querySelector('.compose .btn-primary') as HTMLButtonElement).disabled).toBe(true);
+    expect(posts.some((post) => post.url.includes('/api/messages'))).toBe(false);
+    unmount(host);
+  });
+
   it('cancels the quick-message modal without sending', async () => {
     const posts = stubFetch();
     mocks.fetchSnapshot.mockResolvedValue(snapshotOf([]));
@@ -378,6 +452,48 @@ describe('App actions', () => {
     cancel.click();
     await vi.waitFor(() => expect(host.querySelector('.message-modal')).toBeNull());
     expect(posts.some((p) => p.url.includes('/api/messages'))).toBe(false);
+    unmount(host);
+  });
+
+  it('closes and clears an open quick-message draft when its recipient is archived', async () => {
+    const posts = stubFetch();
+    mocks.fetchSnapshot.mockResolvedValue(snapshotOf([]));
+    const host = mount();
+    await vi.waitFor(() => expect(host.textContent).toContain('manager-1'));
+    navigate(host, 'Overview');
+    await vi.waitFor(() => expect(host.querySelector('.roster-row')).not.toBeNull());
+    (host.querySelector('.roster-row') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(host.querySelector('.message-modal')).not.toBeNull());
+
+    const draft = host.querySelector('.message-modal textarea') as HTMLTextAreaElement;
+    draft.value = 'do not send after archive';
+    draft.dispatchEvent(new Event('input'));
+    await vi.waitFor(() => expect(draft.value).toBe('do not send after archive'));
+
+    mocks.fetchSnapshot.mockResolvedValue({
+      ...snapshotOf([]),
+      agents: [
+        agent('manager-1', {
+          status: 'archived',
+          activity: 'archived',
+          archived_at: 3,
+        }),
+      ],
+    });
+    mocks.onChange.current!();
+
+    await vi.waitFor(() => expect(host.querySelector('.message-modal')).toBeNull());
+    expect(host.querySelector('.roster-row')).toBeNull();
+    expect(posts.some((post) => post.url.includes('/api/messages'))).toBe(false);
+
+    // Reactivation creates a fresh modal, proving the invalid draft was cleared
+    // rather than merely hidden by the active-recipient render.
+    mocks.fetchSnapshot.mockResolvedValue(snapshotOf([]));
+    mocks.onChange.current!();
+    await vi.waitFor(() => expect(host.querySelector('.roster-row')).not.toBeNull());
+    (host.querySelector('.roster-row') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(host.querySelector('.message-modal')).not.toBeNull());
+    expect((host.querySelector('.message-modal textarea') as HTMLTextAreaElement).value).toBe('');
     unmount(host);
   });
 
@@ -441,6 +557,39 @@ describe('App actions', () => {
     );
     expect(posts.find((p) => p.url.includes('/restore'))!.body).toEqual({});
     expect(host.querySelector('[role="alertdialog"]')).toBeNull();
+    unmount(host);
+  });
+
+  it('restores focus to the page fallback after a confirmed action removes its opener', async () => {
+    const archivedSnapshot: WorkspaceSnapshot = {
+      ...snapshotOf([]),
+      agents: [
+        agent('manager-1', {
+          status: 'archived',
+          activity: 'archived',
+          archived_at: 3,
+        }),
+      ],
+    };
+    stubFetch();
+    mocks.fetchSnapshot.mockResolvedValueOnce(snapshotOf([])).mockResolvedValue(archivedSnapshot);
+    const host = mount();
+    await vi.waitFor(() => expect(host.textContent).toContain('manager-1'));
+    navigate(host, 'Agents');
+    await vi.waitFor(() => expect(host.querySelector('.btn-archive')).not.toBeNull());
+
+    const opener = host.querySelector('.btn-archive') as HTMLButtonElement;
+    opener.focus();
+    opener.click();
+    await vi.waitFor(() => expect(document.activeElement).toBe(host.querySelector('.btn-confirm')));
+    (host.querySelector('.btn-confirm') as HTMLButtonElement).click();
+
+    await vi.waitFor(() => expect(host.querySelector('[role="alertdialog"]')).toBeNull());
+    expect(opener.isConnected).toBe(false);
+    await vi.waitFor(() => {
+      expect(document.activeElement).not.toBe(document.body);
+      expect(document.activeElement).toBe(host.querySelector('[data-focus-fallback]'));
+    });
     unmount(host);
   });
 

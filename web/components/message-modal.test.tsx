@@ -36,6 +36,7 @@ function mount(overrides: Partial<MessageModalProps> = {}): {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   document.body.innerHTML = '';
 });
 
@@ -109,6 +110,39 @@ describe('MessageModal', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       expect(onClose).toHaveBeenCalled();
     });
+    host.remove();
+  });
+
+  it('guards Escape and backdrop dismissal immediately when pending becomes true', async () => {
+    const onClose = vi.fn();
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const props: MessageModalProps = {
+      to: 'grace',
+      text: 'unfinished draft',
+      onTextChange: () => {},
+      onClose,
+      onSend: () => {},
+    };
+
+    render(<MessageModal {...props} />, host);
+    await vi.waitFor(() => expect(document.activeElement).toBe(host.querySelector('textarea')));
+
+    // No effect flush is allowed between this render and Escape: the listener
+    // installed for the open dialog must observe the new pending value now.
+    render(<MessageModal {...props} pending />, host);
+    expect((host.querySelector('textarea') as HTMLTextAreaElement).disabled).toBe(true);
+    const dialog = host.querySelector('.modal') as HTMLElement;
+    expect(document.activeElement).toBe(dialog);
+    expect(dialog.contains(document.activeElement)).toBe(true);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    host
+      .querySelector('.modal-backdrop')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect((host.querySelector('textarea') as HTMLTextAreaElement).value).toBe('unfinished draft');
+    render(null, host);
     host.remove();
   });
 

@@ -12,6 +12,7 @@
  * so every opening starts from an empty form.
  */
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { useDialogFocus } from './dialog-focus.js';
 import type { RecipientOption } from './tasks-view.js';
 
 /** The create-Task draft the App posts to `/api/tasks` (FR-U15). */
@@ -29,73 +30,36 @@ export interface CreateTaskModalProps {
   readonly onCreate: (input: CreateTaskInput) => Promise<void>;
 }
 
-/** Gather every focusable descendant for the focus-trap ring. */
-function focusableNodes(container: HTMLElement): HTMLElement[] {
-  const selectors =
-    'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
-  return [...container.querySelectorAll<HTMLElement>(selectors)].filter((el) => el.tabIndex !== -1);
-}
-
-/** Restore focus to the opener on close, falling back to the page's marked region. */
-function restoreFocus(prev: HTMLElement | null): void {
-  if (prev !== null && prev !== document.body && prev.isConnected) {
-    prev.focus();
-    if (document.activeElement === prev) return;
-  }
-  document.querySelector<HTMLElement>('[data-focus-fallback]')?.focus();
-}
-
 export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateTaskModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
-  const prevFocusRef = useRef<HTMLElement | null>(null);
   const [assignee, setAssignee] = useState('');
   const [reviewer, setReviewer] = useState('');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasRecipients = recipientOptions.length > 0;
 
-  useEffect(() => {
-    prevFocusRef.current = document.activeElement as HTMLElement | null;
-    titleRef.current?.focus();
-    return () => restoreFocus(prevFocusRef.current);
-  }, []);
+  useDialogFocus({
+    open: true,
+    containerRef: dialogRef,
+    initialFocusRef: titleRef,
+    onDismiss: onClose,
+    dismissDisabled: pending,
+  });
 
+  // Snapshot-backed options can change while this modal is open. Reconcile
+  // retained state so a removed or archived Agent is not silently held behind
+  // a select that has visually fallen back to its placeholder.
   useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent): void {
-      const container = dialogRef.current;
-      if (!container) return;
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        // Ignored while a create is in flight. The buttons are already disabled, but
-        // closing here would discard the draft AND drop the server's answer on the
-        // floor: the caller only closes after the POST and the refetch both resolve,
-        // so a rejection would land on an unmounted modal and the Operator would see
-        // no error, no toast, and no Task — indistinguishable from success.
-        if (pending) return;
-        onClose();
-        return;
-      }
-      if (e.key !== 'Tab') return;
-      const nodes = focusableNodes(container);
-      if (nodes.length === 0) return;
-      const first = nodes[0]!;
-      const last = nodes[nodes.length - 1]!;
-      const active = document.activeElement;
-      if (e.shiftKey) {
-        if (active === first || active === null) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else if (active === last || active === null) {
-        e.preventDefault();
-        first.focus();
-      }
+    if (assignee !== '' && !recipientOptions.some((option) => option.id === assignee)) {
+      setAssignee('');
     }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, pending]);
+    if (reviewer !== '' && !recipientOptions.some((option) => option.id === reviewer)) {
+      setReviewer('');
+    }
+  }, [assignee, recipientOptions, reviewer]);
 
   // Mirror only what keeps an obviously-invalid POST off the wire; every other
   // precondition (unknown or inactive Agent, self-review rules) stays server-side.
@@ -109,8 +73,16 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
       setError('Pick an assignee.');
       return;
     }
+    if (!recipientOptions.some((option) => option.id === assignee)) {
+      setError('Pick an active assignee.');
+      return;
+    }
     if (reviewer === '') {
       setError('Pick a reviewer.');
+      return;
+    }
+    if (!recipientOptions.some((option) => option.id === reviewer)) {
+      setError('Pick an active reviewer.');
       return;
     }
     const trimmedBody = body.trim();
@@ -147,6 +119,7 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-task-modal-title"
+        tabIndex={-1}
         class="modal create-task-modal"
       >
         <div class="modal-head">
@@ -164,6 +137,11 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
         {error !== null && (
           <p class="modal-error" role="alert">
             {error}
+          </p>
+        )}
+        {!hasRecipients && (
+          <p id="create-task-roster-empty" class="empty-action-note" role="status">
+            No active Agents are available. Restore an Agent before creating a Task.
           </p>
         )}
         <label class="field-label" for="create-task-title">
@@ -184,11 +162,12 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
         <select
           id="create-task-assignee"
           class="select"
-          value={assignee}
-          disabled={pending}
+          value={recipientOptions.some((option) => option.id === assignee) ? assignee : ''}
+          disabled={pending || !hasRecipients}
+          aria-describedby={!hasRecipients ? 'create-task-roster-empty' : undefined}
           onChange={(e) => setAssignee((e.target as HTMLSelectElement).value)}
         >
-          <option value="">Select agent…</option>
+          <option value="">{hasRecipients ? 'Select agent…' : 'No active agents available'}</option>
           {recipientOptions.map((option) => (
             <option key={option.id} value={option.id}>
               {option.label}
@@ -201,11 +180,12 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
         <select
           id="create-task-reviewer"
           class="select"
-          value={reviewer}
-          disabled={pending}
+          value={recipientOptions.some((option) => option.id === reviewer) ? reviewer : ''}
+          disabled={pending || !hasRecipients}
+          aria-describedby={!hasRecipients ? 'create-task-roster-empty' : undefined}
           onChange={(e) => setReviewer((e.target as HTMLSelectElement).value)}
         >
-          <option value="">Select agent…</option>
+          <option value="">{hasRecipients ? 'Select agent…' : 'No active agents available'}</option>
           {recipientOptions.map((option) => (
             <option key={option.id} value={option.id}>
               {option.label}
@@ -230,7 +210,7 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
           <button
             type="button"
             class="btn btn-primary"
-            disabled={pending}
+            disabled={pending || !hasRecipients}
             onClick={() => void create()}
           >
             {pending ? 'Creating…' : 'Create task'}

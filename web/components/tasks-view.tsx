@@ -80,6 +80,15 @@ export function TasksView({
     setError(null);
   }, [selectedId]);
 
+  // SSE refreshes can archive a selected reassignment target. Keep the
+  // retained draft aligned with the active-only option list; requeue() also
+  // validates synchronously so a click cannot race this effect.
+  useEffect(() => {
+    if (to !== '' && !recipientOptions.some((option) => option.id === to)) {
+      setTo('');
+    }
+  }, [recipientOptions, to]);
+
   async function approve(taskId: string): Promise<void> {
     setPending(true);
     setError(null);
@@ -97,9 +106,13 @@ export function TasksView({
       setError('A reason is required to requeue.');
       return;
     }
+    const trimmedTo = to.trim();
+    if (trimmedTo !== '' && !recipientOptions.some((option) => option.id === trimmedTo)) {
+      setError('Pick an active reassignment target.');
+      return;
+    }
     setPending(true);
     setError(null);
-    const trimmedTo = to.trim();
     try {
       await onRequeue(taskId, {
         reason: reason.trim(),
@@ -200,7 +213,7 @@ export function TasksView({
               pending={pending}
               error={error}
               reason={reason}
-              to={to}
+              to={recipientOptions.some((option) => option.id === to) ? to : ''}
               recipientOptions={recipientOptions}
               onReason={setReason}
               onTo={setTo}

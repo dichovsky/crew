@@ -66,9 +66,13 @@ is confirmed.
 **The quick-message modal replaces the previous "jump to Messages tab" flow.** Clicking an Agent
 (from the Overview roster, an Agents card, or a Now worklist item) now opens an inline compose
 modal pre-addressed to that Agent, matching `web/components/confirm-dialog.tsx`'s accessibility
-pattern (focus trap, Escape, backdrop click, focus restore) rather than navigating away. The
-Messages view's own compose form is unchanged and still reachable directly from the nav rail.
-This is a presentation-only change — `POST /api/messages` and its FR-U14 authority are unaffected.
+pattern (focus trap, Escape, backdrop click, focus restore) rather than navigating away. Escape
+and backdrop dismissal apply only while no send is in flight; once a send starts, the modal keeps
+the draft and result surface mounted until it settles. Archived Agents remain available for
+history and Restore but are not Message targets, because the ordinary send rule requires an active
+recipient. The Messages view's own compose form is unchanged and still reachable directly from
+the nav rail. This is a presentation-only change — `POST /api/messages` and its FR-U14 authority
+are unaffected.
 
 ## Consequences
 

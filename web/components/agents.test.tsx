@@ -1,9 +1,10 @@
 /**
  * Agents view tests: one card per Agent with role/activity, engine badge,
- * platform, current task (derived), inbox depth, and Message/Archive-Restore
- * actions. Activity stays honest ("Active"/"Idle"/"Stale") — never "online".
- * Archived Agents are hidden by default behind a local toggle and dimmed
- * when shown. Hostile ids render inert. No Delete action exists (ADR-0017).
+ * platform, current task (derived), inbox depth, and valid Message/Archive-
+ * Restore actions. Activity stays honest ("Active"/"Idle"/"Stale") — never
+ * "online". Archived Agents are hidden by default behind a local toggle and
+ * dimmed when shown; their cards offer Restore but not an invalid direct send.
+ * Hostile ids render inert. No Delete action exists (ADR-0017).
  */
 import { render } from 'preact';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -231,6 +232,8 @@ describe('Agents', () => {
       c.textContent?.includes('rob'),
     )!;
     expect(archivedCard.classList.contains('archived')).toBe(true);
+    expect(archivedCard.textContent).not.toContain('Message rob');
+    expect(archivedCard.querySelector('.btn-outline')).toBeNull();
     host.remove();
   });
 

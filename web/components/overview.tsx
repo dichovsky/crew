@@ -49,7 +49,12 @@ export function Overview({
   onMessageAgent,
   onGoAgents,
 }: OverviewProps) {
-  const activeAgents = agents.filter((a) => a.activity === 'recent').length;
+  // The snapshot retains archived rows for the Agents view, but this is the
+  // live roster and every row opens a direct-message action. Archived Agents
+  // therefore remain history-only here rather than offering an action the
+  // Store will reject.
+  const roster = agents.filter((agent) => agent.status === 'active');
+  const activeAgents = roster.filter((agent) => agent.activity === 'recent').length;
   const inProgress = tasks.filter((t) => t.status === 'in_progress').length;
   const staleCount = tasks.filter((t) => t.stale_lease).length;
   const queue = reviewQueue(tasks);
@@ -62,7 +67,7 @@ export function Overview({
   const stats = [
     {
       label: 'Active agents',
-      value: `${activeAgents}/${agents.length}`,
+      value: `${activeAgents}/${roster.length}`,
       sub: 'reporting recently',
       tag: 'live',
       tagBg: '#e6f4ec',
@@ -125,7 +130,7 @@ export function Overview({
               View all →
             </button>
           </div>
-          {agents.map((agent) => {
+          {roster.map((agent) => {
             const meta = activityMeta(agent.activity);
             const color = roleColor(agent.role);
             const pillColor = rolePillColor(agent.role, dark);

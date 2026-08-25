@@ -18,17 +18,20 @@ function click(el: Element | null | undefined): void {
 interface Overrides {
   onClose?: () => void;
   onCreate?: (input: CreateTaskInput) => Promise<void>;
+  recipientOptions?: readonly { readonly id: string; readonly label: string }[];
 }
+
+const RECIPIENT_OPTIONS = [
+  { id: 'grace', label: 'grace · worker' },
+  { id: 'linus', label: 'linus · inspector' },
+] as const;
 
 function mount(opts: Overrides = {}): HTMLElement {
   const host = document.createElement('div');
   document.body.appendChild(host);
   render(
     <CreateTaskModal
-      recipientOptions={[
-        { id: 'grace', label: 'grace · worker' },
-        { id: 'linus', label: 'linus · inspector' },
-      ]}
+      recipientOptions={opts.recipientOptions ?? RECIPIENT_OPTIONS}
       onClose={opts.onClose ?? (() => {})}
       onCreate={opts.onCreate ?? (() => Promise.resolve())}
     />,
@@ -71,12 +74,46 @@ afterEach(() => {
 });
 
 describe('CreateTaskModal', () => {
+  it('moves focus to the title and restores the opener when unmounted', async () => {
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    const host = mount();
+
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(host.querySelector('#create-task-title')),
+    );
+    render(null, host);
+    await vi.waitFor(() => expect(document.activeElement).toBe(opener));
+    host.remove();
+    opener.remove();
+  });
+
   it('offers every roster agent as assignee and reviewer', () => {
     const host = mount();
     const values = (id: string): string[] =>
       [...host.querySelectorAll<HTMLOptionElement>(`#${id} option`)].map((o) => o.value);
     expect(values('create-task-assignee')).toEqual(['', 'grace', 'linus']);
     expect(values('create-task-reviewer')).toEqual(['', 'grace', 'linus']);
+    host.remove();
+  });
+
+  it('explains and blocks creation when no active Agents are available', async () => {
+    const onCreate = vi.fn(() => Promise.resolve());
+    const host = mount({ recipientOptions: [], onCreate });
+    const assignee = host.querySelector('#create-task-assignee') as HTMLSelectElement;
+    const reviewer = host.querySelector('#create-task-reviewer') as HTMLSelectElement;
+    expect(assignee.options[0]?.textContent).toBe('No active agents available');
+    expect(assignee.disabled).toBe(true);
+    expect(reviewer.disabled).toBe(true);
+    expect((createButton(host) as HTMLButtonElement).disabled).toBe(true);
+    expect(host.querySelector('[role="status"]')?.textContent).toContain(
+      'Restore an Agent before creating a Task',
+    );
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(host.querySelector('#create-task-title')),
+    );
+    expect(onCreate).not.toHaveBeenCalled();
     host.remove();
   });
 
@@ -144,6 +181,34 @@ describe('CreateTaskModal', () => {
     host.remove();
   });
 
+  it('clears a selected Agent removed by a live roster refresh and does not create', async () => {
+    const onCreate = vi.fn(() => Promise.resolve());
+    const onClose = vi.fn();
+    const host = mount({ onCreate, onClose });
+    await fill(host, 'Add X', 'grace', 'linus');
+
+    // Preserve the mounted modal and its local draft while replacing the
+    // snapshot-backed options. Before reconciliation, the select looked empty
+    // but the retained `reviewer` still posted "linus".
+    render(
+      <CreateTaskModal
+        recipientOptions={[{ id: 'grace', label: 'grace · worker' }]}
+        onClose={onClose}
+        onCreate={onCreate}
+      />,
+      host,
+    );
+    click(createButton(host));
+
+    await vi.waitFor(() => {
+      expect(host.querySelector('.modal-error')?.textContent).toContain('reviewer');
+      expect(host.querySelector<HTMLSelectElement>('#create-task-reviewer')?.value).toBe('');
+    });
+    expect(onCreate).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    host.remove();
+  });
+
   it('surfaces a failed create and leaves the modal open', async () => {
     const onCreate = vi.fn(() => Promise.reject(new Error('[NOT_FOUND] no such agent "grace"')));
     const onClose = vi.fn();
@@ -167,7 +232,7 @@ describe('CreateTaskModal', () => {
     host.remove();
   });
 
-  it('ignores Escape while a create is in flight so the draft and the answer survive', async () => {
+  it('ignores Escape and backdrop dismissal while a create is in flight', async () => {
     let settle: () => void = () => {};
     const onCreate = vi.fn(
       () =>
@@ -179,13 +244,12 @@ describe('CreateTaskModal', () => {
     const host = mount({ onCreate, onClose });
     await fill(host, 'Add X', 'grace', 'linus');
     click(createButton(host));
-    // Wait for the rendered pending state, not just the call: the Escape guard lives in
-    // an effect that only re-registers with `pending: true` on the next render, so
-    // dispatching before that flush would test nothing. The submit label flipping to
-    // "Creating…" is that render having happened.
+    // Wait for the rendered pending state, not just the call. The submit label
+    // flipping to "Creating…" proves the render-updated guard now reads true.
     await vi.waitFor(() => expect(host.textContent).toContain('Creating…'));
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    click(host.querySelector('.modal-backdrop'));
     expect(onClose).not.toHaveBeenCalled();
     expect(host.querySelector('.create-task-modal')).not.toBeNull();
 
@@ -194,7 +258,7 @@ describe('CreateTaskModal', () => {
     host.remove();
   });
 
-  it('cancels on Escape', async () => {
+  it('cancels on Escape and a backdrop click', async () => {
     const onClose = vi.fn();
     const host = mount({ onClose });
     // Re-dispatch inside waitFor: the keydown listener is registered by an
@@ -203,6 +267,8 @@ describe('CreateTaskModal', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       expect(onClose).toHaveBeenCalled();
     });
+    click(host.querySelector('.modal-backdrop'));
+    expect(onClose).toHaveBeenCalledTimes(2);
     host.remove();
   });
 });

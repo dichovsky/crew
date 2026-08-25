@@ -26,6 +26,7 @@ function message(overrides: Partial<MessageSnapshotRecord> = {}): MessageSnapsho
 
 interface Opts {
   recipient?: string;
+  recipientOptions?: readonly { readonly id: string; readonly label: string }[];
   onSend?: (input: { recipient: string; content: string }) => Promise<void>;
   onRecipientChange?: (id: string) => void;
 }
@@ -36,7 +37,7 @@ function mount(messages: readonly MessageSnapshotRecord[], opts: Opts = {}): HTM
   render(
     <MessagesView
       messages={messages}
-      recipientOptions={[{ id: 'grace', label: 'grace · worker' }]}
+      recipientOptions={opts.recipientOptions ?? [{ id: 'grace', label: 'grace · worker' }]}
       recipient={opts.recipient ?? ''}
       now={0}
       dark={false}
@@ -87,6 +88,18 @@ describe('MessagesView', () => {
       expect(host.querySelector('.modal-error')?.textContent).toContain('recipient'),
     );
     expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('explains and disables compose when no active Agents are available', () => {
+    const host = mount([], { recipientOptions: [] });
+    const select = host.querySelector('#compose-recipient') as HTMLSelectElement;
+    const send = host.querySelector('.btn-primary') as HTMLButtonElement;
+    expect(select.options[0]?.textContent).toBe('No active agents available');
+    expect(select.disabled).toBe(true);
+    expect(send.disabled).toBe(true);
+    expect(host.querySelector('[role="status"]')?.textContent).toContain(
+      'Restore an Agent before sending a Message',
+    );
   });
 
   it('sends the trimmed body to the recipient and clears the field', async () => {
