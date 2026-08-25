@@ -635,8 +635,8 @@ rather than restating them.
 - **FR-I03 — No network filesystems.** Network filesystems and remote database servers shall be
   unsupported. *Verify: inspection — security.md; CLAUDE.md.*
 - **FR-I04 — Integrity-hardened open.** The Store shall open every connection with foreign-key
-  enforcement, defensive mode, and extension-loading denial. *Verify: automated test —
-  `tests/store/schema.test.ts`.*
+  enforcement, defensive mode, extension-loading denial, `trusted_schema=OFF`, and
+  `cell_size_check=ON`. *Verify: automated test — `tests/store/schema.test.ts`.*
 - **FR-I05 — Durability-hardened open.** The Store shall open every connection with WAL
   journaling (write-ahead logging, an SQLite mode that lets readers keep working while one
   writer writes), `synchronous=NORMAL`, and a 5-second busy timeout. *Verify: automated test —
