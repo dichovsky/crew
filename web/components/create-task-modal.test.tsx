@@ -194,10 +194,8 @@ describe('CreateTaskModal', () => {
     const host = mount({ onCreate, onClose });
     await fill(host, 'Add X', 'grace', 'linus');
     click(createButton(host));
-    // Wait for the rendered pending state, not just the call: the Escape guard lives in
-    // an effect that only re-registers with `pending: true` on the next render, so
-    // dispatching before that flush would test nothing. The submit label flipping to
-    // "Creating…" is that render having happened.
+    // Wait for the rendered pending state, not just the call. The submit label
+    // flipping to "Creating…" proves the render-updated guard now reads true.
     await vi.waitFor(() => expect(host.textContent).toContain('Creating…'));
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));

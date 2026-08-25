@@ -98,6 +98,7 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-task-modal-title"
+        tabIndex={-1}
         class="modal create-task-modal"
       >
         <div class="modal-head">

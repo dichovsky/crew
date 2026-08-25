@@ -267,6 +267,19 @@ export function App() {
     setMsgModalError(null);
   }, []);
 
+  // A snapshot refresh can archive or remove the addressed Agent while the
+  // modal is open. Reconcile the modal with the same active-recipient rule as
+  // every selector/roster affordance, and discard the now-invalid draft rather
+  // than leave a send control that can only fail with AGENT_INACTIVE. A send
+  // already in flight keeps its result surface until it settles.
+  useEffect(() => {
+    if (msgModal === null || snapshot === null || msgModalPending) return;
+    const stillActive = snapshot.agents.some(
+      (agent) => agent.id === msgModal.to && agent.status === 'active',
+    );
+    if (!stillActive) closeMsgModal();
+  }, [closeMsgModal, msgModal, msgModalPending, snapshot]);
+
   /** Selects a Task and switches to the Tasks view — the Now worklist's task-item action. */
   function goToTask(taskId: string): void {
     setSelectedTaskId(taskId);
@@ -386,8 +399,12 @@ export function App() {
     setConfirmError(null);
     try {
       await runConfirmed(action);
-      setConfirm(null);
+      // Refresh while the modal still owns focus. If success removes or
+      // disables the opener (archive/stop), the close-time restore can observe
+      // that final DOM and choose the page fallback instead of briefly focusing
+      // a trigger that disappears one render later.
       await refetch();
+      setConfirm(null);
     } catch (err) {
       setConfirmError(err instanceof Error ? err.message : 'Action failed');
     } finally {
@@ -426,6 +443,15 @@ export function App() {
   const recipientOptions = snapshot.agents
     .filter((agent) => agent.status === 'active')
     .map((agent) => ({ id: agent.id, label: `${agent.id} · ${agent.role}` }));
+  // Hide an idle modal in the same render that makes its recipient invalid;
+  // the effect above then clears the retained draft state. A pending send was
+  // valid when started and remains visible until its response is surfaced.
+  const visibleMsgModal =
+    msgModal !== null &&
+    (msgModalPending ||
+      snapshot.agents.some((agent) => agent.id === msgModal.to && agent.status === 'active'))
+      ? msgModal
+      : null;
   const roleOf = (id: string): string =>
     snapshot.agents.find((a) => a.id === id)?.role ?? (id === OPERATOR_ID ? 'operator' : 'worker');
   const [title, subtitle] = TITLES[view];
@@ -597,7 +623,7 @@ export function App() {
       <Toasts toasts={toasts} />
 
       <MessageModal
-        to={msgModal?.to ?? null}
+        to={visibleMsgModal?.to ?? null}
         text={msgModalText}
         pending={msgModalPending}
         error={msgModalError}

@@ -61,6 +61,7 @@ export function MessageModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="message-modal-title"
+        tabIndex={-1}
         class="modal message-modal"
       >
         <div class="modal-head">

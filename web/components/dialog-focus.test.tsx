@@ -89,4 +89,47 @@ describe('dialog focus', () => {
     render(null, host);
     host.remove();
   });
+
+  it('reads the latest dismiss callback and guard before effects flush', async () => {
+    interface HarnessProps {
+      readonly dismissDisabled: boolean;
+      readonly onDismiss: () => void;
+    }
+
+    function Harness({ dismissDisabled, onDismiss }: HarnessProps) {
+      const containerRef = useRef<HTMLDivElement>(null);
+      const initialFocusRef = useRef<HTMLButtonElement>(null);
+      useDialogFocus({
+        open: true,
+        containerRef,
+        initialFocusRef,
+        onDismiss,
+        dismissDisabled,
+      });
+      return (
+        <div ref={containerRef} tabIndex={-1}>
+          <button ref={initialFocusRef}>Initial</button>
+        </div>
+      );
+    }
+
+    const firstDismiss = vi.fn();
+    const latestDismiss = vi.fn();
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    render(<Harness dismissDisabled={false} onDismiss={firstDismiss} />, host);
+    await vi.waitFor(() => expect(document.activeElement).toBe(host.querySelector('button')));
+
+    render(<Harness dismissDisabled onDismiss={latestDismiss} />, host);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+    expect(firstDismiss).not.toHaveBeenCalled();
+    expect(latestDismiss).not.toHaveBeenCalled();
+
+    render(<Harness dismissDisabled={false} onDismiss={latestDismiss} />, host);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+    expect(firstDismiss).not.toHaveBeenCalled();
+    expect(latestDismiss).toHaveBeenCalledTimes(1);
+    render(null, host);
+    host.remove();
+  });
 });

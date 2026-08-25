@@ -94,8 +94,7 @@ describe('ConfirmDialog (one-click)', () => {
     host.remove();
   });
 
-  it('ignores Escape and backdrop dismissal after pending becomes true', async () => {
-    const addEventListener = vi.spyOn(document, 'addEventListener');
+  it('guards dismissal immediately and traps focus when pending becomes true', async () => {
     const onCancel = vi.fn();
     const host = document.createElement('div');
     document.body.appendChild(host);
@@ -110,23 +109,28 @@ describe('ConfirmDialog (one-click)', () => {
 
     render(<ConfirmDialog {...props} />, host);
     await vi.waitFor(() => expect(document.activeElement).toBe(host.querySelector('.btn-confirm')));
-    const keydownRegistrations = addEventListener.mock.calls.filter(
-      ([eventName]) => eventName === 'keydown',
-    ).length;
 
+    // Dispatch synchronously after the pending render, before deferred effects
+    // could replace a stale listener. The existing listener must already read
+    // the new guard.
     render(<ConfirmDialog {...props} pending />, host);
-    await vi.waitFor(() => {
-      expect((host.querySelector('.btn-confirm') as HTMLButtonElement).disabled).toBe(true);
-      expect(
-        addEventListener.mock.calls.filter(([eventName]) => eventName === 'keydown').length,
-      ).toBeGreaterThan(keydownRegistrations);
-    });
-
+    expect((host.querySelector('.btn-confirm') as HTMLButtonElement).disabled).toBe(true);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     host
       .querySelector('.modal-backdrop')!
       .dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(onCancel).not.toHaveBeenCalled();
+
+    const tab = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(tab);
+    const dialog = host.querySelector('.modal') as HTMLElement;
+    expect(tab.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(dialog);
+    expect(dialog.contains(document.activeElement)).toBe(true);
     render(null, host);
     host.remove();
   });

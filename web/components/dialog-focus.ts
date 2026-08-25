@@ -57,6 +57,15 @@ export function useDialogFocus({
   dismissDisabled = false,
 }: DialogFocusOptions): void {
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onDismissRef = useRef(onDismiss);
+  const dismissDisabledRef = useRef(dismissDisabled);
+
+  // The document listener deliberately stays attached for the lifetime of the
+  // open dialog. Update the values it reads during render so a pending/callback
+  // prop change takes effect before Preact's deferred effects have a chance to
+  // run; an Escape in that interval must never observe the previous render.
+  onDismissRef.current = onDismiss;
+  dismissDisabledRef.current = dismissDisabled;
 
   useEffect(() => {
     if (!open) return;
@@ -80,23 +89,30 @@ export function useDialogFocus({
 
       if (event.key === 'Escape') {
         event.preventDefault();
-        if (!dismissDisabled) onDismiss();
+        if (!dismissDisabledRef.current) onDismissRef.current();
         return;
       }
       if (event.key !== 'Tab') return;
 
       const nodes = dialogFocusableNodes(container);
-      if (nodes.length === 0) return;
+      if (nodes.length === 0) {
+        // Pending dialogs disable every child control. Keep keyboard focus on
+        // the programmatically-focusable dialog itself until controls return.
+        event.preventDefault();
+        container.focus();
+        return;
+      }
       const first = nodes[0]!;
       const last = nodes[nodes.length - 1]!;
       const active = document.activeElement;
+      const activeIsFocusable = nodes.some((node) => node === active);
 
       if (event.shiftKey) {
-        if (active === first || !container.contains(active)) {
+        if (active === first || !activeIsFocusable) {
           event.preventDefault();
           last.focus();
         }
-      } else if (active === last || !container.contains(active)) {
+      } else if (active === last || !activeIsFocusable) {
         event.preventDefault();
         first.focus();
       }
@@ -104,5 +120,5 @@ export function useDialogFocus({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [containerRef, dismissDisabled, onDismiss, open]);
+  }, [containerRef, open]);
 }

@@ -416,6 +416,48 @@ describe('App actions', () => {
     unmount(host);
   });
 
+  it('closes and clears an open quick-message draft when its recipient is archived', async () => {
+    const posts = stubFetch();
+    mocks.fetchSnapshot.mockResolvedValue(snapshotOf([]));
+    const host = mount();
+    await vi.waitFor(() => expect(host.textContent).toContain('manager-1'));
+    navigate(host, 'Overview');
+    await vi.waitFor(() => expect(host.querySelector('.roster-row')).not.toBeNull());
+    (host.querySelector('.roster-row') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(host.querySelector('.message-modal')).not.toBeNull());
+
+    const draft = host.querySelector('.message-modal textarea') as HTMLTextAreaElement;
+    draft.value = 'do not send after archive';
+    draft.dispatchEvent(new Event('input'));
+    await vi.waitFor(() => expect(draft.value).toBe('do not send after archive'));
+
+    mocks.fetchSnapshot.mockResolvedValue({
+      ...snapshotOf([]),
+      agents: [
+        agent('manager-1', {
+          status: 'archived',
+          activity: 'archived',
+          archived_at: 3,
+        }),
+      ],
+    });
+    mocks.onChange.current!();
+
+    await vi.waitFor(() => expect(host.querySelector('.message-modal')).toBeNull());
+    expect(host.querySelector('.roster-row')).toBeNull();
+    expect(posts.some((post) => post.url.includes('/api/messages'))).toBe(false);
+
+    // Reactivation creates a fresh modal, proving the invalid draft was cleared
+    // rather than merely hidden by the active-recipient render.
+    mocks.fetchSnapshot.mockResolvedValue(snapshotOf([]));
+    mocks.onChange.current!();
+    await vi.waitFor(() => expect(host.querySelector('.roster-row')).not.toBeNull());
+    (host.querySelector('.roster-row') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(host.querySelector('.message-modal')).not.toBeNull());
+    expect((host.querySelector('.message-modal textarea') as HTMLTextAreaElement).value).toBe('');
+    unmount(host);
+  });
+
   it('toggles the light/dark theme and persists it across a remount', async () => {
     stubFetch();
     mocks.fetchSnapshot.mockResolvedValue(snapshotOf([]));
@@ -476,6 +518,39 @@ describe('App actions', () => {
     );
     expect(posts.find((p) => p.url.includes('/restore'))!.body).toEqual({});
     expect(host.querySelector('[role="alertdialog"]')).toBeNull();
+    unmount(host);
+  });
+
+  it('restores focus to the page fallback after a confirmed action removes its opener', async () => {
+    const archivedSnapshot: WorkspaceSnapshot = {
+      ...snapshotOf([]),
+      agents: [
+        agent('manager-1', {
+          status: 'archived',
+          activity: 'archived',
+          archived_at: 3,
+        }),
+      ],
+    };
+    stubFetch();
+    mocks.fetchSnapshot.mockResolvedValueOnce(snapshotOf([])).mockResolvedValue(archivedSnapshot);
+    const host = mount();
+    await vi.waitFor(() => expect(host.textContent).toContain('manager-1'));
+    navigate(host, 'Agents');
+    await vi.waitFor(() => expect(host.querySelector('.btn-archive')).not.toBeNull());
+
+    const opener = host.querySelector('.btn-archive') as HTMLButtonElement;
+    opener.focus();
+    opener.click();
+    await vi.waitFor(() => expect(document.activeElement).toBe(host.querySelector('.btn-confirm')));
+    (host.querySelector('.btn-confirm') as HTMLButtonElement).click();
+
+    await vi.waitFor(() => expect(host.querySelector('[role="alertdialog"]')).toBeNull());
+    expect(opener.isConnected).toBe(false);
+    await vi.waitFor(() => {
+      expect(document.activeElement).not.toBe(document.body);
+      expect(document.activeElement).toBe(host.querySelector('[data-focus-fallback]'));
+    });
     unmount(host);
   });
 

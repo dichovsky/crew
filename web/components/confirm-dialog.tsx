@@ -68,6 +68,7 @@ export function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
         aria-describedby="confirm-dialog-desc"
+        tabIndex={-1}
         class="modal"
       >
         <h3 id="confirm-dialog-title">{title}</h3>

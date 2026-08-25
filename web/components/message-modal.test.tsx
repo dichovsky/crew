@@ -113,8 +113,7 @@ describe('MessageModal', () => {
     host.remove();
   });
 
-  it('ignores Escape and backdrop dismissal after pending becomes true', async () => {
-    const addEventListener = vi.spyOn(document, 'addEventListener');
+  it('guards Escape and backdrop dismissal immediately when pending becomes true', async () => {
     const onClose = vi.fn();
     const host = document.createElement('div');
     document.body.appendChild(host);
@@ -128,18 +127,11 @@ describe('MessageModal', () => {
 
     render(<MessageModal {...props} />, host);
     await vi.waitFor(() => expect(document.activeElement).toBe(host.querySelector('textarea')));
-    const keydownRegistrations = addEventListener.mock.calls.filter(
-      ([eventName]) => eventName === 'keydown',
-    ).length;
 
+    // No effect flush is allowed between this render and Escape: the listener
+    // installed for the open dialog must observe the new pending value now.
     render(<MessageModal {...props} pending />, host);
-    await vi.waitFor(() => {
-      expect((host.querySelector('textarea') as HTMLTextAreaElement).disabled).toBe(true);
-      expect(
-        addEventListener.mock.calls.filter(([eventName]) => eventName === 'keydown').length,
-      ).toBeGreaterThan(keydownRegistrations);
-    });
-
+    expect((host.querySelector('textarea') as HTMLTextAreaElement).disabled).toBe(true);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     host
       .querySelector('.modal-backdrop')!
