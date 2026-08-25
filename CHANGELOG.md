@@ -30,6 +30,13 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- `crew search` now provides lexical FTS5 search over Message content and Task Event detail,
+  with Message and Event results ranked independently, optional Agent/time/scope filters, bounded
+  snippets, human and NDJSON output, and an explicit `--reindex` repair. Schema version 8 adds
+  external-content indexes maintained by triggers and backfills existing history during upgrade;
+  `doctor` reports count-level index staleness. Search never computes embeddings, calls a model,
+  or reaches the network. `crew history --id <message-id> --json` provides exact full-Message
+  retrieval for a search hit.
 - Little Coder 1.11.0 is now a first-class Participant CLI (`little-coder`), bringing
   the registry to eight participants. It shares Pi's `/crew` Prompt Template paths and
   artifact bytes, works through `setup`, `doctor`, Team display, join metadata, and the

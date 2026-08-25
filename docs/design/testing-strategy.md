@@ -74,9 +74,28 @@ smoke job.
 - receive default/max limit, the Agent's activity timestamp update, ordering after
   `RETURNING`, empty receive, second receive returning nothing;
 - pending does not consume anything; the summary exposes a count and a maximum id but no
-  content or sender; history filter combinations and bounded ordering;
+  content or sender; history filter combinations and bounded ordering; exact positive-id JSON
+  lookup, its mutual exclusions, and `NOT_FOUND`;
 - rendering fixtures for ANSI/OSC/control characters, and exact preservation in JSON output;
 - the 100,000-character limit, Unicode preview boundaries, multiline prefixes.
+
+### Lexical search
+
+- query compilation treats each argv element as one clause, preserves a shell-quoted multiword
+  argument as one phrase, supports a trailing prefix `*`, rejects invalid bounds, and quotes
+  operator-shaped text rather than exposing raw FTS5 syntax;
+- `unicode61` case/diacritic folding and punctuation-as-separator behavior, including `foo-bar`
+  matching the same tokens as `foo bar`;
+- Message and Task Event scope/filter combinations, per-scope limits, deterministic `bm25()` / time
+  / id ordering, and no cross-index score fusion;
+- both scopes are read from one deferred transaction, including a forced concurrent write between
+  the two queries; ordinary search changes no Message-read or Agent-activity state after open;
+- `snippet()` uses a 32-token request and the shared preview caps the result at 200 Unicode code
+  points even when one token is longer, without promising a word-boundary cut;
+- insert, delete, id/text update, irrelevant-column update, cascade, and prune paths keep both
+  external-content indexes synchronized;
+- reindex rebuilds both indexes inside one immediate transaction and returns exact source-row
+  counts; failed or interrupted rebuild work rolls back as one unit.
 
 ### Reviewed Tasks
 
@@ -107,6 +126,14 @@ smoke job.
   touched/foreign/no-token/archived rows intact; the launcher reaps only after a confirmed
   teardown and skips it otherwise;
 - doctor detects drift in exported built-ins, stale Leases, and archived owners;
+- the released v7->v8 migration rejects direct-name and prospective shadow-name collisions,
+  backfills both indexes before stamping v8, and rolls back all objects/backfill on failure;
+- schema drift pins the virtual declarations and sync triggers, admits exactly the expected FTS5
+  shadow objects by table-list type, keeps every authoritative ordinary table `STRICT`, and
+  rejects missing, altered, or unexpected objects;
+- doctor's four search-index counts come from one SQL statement/read snapshot; mismatches become
+  `SEARCH_INDEX_STALE`, while tests and docs preserve the honest limitation that equal counts can
+  miss wrong indexed text;
 - prune cutoffs, reference behavior, and counts; the vacuum/clean active-Agent guards;
 - quick-check and foreign-key-check findings map to `INTEGRITY`.
 
@@ -121,7 +148,8 @@ table of cases, and assert:
 - human-output snapshots for stable headings and hints;
 - JSON schema fixtures for every record type;
 - an unknown command never creates an Agent or a State Store;
-- an empty query emits no JSON lines and exits 0;
+- a search with no matches emits no JSON lines and exits 0, while its human form prints
+  `No results.`;
 - all command examples in `cli-contract.md` parse.
 
 Avoid asserting commander's own incidental wording outside crew-owned error messages.

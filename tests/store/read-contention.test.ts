@@ -39,6 +39,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CrewError } from '../../src/errors.js';
+import { compileSearchQuery } from '../../src/search-query.js';
 import { Store } from '../../src/store/index.js';
 
 const made: string[] = [];
@@ -80,6 +81,8 @@ const READS: ReadonlyArray<[string, (store: Store, taskId: string) => unknown]> 
   ['listPendingMessages', (store) => store.listPendingMessages()],
   ['getPendingSummary', (store) => store.getPendingSummary('worker')],
   ['listMessageHistory', (store) => store.listMessageHistory()],
+  ['getMessage', (store) => store.getMessage(1)],
+  ['search', (store) => store.search({ query: compileSearchQuery(['needle']), scope: 'all' })],
   ['getTask', (store, taskId) => store.getTask(taskId)],
   ['listTasks', (store) => store.listTasks()],
   ['listStaleLeaseTasks', (store) => store.listStaleLeaseTasks()],

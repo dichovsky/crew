@@ -2,7 +2,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { CrewError } from '../errors.js';
 
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 export const TABLE_SQL = {
   agents: `CREATE TABLE agents (
@@ -133,6 +133,34 @@ export const TABLE_SQL = {
 ) STRICT`,
 } as const;
 
+/** FTS5 external-content indexes whose declaration SQL is part of schema v8. */
+export const VIRTUAL_TABLE_SQL = {
+  messages_fts: `CREATE VIRTUAL TABLE messages_fts USING fts5(
+  content,
+  content = 'messages',
+  content_rowid = 'id',
+  tokenize = 'unicode61 remove_diacritics 2'
+)`,
+  task_events_fts: `CREATE VIRTUAL TABLE task_events_fts USING fts5(
+  detail,
+  content = 'task_events',
+  content_rowid = 'id',
+  tokenize = 'unicode61 remove_diacritics 2'
+)`,
+} as const;
+
+/** The exact FTS5-owned shadow-table names produced by the two v8 indexes. */
+export const FTS_SHADOW_TABLE_NAMES = [
+  'messages_fts_data',
+  'messages_fts_idx',
+  'messages_fts_docsize',
+  'messages_fts_config',
+  'task_events_fts_data',
+  'task_events_fts_idx',
+  'task_events_fts_docsize',
+  'task_events_fts_config',
+] as const;
+
 export const INDEX_SQL = {
   idx_messages_unread:
     'CREATE INDEX idx_messages_unread ON messages(recipient_id, id) WHERE read_at IS NULL',
@@ -212,7 +240,49 @@ END`,
 BEGIN
   INSERT INTO observable_mutations (id, cursor) VALUES (1, 1) ON CONFLICT (id) DO UPDATE SET cursor = cursor + 1;
 END`,
+  trg_messages_fts_insert: `CREATE TRIGGER trg_messages_fts_insert AFTER INSERT ON messages
+BEGIN
+  INSERT INTO messages_fts (rowid, content) VALUES (new.id, new.content);
+END`,
+  trg_messages_fts_update: `CREATE TRIGGER trg_messages_fts_update AFTER UPDATE OF id, content ON messages
+BEGIN
+  INSERT INTO messages_fts (messages_fts, rowid, content) VALUES ('delete', old.id, old.content);
+  INSERT INTO messages_fts (rowid, content) VALUES (new.id, new.content);
+END`,
+  trg_messages_fts_delete: `CREATE TRIGGER trg_messages_fts_delete AFTER DELETE ON messages
+BEGIN
+  INSERT INTO messages_fts (messages_fts, rowid, content) VALUES ('delete', old.id, old.content);
+END`,
+  trg_task_events_fts_insert: `CREATE TRIGGER trg_task_events_fts_insert AFTER INSERT ON task_events
+BEGIN
+  INSERT INTO task_events_fts (rowid, detail) VALUES (new.id, new.detail);
+END`,
+  trg_task_events_fts_update: `CREATE TRIGGER trg_task_events_fts_update AFTER UPDATE OF id, detail ON task_events
+BEGIN
+  INSERT INTO task_events_fts (task_events_fts, rowid, detail) VALUES ('delete', old.id, old.detail);
+  INSERT INTO task_events_fts (rowid, detail) VALUES (new.id, new.detail);
+END`,
+  trg_task_events_fts_delete: `CREATE TRIGGER trg_task_events_fts_delete AFTER DELETE ON task_events
+BEGIN
+  INSERT INTO task_events_fts (task_events_fts, rowid, detail) VALUES ('delete', old.id, old.detail);
+END`,
 } as const;
+
+const FTS_TRIGGER_NAMES = [
+  'trg_messages_fts_insert',
+  'trg_messages_fts_update',
+  'trg_messages_fts_delete',
+  'trg_task_events_fts_insert',
+  'trg_task_events_fts_update',
+  'trg_task_events_fts_delete',
+] as const satisfies readonly (keyof typeof TRIGGER_SQL)[];
+
+const FTS_SCHEMA_OBJECT_NAMES = [
+  'messages_fts',
+  'task_events_fts',
+  ...FTS_SHADOW_TABLE_NAMES,
+  ...FTS_TRIGGER_NAMES,
+] as const;
 
 const OBSERVABLE_MUTATION_TRIGGER_NAMES = [
   'trg_messages_observable_mutation_insert',
@@ -244,6 +314,7 @@ export const V4_IDX_TASK_EVENTS_TASK_SQL =
 /** Complete schema body, excluding the transaction-owned user_version update. */
 export const SCHEMA_SQL = [
   ...Object.values(TABLE_SQL),
+  ...Object.values(VIRTUAL_TABLE_SQL),
   ...Object.values(INDEX_SQL),
   ...Object.values(TRIGGER_SQL),
 ].join(';\n\n');
@@ -483,7 +554,10 @@ function runMigrationsWithForeignKeysOff(
  * Sign-off the land/abandon transitions mint), the same full-canonical-SQL
  * validate rigor as the other destructive rebuilds. v6 -> v7 adds the
  * `observable_mutations` cursor plus its nine Message/Task/Event triggers so
- * Console SSE observes mutations that MAX/COUNT cursors cannot detect.
+ * Console SSE observes mutations that MAX/COUNT cursors cannot detect. v7 ->
+ * v8 adds two external-content FTS5 indexes and six synchronization triggers,
+ * then rebuilds both indexes inside the migration transaction to backfill all
+ * existing Message content and Task Event detail.
  */
 
 /** The released v2 shape of `tasks` (pre-`abandoned`), for the v2->v3 validate step only. */
@@ -1002,6 +1076,41 @@ export const MIGRATIONS: readonly SchemaMigration[] = [
       }
     },
   },
+  {
+    // v7 -> v8: add derived external-content FTS5 indexes. Validation reserves
+    // not only the two virtual-table and six trigger names but also all eight
+    // FTS5-owned shadow names: SQLite must never adopt a pre-existing object as
+    // part of a supposedly fresh index. Rebuild runs inside runMigrations'
+    // EXCLUSIVE transaction, so the version stamp cannot become visible before
+    // every pre-existing Message and Task Event is indexed.
+    fromVersion: 7,
+    toVersion: 8,
+    validate: (db) => {
+      const strays = db
+        .prepare(
+          `SELECT type, name FROM sqlite_schema WHERE name IN (${FTS_SCHEMA_OBJECT_NAMES.map(() => '?').join(', ')}) ORDER BY name`,
+        )
+        .all(...FTS_SCHEMA_OBJECT_NAMES) as unknown as { type: string; name: string }[];
+      if (strays.length > 0) {
+        throw new CrewError(
+          'INTEGRITY',
+          `cannot migrate to schema v8: unexpected schema objects already exist: ${strays
+            .map((row) => `${row.type}:${row.name}`)
+            .join(', ')}`,
+        );
+      }
+    },
+    apply: (db) => {
+      for (const sql of Object.values(VIRTUAL_TABLE_SQL)) {
+        db.exec(sql);
+      }
+      for (const name of FTS_TRIGGER_NAMES) {
+        db.exec(TRIGGER_SQL[name]);
+      }
+      db.exec("INSERT INTO messages_fts (messages_fts) VALUES ('rebuild')");
+      db.exec("INSERT INTO task_events_fts (task_events_fts) VALUES ('rebuild')");
+    },
+  },
 ];
 
 /**
@@ -1037,6 +1146,25 @@ export function findSchemaDrift(db: DatabaseSync): string | null {
       return `table "${name}" does not match schema v${CURRENT_SCHEMA_VERSION}`;
     }
   }
+  for (const [name, sql] of Object.entries(VIRTUAL_TABLE_SQL)) {
+    const key = `table:${name}`;
+    expectedKeys.add(key);
+    const row = actual.get(key);
+    if (
+      row?.sql === null ||
+      row?.sql === undefined ||
+      canonicalSql(row.sql) !== canonicalSql(sql)
+    ) {
+      return `virtual table "${name}" does not match schema v${CURRENT_SCHEMA_VERSION}`;
+    }
+  }
+  for (const name of FTS_SHADOW_TABLE_NAMES) {
+    const key = `table:${name}`;
+    expectedKeys.add(key);
+    if (!actual.has(key)) {
+      return `shadow table "${name}" is missing from schema v${CURRENT_SCHEMA_VERSION}`;
+    }
+  }
   for (const [name, sql] of Object.entries(INDEX_SQL)) {
     const key = `index:${name}`;
     expectedKeys.add(key);
@@ -1067,13 +1195,28 @@ export function findSchemaDrift(db: DatabaseSync): string | null {
     return `unexpected schema objects: ${extras.join(', ')}`;
   }
 
-  const tableList = db.prepare('PRAGMA table_list').all() as unknown as {
-    name: string;
-    strict: number;
-  }[];
+  const tableList = db
+    .prepare("SELECT name, type, strict FROM pragma_table_list WHERE schema = 'main'")
+    .all() as unknown as { name: string; type: string; strict: number }[];
   for (const name of Object.keys(TABLE_SQL)) {
-    if (tableList.find((row) => row.name === name)?.strict !== 1) {
+    const row = tableList.find((candidate) => candidate.name === name);
+    if (row?.type !== 'table') {
+      return `table "${name}" has unexpected table-list type "${row?.type ?? 'missing'}"`;
+    }
+    if (row.strict !== 1) {
       return `table "${name}" is not STRICT`;
+    }
+  }
+  for (const name of Object.keys(VIRTUAL_TABLE_SQL)) {
+    const row = tableList.find((candidate) => candidate.name === name);
+    if (row?.type !== 'virtual') {
+      return `virtual table "${name}" has unexpected table-list type "${row?.type ?? 'missing'}"`;
+    }
+  }
+  for (const name of FTS_SHADOW_TABLE_NAMES) {
+    const row = tableList.find((candidate) => candidate.name === name);
+    if (row?.type !== 'shadow') {
+      return `shadow table "${name}" has unexpected table-list type "${row?.type ?? 'missing'}"`;
     }
   }
 

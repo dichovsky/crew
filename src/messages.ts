@@ -5,6 +5,7 @@ import { assertAgentId } from './agent-id.js';
 import { CrewError } from './errors.js';
 import { formatTimestamp, sanitizeHuman, writeJsonLine, writeLine } from './format.js';
 import type { Io } from './io.js';
+import { previewText } from './preview.js';
 import { type InboxState, type MessageRecord, openWorkspaceStore } from './store/index.js';
 import { resolveWorkspaceRoot } from './workspace.js';
 
@@ -25,6 +26,7 @@ export interface PendingOptions {
 }
 
 export interface HistoryOptions {
+  readonly id?: string;
   readonly agent?: string;
   readonly from?: string;
   readonly to?: string;
@@ -44,13 +46,13 @@ function integerOption(value: string, name: string, maximum: number): number {
   return parsed;
 }
 
-function messageId(value: string): number {
+function messageId(value: string, name = 'reply-to'): number {
   if (!/^[1-9]\d*$/.test(value)) {
-    throw new CrewError('USAGE', 'reply-to must be a positive integer Message id');
+    throw new CrewError('USAGE', `${name} must be a positive integer Message id`);
   }
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed)) {
-    throw new CrewError('USAGE', 'reply-to must be a positive integer Message id');
+    throw new CrewError('USAGE', `${name} must be a positive integer Message id`);
   }
   return parsed;
 }
@@ -248,18 +250,13 @@ function inboxRecord(state: InboxState): Record<string, unknown> {
   };
 }
 
-function preview(content: string): string {
-  const points = Array.from(content);
-  return points.length <= 200 ? content : `${points.slice(0, 200).join('')}…`;
-}
-
 function writeHumanMessage(io: Io, message: MessageRecord, truncate: boolean): void {
   writeLine(
     io,
     `#${message.id}  ${sanitizeHuman(message.senderId)} -> ${sanitizeHuman(message.recipientId)}  ${formatTimestamp(message.createdAt)}`,
   );
   const sanitized = sanitizeHuman(message.content);
-  const content = truncate ? preview(sanitized) : sanitized;
+  const content = truncate ? previewText(sanitized) : sanitized;
   for (const line of content.split('\n')) writeLine(io, `  ${line}`);
 }
 
@@ -376,6 +373,31 @@ export function runPending(io: Io, options: PendingOptions): void {
 
 /** `crew history`: query a newest bounded window with inclusive filters. */
 export function runHistory(io: Io, options: HistoryOptions): void {
+  if (options.id !== undefined) {
+    if (
+      options.agent !== undefined ||
+      options.from !== undefined ||
+      options.to !== undefined ||
+      options.since !== undefined ||
+      options.limit !== undefined
+    ) {
+      throw new CrewError('USAGE', 'history --id cannot be combined with history filters');
+    }
+    if (!options.json) {
+      throw new CrewError('USAGE', 'history --id requires --json');
+    }
+    const id = messageId(options.id, 'id');
+    const root = resolveWorkspaceRoot(io.cwd);
+    const store = openWorkspaceStore(root, io.clock, io.random, io.onTransactionStep);
+    try {
+      const message = store.getMessage(id);
+      if (message === null) throw new CrewError('NOT_FOUND', `no message with id ${id}`);
+      writeJsonLine(io, messageRecord(message));
+    } finally {
+      store.close();
+    }
+    return;
+  }
   if (options.agent !== undefined) assertAgentId(options.agent);
   if (options.from !== undefined) assertAgentId(options.from);
   if (options.to !== undefined) assertAgentId(options.to);

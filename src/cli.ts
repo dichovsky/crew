@@ -22,6 +22,7 @@ import { runClean, runPrune } from './maintenance.js';
 import { runHistory, runPending, runReceive, runSend } from './messages.js';
 import { runRelay } from './relay.js';
 import { runRoleExport, runRolesList, runRoleShow } from './roles.js';
+import { runSearch } from './search.js';
 import { runSetup } from './setup/index.js';
 import {
   runTaskAbandon,
@@ -35,7 +36,7 @@ import {
   runTaskStart,
   runTaskSubmit,
 } from './tasks.js';
-import type { TaskStatus } from './store/index.js';
+import type { SearchScope, TaskStatus } from './store/index.js';
 import { runTeamShow, runTeamsList } from './teams.js';
 import { runUi } from './ui/index.js';
 import type { Io } from './io.js';
@@ -215,6 +216,7 @@ function registerCommands(program: Command, io: Io, execute: boolean): void {
   program
     .command('history')
     .description('List Message history, including read and unread rows')
+    .option('--id <message-id>', 'fetch one exact full Message (requires --json)')
     .option('--agent <id>', 'filter where Agent is sender or recipient')
     .option('--from <id>', 'filter by sender Agent')
     .option('--to <id>', 'filter by recipient Agent')
@@ -223,6 +225,7 @@ function registerCommands(program: Command, io: Io, execute: boolean): void {
     .option('--json', 'emit machine-readable JSON')
     .action(
       (opts: {
+        id?: string;
         agent?: string;
         from?: string;
         to?: string;
@@ -232,11 +235,51 @@ function registerCommands(program: Command, io: Io, execute: boolean): void {
       }) => {
         if (execute)
           runHistory(io, {
+            ...(opts.id !== undefined ? { id: opts.id } : {}),
             ...(opts.agent !== undefined ? { agent: opts.agent } : {}),
             ...(opts.from !== undefined ? { from: opts.from } : {}),
             ...(opts.to !== undefined ? { to: opts.to } : {}),
             ...(opts.since !== undefined ? { since: opts.since } : {}),
             ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
+            json: opts.json ?? false,
+          });
+      },
+    );
+
+  program
+    .command('search [query...]')
+    .description('Search Message content and Task Event detail with lexical FTS5')
+    .addOption(
+      new Option('--scope <scope>', 'select messages, task-events, or both').choices([
+        'messages',
+        'task-events',
+        'all',
+      ]),
+    )
+    .option('--agent <id>', 'filter by Message participant or Task Event actor')
+    .option('--since <timestamp>', 'inclusive epoch-second or exact ISO-8601 timestamp')
+    .option('--limit <count>', 'maximum results per selected scope (1..500)')
+    .option('--reindex', 'rebuild both derived search indexes')
+    .option('--json', 'emit machine-readable NDJSON')
+    .action(
+      (
+        query: string[],
+        opts: {
+          scope?: SearchScope;
+          agent?: string;
+          since?: string;
+          limit?: string;
+          reindex?: boolean;
+          json?: boolean;
+        },
+      ) => {
+        if (execute)
+          runSearch(io, query, {
+            ...(opts.scope !== undefined ? { scope: opts.scope } : {}),
+            ...(opts.agent !== undefined ? { agent: opts.agent } : {}),
+            ...(opts.since !== undefined ? { since: opts.since } : {}),
+            ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
+            reindex: opts.reindex ?? false,
             json: opts.json ?? false,
           });
       },

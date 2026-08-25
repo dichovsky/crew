@@ -1,12 +1,10 @@
 # crew CLI Contract
 
 This is the binding ("normative") contract for version 1 of the crew command line: what each
-command accepts, what it prints, and how it fails. The `crew ui` and `crew team stop` commands
-were added after v1; they only add to the contract and take nothing away from it. Examples use
-the `crew` executable regardless of the final npm package name. One section — **Search** — is
-marked *specified, not implemented*: it is the contract [ADR-0019](../adr/0019-fts5-search.md)
-agreed for issue 8, written ahead of the code that must satisfy it, and every part of this
-document that mentions it says so.
+command accepts, what it prints, and how it fails. The `crew ui`, `crew team stop`, and `crew
+search` commands were added after v1; they only add to the contract and take nothing away from
+it. Examples use the `crew` executable regardless of the final npm package name. Search
+implements the contract agreed in [ADR-0019](../adr/0019-fts5-search.md) for issue 8.
 
 ## General rules
 
@@ -145,6 +143,7 @@ crew receive <id> [--limit <1..500>] [--json]
 crew pending [--agent <id>] [--summary] [--limit <1..500>] [--json]
 crew history [--agent <id>] [--from <id>] [--to <id>]
              [--since <timestamp>] [--limit <1..1000>] [--json]
+crew history --id <positive-message-id> --json
 ```
 
 - A Message is a durable note stored for exactly one Agent. Sending to `@all` broadcasts it
@@ -171,6 +170,10 @@ crew history [--agent <id>] [--from <id>] [--to <id>]
   epoch second, within JavaScript's safe-integer range) or an ISO-8601 timestamp with whole
   seconds and either `Z` or a numeric UTC offset. History returns the newest 100 by default,
   ordered oldest-to-newest within that window; its limit range is 1 through 1000.
+- `history --id` is exact retrieval for a Message id reported by search. It requires a positive
+  integer and `--json`, emits exactly that one Message record, and returns `NOT_FOUND` when the id
+  does not exist. Exact-id mode cannot be combined with `--agent`, `--from`, `--to`, `--since`, or
+  `--limit`; it is a single-record lookup, not a list filter.
 
 ### Reviewed Tasks
 
@@ -469,13 +472,9 @@ crew ui [--port <n>] [--no-open] [--json]
 - `ui` failures use the existing error codes and follow the General rules for stdout, stderr,
   and exit status; the command introduces no new error code.
 
-### Search (post-v1; specified, not implemented)
+### Search (post-v1)
 
-> This section specifies the command agreed in [ADR-0019](../adr/0019-fts5-search.md) for issue
-> 8 and required by SRS group S. **`crew search` does not exist yet** — it is registered by no
-> program, and running it today is an unknown-command `USAGE` error like any other. The section
-> is written as a binding contract so that the implementation has one to satisfy; until that
-> lands, it describes intent, not behavior.
+This command implements [ADR-0019](../adr/0019-fts5-search.md) and SRS group S.
 
 ```text
 crew search <query...> [--scope <messages|task-events|all>] [--agent <id>]
@@ -490,18 +489,18 @@ crew search --reindex [--json]
   bodies are **not** searchable; use `task list` and `task show` for those. The reason is
   recorded in ADR-0019 and is a property of how Task rows are keyed, not a judgment about their
   value.
-- The query is crew's own small language, not raw FTS5 syntax:
-  - words separated by spaces — every word must appear (`lease inspector` finds text containing
-    both);
-  - `"quoted phrases"` — the words must appear together, in that order;
-  - a trailing `*` on a word — a prefix match (`leas*` finds `lease` and `leasing`).
-  Everything else is matched literally, including words such as `AND`, `OR`, and `NEAR`, and
-  including punctuation: crew compiles what you typed into a search expression rather than
-  handing it to SQLite, so no query can be a syntax error and no query can reach beyond the two
-  searchable columns. Matching ignores case and diacritics, so `cafe` finds `CAFÉ`.
+- The query is crew's own small language, not raw FTS5 syntax. Each command-line query argument
+  is one clause and every clause must match: `crew search lease inspector` supplies two clauses,
+  while `crew search "lease inspector"` uses shell quoting to supply one multiword phrase. A
+  trailing `*` requests a prefix match (`leas*` finds `lease` and `leasing`). Operator words such
+  as `AND`, `OR`, and `NEAR` are ordinary clause text because crew compiles each clause into an
+  FTS5 string literal rather than handing the raw query to SQLite. Matching uses the `unicode61`
+  tokenizer: it ignores case and diacritics (`cafe` finds `CAFÉ`) and treats punctuation as a
+  separator (`foo-bar` is tokenized like `foo bar`, not as literal punctuation). No query can
+  reach beyond the two searchable columns.
 - The query is 1 to 500 Unicode code points once the arguments are joined with single spaces.
-  A query that matches nothing prints `No results.` and exits 0 — finding nothing is a
-  successful search.
+  Finding nothing is successful: human output prints `No results.`, JSON output emits zero
+  records, and both exit 0.
 - `--scope` selects what to search; the default is `all`. Its values are plural and hyphenated
   (`messages`, `task-events`) while a `--json` record's own `scope` field is singular and
   underscored (`message`, `task_event`). That is deliberate and not a typo: the option names a
@@ -522,17 +521,22 @@ crew search --reindex [--json]
   them by score: a relevance score is computed from the statistics of one index, so a Message's
   score and a Task Event's score are not comparable, and pretending otherwise would invent a
   number. Every record carries its own `rank`, so a consumer can order the union however it
-  likes.
-- A result carries a short excerpt of the matched text — at most 32 matched-and-surrounding
-  words, then the same 200-code-point preview rule `pending` and `history` use, with `…` only
-  where something was cut. It does not carry the full stored content. To fetch that: for a
-  Message, use the reported `id` with `crew history`; for a Task Event, use its `task_id` — not
-  its `id` — with `crew task show <task-id> --events`, since `task show` is keyed by Task.
-- `search` only looks. It marks no Message read, refreshes no Agent's activity, and writes
-  nothing to the State Store.
+  likes. Both blocks are read inside one transaction, so a concurrent write cannot put them on
+  different Store snapshots.
+- A result carries a bounded excerpt of the matched text. FTS5's `snippet()` first selects a
+  fragment with at most 32 tokens; crew then applies its 200-Unicode-code-point preview bound so
+  even one very long token cannot create an unbounded field. The preview may cut inside a token;
+  no word-boundary cut is promised. It does not carry the full stored content. To fetch that: for
+  a Message, run `crew history --id <message-id> --json`; for a Task Event, use its `task_id` —
+  not its `id` — with `crew task show <task-id> --events`, since `task show` is keyed by Task.
+- Opening the Store may initialize an empty database or migrate an older supported schema, as for
+  any stateful command. After that open-time schema work, ordinary `search` only looks: it marks
+  no Message read, refreshes no Agent activity, and performs no domain write.
 - `crew search --reindex` is the one exception: it rebuilds both indexes from the Messages and
   Task Events they index and writes nothing else. It takes no query and no filter — combining it
   with either is `USAGE`. Rebuilding is always safe because an index holds no fact of its own.
+  Both rebuilds run in one `BEGIN IMMEDIATE` transaction, so an observer sees both old indexes or
+  both rebuilt indexes, never one of each.
   It is the repair for the `SEARCH_INDEX_STALE` finding `doctor` reports when the number of
   indexed documents no longer matches the number of stored rows; an index whose *objects* are
   missing or altered is schema drift instead, and fails the command that opened the store with
@@ -668,9 +672,9 @@ status does not change.
 {"type":"task_review","schema_version":1,"task_id":"uuid","agent_id":"inspector","path":"/home/user/.local/share/crew/worktrees/<repo-hash>/review-696e73706563746f72","branch":"crew/review-696e73706563746f72","base_ref":"main"}
 ```
 
-### Search result and reindex result (specified, not implemented)
+### Search result and reindex result
 
-`crew search --json` will emit one `search_result` per match, Messages first and then Task
+`crew search --json` emits one `search_result` per match, Messages first and then Task
 Events, each block in its own rank order (ADR-0019). One record shape covers both scopes: the
 fields that do not apply to a scope are `null`, the way the Task record already nulls its
 worktree trio together.
@@ -683,19 +687,19 @@ worktree trio together.
 `scope` is `message` or `task_event`, and `id` is that record's own id in its own table — a
 Message id for the first, a Task Event id for the second. `rank` is the raw `bm25()` score, where
 a more negative number is a better match; it is comparable only among records sharing the same
-`scope`. `snippet` is a **derived** excerpt, not stored content: it is cut to a word boundary and
-marked with `…` where it was cut, and it is the one field in crew's JSON output that is computed
-from stored text rather than reproducing it.
+`scope`. `snippet` is a **derived**, bounded excerpt rather than stored content: FTS5 selects a
+fragment with a 32-token limit and crew then applies a 200-Unicode-code-point preview. That second
+cut may land inside a token; no word-boundary guarantee is made. It is the one field in crew's
+JSON output that is computed from stored text rather than reproducing it.
 
 Within that excerpt the bytes are **not** rewritten: control characters survive into the JSON
 `snippet` exactly as stored (escaped by the JSON serializer, as any string is), because the
 stripping the human surface performs exists to stop stored text from driving a terminal, and
 `--json` is not one. So the two surfaces deliberately emit **different** `snippet` strings for
 the same result — human strips, `--json` does not — which is the same split every other field
-already follows. Fetch the full text with `crew history` for a
-Message, using its `id`; for a Task Event use `crew task show <task-id> --events` with the
-record's **`task_id`** — `task show` is keyed by Task, so the Task Event's own `id` will not
-resolve there.
+already follows. Fetch the full Message with `crew history --id <message-id> --json`; for a Task
+Event use `crew task show <task-id> --events` with the record's **`task_id`** — `task show` is
+keyed by Task, so the Task Event's own `id` will not resolve there.
 
 `crew search --reindex --json` emits exactly one record instead:
 
@@ -711,7 +715,7 @@ optional object. The finding `code` comes from this closed list: `DEPENDENCY_MIS
 `VERSION_FLOOR`, `STATE_PATH`, `NETWORK_FILESYSTEM`, `NESTED_WORKSPACE`, `NO_STATE_STORE`,
 `UNSUPPORTED_SCHEMA`, `INTEGRITY`, `SCHEMA_DRIFT`, `STALE_LEASE`, `ARCHIVED_OWNER`,
 `ROLE_DRIFT`, `TEAM_DRIFT`, `SETUP_DRIFT`, `RESUME_DRIFT`, `INVALID_CONFIG`, `UNSAFE_PATH`, and
-— once the Search section above is implemented — `SEARCH_INDEX_STALE`.
+`SEARCH_INDEX_STALE`.
 `DEPENDENCY_MISSING`, `UNSUPPORTED_SCHEMA`, `INTEGRITY`, `TEAM_DRIFT`, `INVALID_CONFIG`, and
 `UNSAFE_PATH` are shared with the error-code vocabulary, so findings and errors speak one
 language wherever they overlap; the remaining codes are diagnostic-only names with no
@@ -731,11 +735,12 @@ config file that cannot be read does not abort `doctor`: it becomes a `warn` fin
 or invalid project file produces its own finding (with the file's `name` in `details`) while
 every remaining valid Role/Team config is still listed and checked for drift. If the whole
 listing fails (e.g. the `roles/` or `teams/` directory itself cannot be read), that becomes a
-single finding the same way. `SEARCH_INDEX_STALE` will report a search index whose indexed-document
+single finding the same way. `SEARCH_INDEX_STALE` reports a search index whose indexed-document
 count no longer matches the number of stored Messages or Task Events (`warn`); its `details` carry
 the affected `scope` and the two counts, and the message names `crew search --reindex` as the fix.
-It is diagnosed read-only, so it proves that rows are missing from an index, not that the indexed
-text is right.
+Both row counts and both index counts come from one read snapshot. Equal counts can still be a
+false negative: this diagnostic detects a count mismatch, but does not prove that indexed text is
+right.
 
 ```json
 {"type":"health_finding","schema_version":1,"severity":"warn","code":"STALE_LEASE","message":"Task lease expired","details":{"task_id":"uuid"}}
@@ -931,13 +936,13 @@ widths are pinned by the snapshot fixtures, not promised as an API.
   of its own.
 - Successful `crew team stop` output names the stopped session and how many Agents were
   archived, for example `Stopped crew-demo; archived 3 Agents.`
-- `crew search` (specified, not implemented) renders one labeled block per scope, each with its
+- `crew search` renders one labeled block per scope, each with its
   own header row, in the fixed order Messages then Task Events; a scope with no match prints its
   header and a single `No matching messages.` / `No matching task events.` line, and a search
-  where neither scope matched prints `No results.` alone. Excerpts follow the same preview and
-  control-character rules as `pending` and `history` — stripping applies to this human surface
-  only; the `--json` `snippet` keeps its bytes — and the relevance score is not shown: human
-  output presents the ranked order, `--json` carries the number.
+  where neither scope matched prints `No results.` alone. Excerpts are FTS5 fragments capped at
+  32 tokens and then at 200 Unicode code points; control-character stripping applies to this
+  human surface only, while the `--json` `snippet` keeps its bytes. The relevance score is not
+  shown: human output presents the ranked order, `--json` carries the number.
 - `crew search --reindex` prints one line naming what it reindexed, for example
   `Reindexed 1240 messages and 88 task events.`
 
@@ -963,7 +968,7 @@ Lease   none
 $ crew agents   # when none exist
 No agents.
 
-$ crew search lease            # specified, not implemented
+$ crew search lease
 MESSAGES
 #12  manager -> worker    2026-06-29T10:00:00Z
   the Inspector approved the Submission after the lease…

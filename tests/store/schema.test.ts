@@ -23,7 +23,7 @@ vi.mock('node:sqlite', async (importOriginal) => {
   };
 });
 
-import { DatabaseSync } from 'node:sqlite';
+import { constants, DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, readFileSync, rmSync, openSync, writeSync, closeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -32,11 +32,14 @@ import {
   assertCurrentSchema,
   canonicalSql,
   CURRENT_SCHEMA_VERSION,
+  findSchemaDrift,
+  FTS_SHADOW_TABLE_NAMES,
   INDEX_SQL,
   runMigrations,
   SCHEMA_SQL,
   TABLE_SQL,
   TRIGGER_SQL,
+  VIRTUAL_TABLE_SQL,
 } from '../../src/store/schema.js';
 
 let StoreClass: any;
@@ -70,7 +73,7 @@ afterEach(() => {
   while (made.length) rmSync(made.pop()!, { recursive: true, force: true });
 });
 
-describe('schema v1', () => {
+describe('current schema', () => {
   it('creates the exact tables/indexes, STRICT markers, and version', () => {
     const path = databasePath();
     const store = new StoreClass(path, { clock: () => 0 });
@@ -99,7 +102,7 @@ describe('schema v1', () => {
       ...Object.keys(INDEX_SQL)
         .sort()
         .map((name) => ({ type: 'index', name })),
-      ...Object.keys(TABLE_SQL)
+      ...[...Object.keys(TABLE_SQL), ...Object.keys(VIRTUAL_TABLE_SQL), ...FTS_SHADOW_TABLE_NAMES]
         .sort()
         .map((name) => ({ type: 'table', name })),
       ...Object.keys(TRIGGER_SQL)
@@ -107,10 +110,16 @@ describe('schema v1', () => {
         .map((name) => ({ type: 'trigger', name })),
     ]);
     const strict = db
-      .prepare("SELECT name, strict FROM pragma_table_list WHERE schema = 'main'")
-      .all() as { name: string; strict: number }[];
+      .prepare("SELECT name, type, strict FROM pragma_table_list WHERE schema = 'main'")
+      .all() as { name: string; type: string; strict: number }[];
     for (const name of Object.keys(TABLE_SQL)) {
-      expect(strict.find((row) => row.name === name)?.strict).toBe(1);
+      expect(strict.find((row) => row.name === name)).toMatchObject({ type: 'table', strict: 1 });
+    }
+    for (const name of Object.keys(VIRTUAL_TABLE_SQL)) {
+      expect(strict.find((row) => row.name === name)).toMatchObject({ type: 'virtual', strict: 0 });
+    }
+    for (const name of FTS_SHADOW_TABLE_NAMES) {
+      expect(strict.find((row) => row.name === name)).toMatchObject({ type: 'shadow', strict: 0 });
     }
     expect(db.prepare('PRAGMA quick_check').all()).toEqual([{ quick_check: 'ok' }]);
     expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
@@ -164,13 +173,13 @@ describe('schema v1', () => {
   it('refuses a newer schema without mutation', () => {
     const path = databasePath();
     const db = new DatabaseSync(path);
-    db.exec('PRAGMA user_version = 8');
+    db.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION + 1}`);
     db.close();
     expect(codeOf(() => new StoreClass(path))).toBe('UNSUPPORTED_SCHEMA');
     const check = new DatabaseSync(path);
     expect(
       (check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version,
-    ).toBe(8);
+    ).toBe(CURRENT_SCHEMA_VERSION + 1);
     expect(check.prepare("SELECT name FROM sqlite_schema WHERE type = 'table'").all()).toEqual([]);
     check.close();
   });
@@ -347,7 +356,10 @@ describe('schema v1', () => {
             if (interceptMode === 'newer') {
               pragmaCallCount++;
               if (pragmaCallCount >= 1) {
-                return { value: 8, version: 8 };
+                return {
+                  value: CURRENT_SCHEMA_VERSION + 1,
+                  version: CURRENT_SCHEMA_VERSION + 1,
+                };
               }
             }
             return boundGet(...args);
@@ -402,6 +414,261 @@ describe('schema v1', () => {
       expect(codeOf(() => new StoreClass(path))).toBe('UNSUPPORTED_SCHEMA');
     } finally {
       (globalThis as any).mockPrepareHook = null;
+    }
+  });
+});
+
+type SearchIndex = keyof typeof VIRTUAL_TABLE_SQL;
+
+function matchRowids(db: DatabaseSync, index: SearchIndex, query: string): number[] {
+  return (
+    db.prepare(`SELECT rowid FROM ${index} WHERE ${index} MATCH ? ORDER BY rowid`).all(query) as {
+      rowid: number;
+    }[]
+  ).map((row) => row.rowid);
+}
+
+function seedSearchFixture(db: DatabaseSync): { messageId: number; eventId: number } {
+  db.exec(`
+    INSERT INTO agents (id, role, joined_at, last_seen, status)
+      VALUES ('manager', 'manager', 0, 0, 'active'),
+             ('worker', 'worker', 0, 0, 'active'),
+             ('inspector', 'inspector', 0, 0, 'active');
+    INSERT INTO tasks
+      (id, title, creator_id, assignee_id, reviewer_id, status, created_at, updated_at)
+      VALUES ('search-task', 'Search fixture', 'manager', 'worker', 'inspector', 'queued', 0, 0);
+  `);
+  const message = db
+    .prepare(
+      `INSERT INTO messages (sender_id, recipient_id, content, task_id, created_at)
+       VALUES ('manager', 'worker', 'messagealpha', 'search-task', 0)`,
+    )
+    .run();
+  const event = db
+    .prepare(
+      `INSERT INTO task_events
+         (task_id, revision, event_type, actor_id, from_status, to_status, detail, created_at)
+       VALUES ('search-task', 0, 'created', 'manager', NULL, 'queued', 'eventalpha', 0)`,
+    )
+    .run();
+  return { messageId: Number(message.lastInsertRowid), eventId: Number(event.lastInsertRowid) };
+}
+
+/** Turn a current fixture into the exact pre-FTS schema without touching shadows directly. */
+function downgradeCurrentToV7(db: DatabaseSync): void {
+  const ftsTriggers = Object.keys(TRIGGER_SQL).filter((name) => name.includes('_fts_'));
+  db.exec('BEGIN EXCLUSIVE');
+  try {
+    for (const name of ftsTriggers) db.exec(`DROP TRIGGER ${name}`);
+    for (const name of Object.keys(VIRTUAL_TABLE_SQL)) db.exec(`DROP TABLE ${name}`);
+    db.exec('PRAGMA user_version = 7');
+    db.exec('COMMIT');
+  } catch (err) {
+    if (db.isTransaction) db.exec('ROLLBACK');
+    throw err;
+  }
+}
+
+describe('schema v8 FTS5 indexes', () => {
+  it('migrates v7 transactionally and backfills both existing corpora', () => {
+    const path = databasePath();
+    new StoreClass(path).close();
+    const before = new DatabaseSync(path, { enableForeignKeyConstraints: true });
+    seedSearchFixture(before);
+    downgradeCurrentToV7(before);
+    expect(
+      before.prepare("SELECT name FROM sqlite_schema WHERE name = 'messages_fts'").get(),
+    ).toBeUndefined();
+    before.close();
+
+    new StoreClass(path).close();
+    const migrated = new DatabaseSync(path);
+    expect(
+      (migrated.prepare('PRAGMA user_version').get() as { user_version: number }).user_version,
+    ).toBe(CURRENT_SCHEMA_VERSION);
+    expect(matchRowids(migrated, 'messages_fts', 'messagealpha')).toEqual([1]);
+    expect(matchRowids(migrated, 'task_events_fts', 'eventalpha')).toEqual([1]);
+    migrated.close();
+  });
+
+  it('rolls virtual tables, shadows, triggers, backfill, and stamp back together', () => {
+    const path = databasePath();
+    new StoreClass(path).close();
+    const before = new DatabaseSync(path);
+    seedSearchFixture(before);
+    downgradeCurrentToV7(before);
+    before.close();
+
+    expect(
+      () =>
+        new StoreClass(path, {
+          onTransactionStep: (label: string) => {
+            if (label === 'migrate:before-commit') throw new Error('interrupted');
+          },
+        }),
+    ).toThrow('interrupted');
+
+    const rolledBack = new DatabaseSync(path);
+    expect(
+      (rolledBack.prepare('PRAGMA user_version').get() as { user_version: number }).user_version,
+    ).toBe(7);
+    expect(
+      rolledBack.prepare("SELECT name FROM sqlite_schema WHERE name = 'messages_fts'").get(),
+    ).toBeUndefined();
+    rolledBack.close();
+
+    new StoreClass(path).close();
+    const recovered = new DatabaseSync(path);
+    expect(matchRowids(recovered, 'messages_fts', 'messagealpha')).toEqual([1]);
+    expect(matchRowids(recovered, 'task_events_fts', 'eventalpha')).toEqual([1]);
+    recovered.close();
+  });
+
+  it.each(['messages_fts', 'task_events_fts_config'])(
+    'refuses a v7 collision at reserved name %s without changing the database',
+    (name) => {
+      const path = databasePath();
+      new StoreClass(path).close();
+      const db = new DatabaseSync(path);
+      downgradeCurrentToV7(db);
+      db.exec(`CREATE TABLE ${name} (value TEXT) STRICT`);
+      db.close();
+
+      expect(codeOf(() => new StoreClass(path))).toBe('INTEGRITY');
+      const unchanged = new DatabaseSync(path);
+      expect(
+        (unchanged.prepare('PRAGMA user_version').get() as { user_version: number }).user_version,
+      ).toBe(7);
+      expect(unchanged.prepare('SELECT name FROM sqlite_schema WHERE name = ?').get(name)).toEqual({
+        name,
+      });
+      unchanged.close();
+    },
+  );
+
+  it('synchronizes insert, indexed-text update, rowid update, and delete for both indexes', () => {
+    const path = databasePath();
+    new StoreClass(path).close();
+    const db = new DatabaseSync(path, { enableForeignKeyConstraints: true });
+    const { messageId, eventId } = seedSearchFixture(db);
+
+    expect(matchRowids(db, 'messages_fts', 'messagealpha')).toEqual([messageId]);
+    db.prepare('UPDATE messages SET content = ? WHERE id = ?').run('messagebeta', messageId);
+    expect(matchRowids(db, 'messages_fts', 'messagealpha')).toEqual([]);
+    expect(matchRowids(db, 'messages_fts', 'messagebeta')).toEqual([messageId]);
+    db.prepare('UPDATE messages SET id = ? WHERE id = ?').run(101, messageId);
+    expect(matchRowids(db, 'messages_fts', 'messagebeta')).toEqual([101]);
+    db.prepare('DELETE FROM messages WHERE id = ?').run(101);
+    expect(matchRowids(db, 'messages_fts', 'messagebeta')).toEqual([]);
+
+    expect(matchRowids(db, 'task_events_fts', 'eventalpha')).toEqual([eventId]);
+    db.prepare('UPDATE task_events SET detail = ? WHERE id = ?').run('eventbeta', eventId);
+    expect(matchRowids(db, 'task_events_fts', 'eventalpha')).toEqual([]);
+    expect(matchRowids(db, 'task_events_fts', 'eventbeta')).toEqual([eventId]);
+    db.prepare('UPDATE task_events SET id = ? WHERE id = ?').run(202, eventId);
+    expect(matchRowids(db, 'task_events_fts', 'eventbeta')).toEqual([202]);
+    db.prepare('DELETE FROM task_events WHERE id = ?').run(202);
+    expect(matchRowids(db, 'task_events_fts', 'eventbeta')).toEqual([]);
+    db.close();
+  });
+
+  it('does not invoke either FTS update trigger for unrelated-column updates', () => {
+    const path = databasePath();
+    new StoreClass(path).close();
+    const db = new DatabaseSync(path, { enableForeignKeyConstraints: true });
+    const { messageId, eventId } = seedSearchFixture(db);
+
+    db.setAuthorizer((_action, _arg1, _arg2, _database, trigger) =>
+      trigger === 'trg_messages_fts_update' || trigger === 'trg_task_events_fts_update'
+        ? constants.SQLITE_DENY
+        : constants.SQLITE_OK,
+    );
+    expect(() =>
+      db.prepare('UPDATE messages SET read_at = 1 WHERE id = ?').run(messageId),
+    ).not.toThrow();
+    expect(() =>
+      db.prepare('UPDATE task_events SET created_at = 1 WHERE id = ?').run(eventId),
+    ).not.toThrow();
+    db.setAuthorizer(null);
+
+    expect(matchRowids(db, 'messages_fts', 'messagealpha')).toEqual([messageId]);
+    expect(matchRowids(db, 'task_events_fts', 'eventalpha')).toEqual([eventId]);
+    db.close();
+  });
+
+  it('removes both index entries when deleting a Task cascades to its content', () => {
+    const path = databasePath();
+    new StoreClass(path).close();
+    const db = new DatabaseSync(path, { enableForeignKeyConstraints: true });
+    seedSearchFixture(db);
+    expect(matchRowids(db, 'messages_fts', 'messagealpha')).toEqual([1]);
+    expect(matchRowids(db, 'task_events_fts', 'eventalpha')).toEqual([1]);
+
+    db.prepare("DELETE FROM tasks WHERE id = 'search-task'").run();
+    expect(matchRowids(db, 'messages_fts', 'messagealpha')).toEqual([]);
+    expect(matchRowids(db, 'task_events_fts', 'eventalpha')).toEqual([]);
+    db.close();
+  });
+
+  it('pins virtual SQL and rejects extra, missing, and wrong-type shadow objects', () => {
+    const alteredPath = databasePath();
+    const altered = new DatabaseSync(alteredPath);
+    altered.exec(
+      `${SCHEMA_SQL.replace(
+        "tokenize = 'unicode61 remove_diacritics 2'",
+        "tokenize = 'porter'",
+      )}; PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`,
+    );
+    expect(findSchemaDrift(altered)).toContain('virtual table "messages_fts" does not match');
+    altered.close();
+
+    const extraPath = databasePath();
+    new StoreClass(extraPath).close();
+    const extra = new DatabaseSync(extraPath);
+    extra.exec('CREATE TABLE unexpected_fts_data (value TEXT) STRICT');
+    expect(findSchemaDrift(extra)).toContain('unexpected schema objects');
+    extra.close();
+
+    const missingPath = databasePath();
+    new StoreClass(missingPath).close();
+    const missing = new DatabaseSync(missingPath);
+    (globalThis as any).mockPrepareHook = (sql: string, stmt: any) => {
+      if (!sql.includes('sqlite_schema') || !sql.includes('ORDER BY type, name')) return stmt;
+      const originalAll = stmt.all.bind(stmt);
+      Object.defineProperty(stmt, 'all', {
+        value: (...args: any[]) =>
+          originalAll(...args).filter((row: any) => row.name !== 'messages_fts_config'),
+      });
+      return stmt;
+    };
+    try {
+      expect(findSchemaDrift(missing)).toContain('shadow table "messages_fts_config" is missing');
+    } finally {
+      (globalThis as any).mockPrepareHook = null;
+      missing.close();
+    }
+
+    const wrongTypePath = databasePath();
+    new StoreClass(wrongTypePath).close();
+    const wrongType = new DatabaseSync(wrongTypePath);
+    (globalThis as any).mockPrepareHook = (sql: string, stmt: any) => {
+      if (!sql.includes('pragma_table_list')) return stmt;
+      const originalAll = stmt.all.bind(stmt);
+      Object.defineProperty(stmt, 'all', {
+        value: (...args: any[]) =>
+          originalAll(...args).map((row: any) =>
+            row.name === 'messages_fts_data' ? { ...row, type: 'table' } : row,
+          ),
+      });
+      return stmt;
+    };
+    try {
+      expect(findSchemaDrift(wrongType)).toContain(
+        'shadow table "messages_fts_data" has unexpected table-list type "table"',
+      );
+    } finally {
+      (globalThis as any).mockPrepareHook = null;
+      wrongType.close();
     }
   });
 });

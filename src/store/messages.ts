@@ -61,6 +61,12 @@ function mapMessage(row: MessageRow): MessageRecord {
   };
 }
 
+/** Select one exact Message without changing read/activity state. */
+export function selectMessage(db: DatabaseSync, id: number): MessageRecord | null {
+  const row = db.prepare('SELECT * FROM messages WHERE id = ?').get(id) as MessageRow | undefined;
+  return row === undefined ? null : mapMessage(row);
+}
+
 export function messageParticipantIds(
   db: DatabaseSync,
   id: number,

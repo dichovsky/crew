@@ -12,10 +12,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CrewError } from '../../src/errors.js';
 import { Store } from '../../src/store/index.js';
-import { CURRENT_SCHEMA_VERSION } from '../../src/store/schema.js';
+import { CURRENT_SCHEMA_VERSION, TRIGGER_SQL } from '../../src/store/schema.js';
 
 const TOKEN = 'a'.repeat(64); // 256-bit hex shape (length within the 32-128 CHECK)
 const TOKEN_B = 'b'.repeat(64);
+const DROP_V8_FTS_OBJECTS = `DROP TRIGGER trg_messages_fts_insert;
+DROP TRIGGER trg_messages_fts_update;
+DROP TRIGGER trg_messages_fts_delete;
+DROP TRIGGER trg_task_events_fts_insert;
+DROP TRIGGER trg_task_events_fts_update;
+DROP TRIGGER trg_task_events_fts_delete;
+DROP TABLE messages_fts;
+DROP TABLE task_events_fts;`;
 const DROP_V6_OBSERVABLE_MUTATION_OBJECTS = `DROP TRIGGER trg_messages_observable_mutation_insert;
 DROP TRIGGER trg_messages_observable_mutation_update;
 DROP TRIGGER trg_messages_observable_mutation_delete;
@@ -83,6 +91,7 @@ function v1Fixture(path: string, seed?: { id: string; role: string }): void {
   store.close();
   const downgrade = new DatabaseSync(path, { enableForeignKeyConstraints: false });
   downgrade.exec(`BEGIN EXCLUSIVE;
+${DROP_V8_FTS_OBJECTS}
 ${DROP_V6_OBSERVABLE_MUTATION_OBJECTS}
 DROP TRIGGER trg_agents_mutation_insert;
 DROP TRIGGER trg_agents_mutation_update;
@@ -312,6 +321,7 @@ function v2Fixture(path: string): { taskIds: Record<string, string> } {
 
   const db = new DatabaseSync(path, { enableForeignKeyConstraints: false });
   db.exec(`BEGIN EXCLUSIVE;
+${DROP_V8_FTS_OBJECTS}
 ${DROP_V6_OBSERVABLE_MUTATION_OBJECTS}
 DROP TRIGGER trg_agents_mutation_insert;
 DROP TRIGGER trg_agents_mutation_update;
@@ -597,6 +607,7 @@ function v3Fixture(path: string): { taskId: string } {
 
   const db = new DatabaseSync(path, { enableForeignKeyConstraints: false });
   db.exec(`BEGIN EXCLUSIVE;
+${DROP_V8_FTS_OBJECTS}
 ${DROP_V6_OBSERVABLE_MUTATION_OBJECTS}
 DROP TRIGGER trg_agents_mutation_insert;
 DROP TRIGGER trg_agents_mutation_update;
@@ -732,6 +743,7 @@ function v4Fixture(path: string): { taskId: string } {
 
   const db = new DatabaseSync(path, { enableForeignKeyConstraints: false });
   db.exec(`BEGIN EXCLUSIVE;
+${DROP_V8_FTS_OBJECTS}
 ${DROP_V6_OBSERVABLE_MUTATION_OBJECTS}
 DROP TRIGGER trg_agents_mutation_insert;
 DROP TRIGGER trg_agents_mutation_update;
@@ -782,20 +794,7 @@ describe('schema v4 -> v5 migration (mutation cursor, index drop)', () => {
     expect(rawVersion(path)).toBe(CURRENT_SCHEMA_VERSION);
     expect(schemaObjectNames(path, 'index')).not.toContain('idx_task_events_task');
     expect(tableNames(path)).toContain('agent_mutations');
-    expect(schemaObjectNames(path, 'trigger')).toEqual([
-      'trg_agents_mutation_delete',
-      'trg_agents_mutation_insert',
-      'trg_agents_mutation_update',
-      'trg_messages_observable_mutation_delete',
-      'trg_messages_observable_mutation_insert',
-      'trg_messages_observable_mutation_update',
-      'trg_task_events_observable_mutation_delete',
-      'trg_task_events_observable_mutation_insert',
-      'trg_task_events_observable_mutation_update',
-      'trg_tasks_observable_mutation_delete',
-      'trg_tasks_observable_mutation_insert',
-      'trg_tasks_observable_mutation_update',
-    ]);
+    expect(schemaObjectNames(path, 'trigger')).toEqual(Object.keys(TRIGGER_SQL).sort());
   });
 
   it('the by-task_id and by-(task_id, revision) reads still use the UNIQUE auto-index', () => {
@@ -906,6 +905,7 @@ function v5Fixture(path: string): { taskId: string } {
 
   const db = new DatabaseSync(path, { enableForeignKeyConstraints: false });
   db.exec(`BEGIN EXCLUSIVE;
+${DROP_V8_FTS_OBJECTS}
 ${DROP_V6_OBSERVABLE_MUTATION_OBJECTS}
 ${MESSAGES_DOWNGRADE_SQL};
 PRAGMA user_version = 5;
@@ -920,6 +920,7 @@ function v6Fixture(path: string): void {
   new Store(path, { clock: () => 0 }).close();
   const db = new DatabaseSync(path, { enableForeignKeyConstraints: false });
   db.exec(`BEGIN EXCLUSIVE;
+${DROP_V8_FTS_OBJECTS}
 ${DROP_V6_OBSERVABLE_MUTATION_OBJECTS}
 PRAGMA user_version = 6;
 COMMIT;`);

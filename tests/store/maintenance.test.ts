@@ -3,6 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { compileSearchQuery } from '../../src/search-query.js';
 import { Store } from '../../src/store/index.js';
 import { diagnoseStore, readActiveAgentCount } from '../../src/store/maintenance.js';
 import { CURRENT_SCHEMA_VERSION } from '../../src/store/schema.js';
@@ -49,6 +50,10 @@ describe('diagnoseStore', () => {
       schemaDriftReason: null,
       staleLeases: [],
       archivedOwners: [],
+      searchIndexCounts: [
+        { scope: 'messages', storedCount: 0, indexedCount: 0 },
+        { scope: 'task-events', storedCount: 0, indexedCount: 0 },
+      ],
     });
   });
 
@@ -68,6 +73,43 @@ describe('diagnoseStore', () => {
 
     expect(diagnoseStore(path, 500).staleLeases).toEqual([]);
     expect(diagnoseStore(path, 1000).staleLeases).toEqual([task.id]);
+  });
+
+  it('reports stored and indexed FTS document counts and detects a stale index', () => {
+    const { store, path } = newStore(() => 0);
+    addAgents(store, 'manager', 'worker', 'inspector');
+    const [sent] = store.sendMessages({
+      senderId: 'manager',
+      recipientId: 'worker',
+      content: 'lease details',
+    });
+    store.createTask({
+      creatorId: 'manager',
+      assigneeId: 'worker',
+      reviewerId: 'inspector',
+      title: 'Add X',
+    });
+    store.close();
+
+    expect(diagnoseStore(path, 0).searchIndexCounts).toEqual([
+      { scope: 'messages', storedCount: 2, indexedCount: 2 },
+      { scope: 'task-events', storedCount: 1, indexedCount: 1 },
+    ]);
+
+    const raw = new DatabaseSync(path);
+    raw
+      .prepare(
+        `INSERT INTO messages_fts(messages_fts, rowid, content)
+         VALUES ('delete', ?, ?)`,
+      )
+      .run(sent!.id, sent!.content);
+    raw.close();
+
+    expect(diagnoseStore(path, 0).searchIndexCounts[0]).toEqual({
+      scope: 'messages',
+      storedCount: 2,
+      indexedCount: 1,
+    });
   });
 
   it('detects an archived Agent referenced by a non-completed Task', () => {
@@ -150,6 +192,63 @@ describe('readActiveAgentCount', () => {
 });
 
 describe('Store.pruneState', () => {
+  it("keeps both FTS indexes synchronized across prune's explicit deletion steps", () => {
+    let now = 100;
+    const { store } = newStore(() => now);
+    addAgents(store, 'manager', 'worker', 'inspector');
+    store.sendMessages({
+      senderId: 'manager',
+      recipientId: 'worker',
+      content: 'prunemessagetoken',
+    });
+    const task = store.createTask({
+      creatorId: 'manager',
+      assigneeId: 'worker',
+      reviewerId: 'inspector',
+      title: 'Prune index fixture',
+    });
+    now = 110;
+    store.startTask('worker', task.id);
+    now = 120;
+    store.submitTask('worker', task.id, 'pruneeventtoken');
+    now = 130;
+    store.approveTask('inspector', task.id, 'approved');
+    now = 200;
+    drainAll(store, 'manager', 'worker', 'inspector');
+
+    expect(
+      store.search({
+        query: compileSearchQuery(['prunemessagetoken']),
+        scope: 'messages',
+      }).messages,
+    ).toHaveLength(1);
+    expect(
+      store.search({
+        query: compileSearchQuery(['pruneeventtoken']),
+        scope: 'task-events',
+      }).taskEvents,
+    ).toHaveLength(1);
+
+    now = 1000;
+    expect(store.pruneState({ messagesBeforeSeconds: 500, tasksBeforeSeconds: 500 })).toEqual({
+      messagesDeleted: 6,
+      tasksDeleted: 1,
+    });
+    expect(
+      store.search({
+        query: compileSearchQuery(['prunemessagetoken']),
+        scope: 'messages',
+      }).messages,
+    ).toEqual([]);
+    expect(
+      store.search({
+        query: compileSearchQuery(['pruneeventtoken']),
+        scope: 'task-events',
+      }).taskEvents,
+    ).toEqual([]);
+    store.close();
+  });
+
   it('deletes read Messages strictly older than the cutoff', () => {
     let now = 0;
     const { store } = newStore(() => now);

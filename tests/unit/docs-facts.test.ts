@@ -26,7 +26,7 @@ import {
   PARTICIPANT_TARGETS,
   REGISTRY_REVISION,
 } from '../../src/platforms/registry.js';
-import { CURRENT_SCHEMA_VERSION, TABLE_SQL } from '../../src/store/schema.js';
+import { CURRENT_SCHEMA_VERSION, TABLE_SQL, VIRTUAL_TABLE_SQL } from '../../src/store/schema.js';
 import { captureIo } from '../helpers/io.js';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
@@ -118,7 +118,7 @@ function buildFacts(): unknown {
     },
     schema: {
       version: CURRENT_SCHEMA_VERSION,
-      tables: Object.keys(TABLE_SQL).sort(),
+      tables: [...Object.keys(TABLE_SQL), ...Object.keys(VIRTUAL_TABLE_SQL)].sort(),
     },
     coverageThresholds: {
       statements: requiredNumber(vitestSource, 'statements', /statements:\s*(\d+)/),

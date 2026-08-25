@@ -513,6 +513,14 @@ const V5_MESSAGES_SQL = `CREATE TABLE messages (
 function downgradeTasksToV2(dbPath: string): void {
   const db = new DatabaseSync(dbPath, { enableForeignKeyConstraints: false });
   db.exec(`BEGIN EXCLUSIVE;
+DROP TRIGGER trg_messages_fts_insert;
+DROP TRIGGER trg_messages_fts_update;
+DROP TRIGGER trg_messages_fts_delete;
+DROP TRIGGER trg_task_events_fts_insert;
+DROP TRIGGER trg_task_events_fts_update;
+DROP TRIGGER trg_task_events_fts_delete;
+DROP TABLE messages_fts;
+DROP TABLE task_events_fts;
 DROP TRIGGER trg_agents_mutation_insert;
 DROP TRIGGER trg_agents_mutation_update;
 DROP TRIGGER trg_agents_mutation_delete;

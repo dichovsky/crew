@@ -306,6 +306,20 @@ function storeFactFindings(facts: StoreFacts, findings: Finding[]): void {
       details: { task_id: owner.taskId, agent_id: owner.agentId },
     });
   }
+  for (const count of facts.searchIndexCounts) {
+    if (count.storedCount === count.indexedCount) continue;
+    const label = count.scope === 'messages' ? 'Message' : 'Task Event';
+    findings.push({
+      severity: 'warn',
+      code: 'SEARCH_INDEX_STALE',
+      message: `${label} search index is stale; run "crew search --reindex" to repair it`,
+      details: {
+        scope: count.scope,
+        stored_count: count.storedCount,
+        indexed_count: count.indexedCount,
+      },
+    });
+  }
 }
 
 function collectStoreFindings(io: Io, paths: WorkspacePaths, findings: Finding[]): void {

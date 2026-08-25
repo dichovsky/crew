@@ -7,14 +7,13 @@ status: accepted
 ## Context
 
 Issue #8 asks for indexed search over stored Messages and Task Events so that an Operator can
-find a past Message or a past Task transition without crew running a model. It gates itself on
+find a past Message or a past Task transition without crew running a model. It gated itself on
 one open question — whether FTS5 is available in `node:sqlite` — and on its own promotion bar:
-requirements, a data and CLI contract, an ADR, and tests before any build. This ADR is the
-design half of that bar. **Nothing here is implemented.** No `src/` module, no schema, and no
-command changes in the change that introduces this ADR; the implementation is a separate change
-that must satisfy the group-S requirements (`docs/design/srs.md` §3.2), the command surface in
-[cli-contract.md](../design/cli-contract.md), and the schema-v8 specification in
-[data-model.md](../design/data-model.md) recorded alongside it.
+requirements, a data and CLI contract, an ADR, and tests before any build. The ADR and contracts
+landed first as the design half of that bar; schema version 8 and `crew search` now implement the
+decision and its group-S requirements (`docs/design/srs.md` §3.2), command surface in
+[cli-contract.md](../design/cli-contract.md), and schema in
+[data-model.md](../design/data-model.md).
 
 The gating question is answered. Probed against this project's own runtime — Node `v24.19.0`,
 SQLite `3.53.3` as bundled in `node:sqlite` — `sqlite_compileoption_used('ENABLE_FTS5')` returns
@@ -46,11 +45,11 @@ Two existing constraints shape those decisions. The Store opens defensively — 
 (FR-I04), plus WAL (FR-I05). The trusted-schema pragma restricts which virtual tables and
 functions may be named from inside schema objects such as triggers, so whether FTS5 can be
 driven from a trigger at all had to be measured rather than assumed. And `findSchemaDrift`
-(`src/store/schema.ts`) compares
-every application object in `sqlite_schema` against the released SQL on every open and **rejects
-anything it does not expect**, which an FTS5 table cannot satisfy unaided: creating one adds a
-virtual table plus four shadow tables, none of which is `STRICT` and whose SQL text is written by
-FTS5 rather than by crew.
+(`src/store/schema.ts`) compares every application object in `sqlite_schema` against the released
+SQL on every open and **rejects anything it does not expect**, which an FTS5 table cannot satisfy
+unaided: creating one adds a virtual table plus four shadow tables whose SQL text is written by
+FTS5 rather than by crew. The `STRICT` rule applies to crew's authoritative ordinary tables;
+virtual tables and their engine-owned shadow tables cannot be declared `STRICT`.
 
 ## Decision
 
@@ -69,14 +68,18 @@ reason and rejected — it would buy schema separation at the cost of giving up 
 which is the property the whole design rests on.
 
 **The index is kept in sync by SQLite triggers, not by explicit maintenance in the Store.** Six
-`AFTER INSERT`/`AFTER UPDATE`/`AFTER DELETE` triggers — three per indexed table — carry each
-write into the index using FTS5's documented external-content commands. The decisive argument is
-not convenience but reach: a trigger is part of the schema, so it applies to *every* write, and
-crew has writers that would otherwise have to remember. `prune` deletes Messages and Task Events
-with its own direct `DELETE` statements (`src/store/maintenance.ts`), the `ON DELETE CASCADE`
-edges from `tasks` remove Messages and Task Events without any crew code naming them, and a
-future writer would have to be told. Explicit Store-side maintenance can only be as complete as
-the enumeration of write paths that someone remembered to keep current, and a missed path fails
+triggers — `AFTER INSERT`, `AFTER UPDATE OF id, content` / `AFTER UPDATE OF id, detail`, and
+`AFTER DELETE` for each indexed table — carry every index-relevant write into FTS5 using its
+documented external-content commands. Including `id` in the update trigger is load-bearing: a
+row-id change must delete the old index entry and insert the new one even though crew's own write
+paths never rewrite these ids. Scoping the trigger to the id and indexed text avoids reindexing a
+Message merely because `receive` changed `read_at`. The decisive argument for triggers is not
+convenience but reach: a trigger is part of the schema, so it applies to *every* write, and crew
+has writers that would otherwise have to remember. `prune` deletes Messages and Task Events with
+its own direct `DELETE` statements (`src/store/maintenance.ts`), the `ON DELETE CASCADE` edges
+from `tasks` remove Messages and Task Events without any crew code naming them, and a future
+writer would have to be told. Explicit Store-side maintenance can only be as complete as the
+enumeration of write paths that someone remembered to keep current, and a missed path fails
 silently — the exact failure mode this design is trying to avoid.
 
 The second argument is that triggers are already pinned by machinery that exists. `findSchemaDrift`
@@ -127,33 +130,46 @@ document count and term frequencies — so a score from `messages_fts` and a sco
 `task_events_fts` are not comparable, and ordering them together would be inventing a number. A
 search covering both scopes therefore emits its Message results, ranked, and then its Task Event
 results, ranked, in that fixed order; every record carries its own `rank`, so a consumer that
-wants some other arrangement can compute one from data crew did not fabricate.
+wants some other arrangement can compute one from data crew did not fabricate. Both result blocks
+are read inside one transaction, so a concurrent commit cannot make the Message half and Task
+Event half describe different Store snapshots.
 
-**The query is compiled by crew, never passed through to FTS5.** The command accepts a small
-closed language — whitespace-separated terms, `"quoted phrases"`, and a trailing `*` for a prefix
-match — and compiles it into a `MATCH` expression in which every user token appears as an FTS5
-string literal joined by `AND`. Passing the raw string through was rejected on two counts. It
-exposes FTS5's whole operator surface as an accidental contract, including column filters
-(`content : lease`), `NEAR(...)`, and the initial-token `^` operator, all of which were confirmed
-to work and none of which crew wants to promise or to keep working across SQLite versions. And it
-makes malformed input a SQLite error: `lease AND (` raises `fts5: syntax error near ""` with the
-generic `SQLITE_ERROR` code, which crew could only classify by matching the text of a SQLite error
-message — the thing the migration contract already forbids. Compiling instead means a syntactically
-invalid `MATCH` expression cannot be produced at all, an operator word the user typed is treated as
-the word they typed, and the error message for bad input is crew's own. The query string itself is
-always a bound parameter; it is never concatenated into SQL.
+**The query is compiled by crew, never passed through to FTS5.** Command-line argument boundaries
+define the small language: each query argument is one required clause, a multiword argument kept
+together by the caller's shell quoting is a phrase, and a trailing `*` requests a prefix match.
+Thus `crew search lease inspector` compiles two clauses joined by `AND`, while `crew search
+"lease inspector"` receives one argument and compiles one phrase. Every clause becomes an FTS5
+string literal. Passing the raw string through was rejected on two counts. It exposes FTS5's whole
+operator surface as an accidental contract, including column filters (`content : lease`),
+`NEAR(...)`, and the initial-token `^` operator, all of which were confirmed to work and none of
+which crew wants to promise or to keep working across SQLite versions. And it makes malformed
+input a SQLite error: `lease AND (` raises `fts5: syntax error near ""` with the generic
+`SQLITE_ERROR` code, which crew could only classify by matching the text of a SQLite error message
+— the thing the migration contract already forbids. Compiling instead means a syntactically
+invalid `MATCH` expression cannot be produced and an operator word the user typed is treated as
+ordinary text. The compiled expression is always a bound parameter; it is never concatenated into
+SQL.
 
-**The schema goes to version 8, and an existing Workspace is backfilled by the migration.** The
+**Every result has a bounded derived excerpt, not the stored field.** Search first asks FTS5's
+`snippet()` for a matched fragment with at most 32 tokens, then applies crew's 200-Unicode-code-
+point preview bound to that fragment. The second bound is necessary because a token itself can be
+arbitrarily long. The preview may cut inside a token; neither FTS5 nor crew promises a
+word-boundary cut. The full Message or Task Event text remains available through exact retrieval
+commands rather than being copied into the search record.
+
+**The schema is version 8, and an existing Workspace is backfilled by the migration.** The
 `7 -> 8` step creates the two virtual tables and the six triggers, then runs FTS5's `'rebuild'`
 command on each so that every Message and Task Event already in the Store is indexed before the
 step commits — a Workspace that upgrades gets a complete index, not one that only covers what it
-does next. Because the drift check rejects unexpected schema objects, it learns two new
-categories at the same time: the expected virtual tables, whose declaration SQL is pinned like any
-other object, and their shadow tables, which are identified through `pragma_table_list`'s `shadow`
-type and required to belong to an expected virtual table rather than being compared against pinned
-text — FTS5 writes that text, and pinning it would make a future SQLite version look like
-corruption. Neither category is subject to the `STRICT` requirement, which a virtual table cannot
-satisfy.
+does next. Before creating anything, the migration rejects a collision on any direct v8 object
+name and on any prospective FTS5 shadow-table name; it does not let `CREATE VIRTUAL TABLE` turn a
+pre-existing shadow-name collision into an opaque or partial migration. Because the drift check
+rejects unexpected schema objects, it learns two new categories at the same time: the expected
+virtual tables, whose declaration SQL is pinned like any other object, and their shadow tables,
+which are identified through `pragma_table_list`'s `shadow` type and required to belong to an
+expected virtual table rather than being compared against pinned text — FTS5 writes that text, and
+pinning it would make a future SQLite version look like corruption. The authoritative ordinary
+tables remain `STRICT`; the derived virtual and shadow tables are outside that requirement.
 
 **A missing index fails loudly; a stale one is detected and repairable.** Those are different
 failures and get different answers. A *missing* or altered index object is schema drift, so the
@@ -161,12 +177,16 @@ existing check fails the open with `INTEGRITY` exactly as it would for a missing
 cannot silently degrade to "no results". A *stale* index — right objects, wrong contents — cannot
 be caught that way, so `doctor` gains a read-only staleness check comparing the row counts of
 `messages` and `task_events` against the number of indexed documents in each index's `_docsize`
-shadow table, reported as a `SEARCH_INDEX_STALE` finding. It is deliberately a cheap count
-comparison rather than FTS5's own `'integrity-check'`: `doctor` opens read-only by contract, and
-`'integrity-check'` is issued as an `INSERT`, which a read-only connection refuses. The repair is
-`crew search --reindex`, which reruns `'rebuild'` on both indexes. Rebuilding is always safe
-precisely because the index is derived — there is no state in it that the indexed rows do not
-already contain.
+shadow table, reported as a `SEARCH_INDEX_STALE` finding. All four counts come from one SQL
+statement and therefore one read snapshot, so concurrent writes cannot manufacture a cross-scope
+mismatch. It is deliberately a cheap count comparison rather than FTS5's own `'integrity-check'`:
+`doctor` opens read-only by
+contract, and `'integrity-check'` is issued as an `INSERT`, which a read-only connection refuses.
+Equal counts can still be a false negative — they do not prove that every indexed token matches
+the authoritative text. The repair is `crew search --reindex`, which reruns `'rebuild'` on both
+indexes inside one `BEGIN IMMEDIATE` transaction. Rebuilding is always safe precisely because the
+indexes are derived, and the single transaction prevents observers from seeing one rebuilt scope
+and one old scope.
 
 **Search is lexical, and never semantic.** It matches the tokens that are stored, ranked by a
 formula over term statistics. It computes no embedding, calls no model provider, and reaches no
@@ -175,24 +195,25 @@ product's standing rule that crew never runs a model. A semantic or embedding-ba
 require exactly what crew refuses to do, and no amount of usefulness makes it in scope; if the
 lexical answer is not good enough for some query, the answer is a better query language, not
 inference. `unicode61 remove_diacritics 2` is the tokenizer, so matching folds diacritics and case
-(`cafe` finds `CAFÉ`) — a purely mechanical transformation, with no dictionary, stemmer, or model
-behind it.
+(`cafe` finds `CAFÉ`) and treats punctuation as a separator (`foo-bar` is tokenized like `foo
+bar`, not matched as literal punctuation). These are purely mechanical transformations, with no
+dictionary, stemmer, or model behind them.
 
 **Search reads what `crew history` already reads, and marks nothing.** It exposes no Message that
 `crew history` does not already expose to whoever can run the CLI in that Workspace, so it widens
-no boundary; crew's trust domain is the local user (`docs/design/security.md`). Like `pending`, it
-only looks: it marks no Message read, refreshes no Agent's activity, and writes nothing —
-`--reindex` is the single, explicitly requested exception. Its `--json` records carry a derived
-`snippet` rather than stored content, so the rule that JSON output never rewrites stored bytes
-holds unchanged; the full text is fetched with `crew history` or `crew task show` using the id the
-result carries.
+no boundary; crew's trust domain is the local user (`docs/design/security.md`). Opening the Store
+may initialize an empty Workspace database or migrate an older supported schema, as every ordinary
+stateful command may. After that open-time schema work, an ordinary search only looks: it marks no
+Message read, refreshes no Agent's activity, and performs no domain write. `--reindex` is the
+single explicitly requested data-repair mode. Its `--json` records carry a derived `snippet`
+rather than stored content; fetch a Message exactly with `crew history --id <message-id> --json`,
+or a Task Event through `crew task show <task-id> --events` using the result's `task_id`.
 
 ## Consequences
 
-- Issue #8's blocking question is closed and the feature is specified, but **`crew search` does
-  not exist**. Until the implementation change lands, the group-S requirements, the contract
-  section, and the schema-v8 block describe intended behavior, and they say so; `PRAGMA
-  user_version` stays at 7 and the released DDL block is unchanged.
+- Issue #8's blocking question is closed and the feature ships as `crew search`; schema version 8
+  adds the two external-content indexes, their maintenance triggers, migration backfill, staleness
+  diagnosis, and explicit rebuild.
 - The State Store gains derived state for the first time. Every table before this one held facts
   crew was told; `messages_fts` and `task_events_fts` hold a restatement of two columns, and the
   rule that keeps them honest — the index can always be rebuilt from the rows it indexes, and is
@@ -201,13 +222,14 @@ result carries.
 - The schema-drift check is no longer "every object matches pinned SQL." It gains a documented
   exception for FTS5-owned shadow tables, and that exception is a hole an unexpected object could
   hide in if it is drawn too wide. It is drawn narrowly on purpose: shadow tables are recognized
-  through `pragma_table_list`, and each must belong to a virtual table crew expects.
-- `doctor` gains a finding that can be false-negative. Equal row counts do not prove equal
-  contents — a Message whose text was somehow reindexed wrongly counts the same as one indexed
-  correctly. The check catches the failure that can actually occur here (a write that never
-  reached the index), and the deeper check — `'integrity-check', 1`, whose `rank` argument is
-  load-bearing because the one-argument form detects nothing — remains available to a future writable
-  diagnostic if one is ever wanted.
+  through `pragma_table_list`, each must belong to a virtual table crew expects, and the
+  authoritative ordinary tables remain subject to the standing `STRICT` rule.
+- `doctor` gains a finding that can be false-negative. Counts are read from one snapshot, but
+  equal row counts do not prove equal contents — a Message whose text was somehow reindexed
+  wrongly counts the same as one indexed correctly. The check catches the failure that can
+  actually occur here (a write that never reached the index), and the deeper check —
+  `'integrity-check', 1`, whose `rank` argument is load-bearing because the one-argument form
+  detects nothing — remains available to a future writable diagnostic if one is ever wanted.
 - Task text stays unsearchable, and that will be noticed. The reason is a rowid-stability
   property of `tasks`, not a judgment that Task titles do not matter; fixing it means giving
   `tasks` a stable integer key, which is a schema change with its own ADR.
