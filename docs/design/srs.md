@@ -808,14 +808,19 @@ rather than restating them.
   first-class plain Agent row with platform `NULL`, without a schema change or privileged row
   type. *Verify: automated test — `tests/integration/ui-server-actions.test.ts`.*
 - **FR-U14 — Operator send authority.** The Operator shall send Messages only under the ordinary
-  active-Agent rules. *Verify: automated test — `tests/integration/ui-server-actions.test.ts`,
-  `e2e/ui/actions.spec.ts`.*
+  active-Agent rules. Every browser affordance that starts a direct send shall therefore offer
+  active Agents only; an archived Agent may remain visible for history or Restore but shall not
+  be presented as a Message target. *Verify: automated test —
+  `tests/integration/ui-server-actions.test.ts`, `web/app.test.tsx`,
+  `web/components/{overview,agents}.test.tsx`, `e2e/ui/actions.spec.ts`.*
 - **FR-U15 — Operator Task creation.** The Operator shall be able to create a Task with any
-  reviewer, subject to the ordinary Task-creation preconditions. *Verify: automated
-  test — `tests/integration/ui-server-actions.test.ts`,
+  reviewer, subject to the ordinary Task-creation preconditions. Roster-backed assignee and
+  reviewer controls shall offer active Agents only. They need no empty-roster fallback in a
+  running Console because FR-U13's plain `operator` row is created or reactivated at startup and
+  after Store recovery. *Verify: automated test — `tests/integration/ui-server-actions.test.ts`,
   `web/components/create-task-modal.test.tsx` (roster-backed assignee/reviewer, the
   client-side guard against an obviously-invalid POST, and a rejected create left visible),
-  `web/app.test.tsx` (Tasks-view create modal: POST then refetch).*
+  `web/app.test.tsx` (active-only candidates; Tasks-view create modal: POST then refetch).*
 - **FR-U16 — Operator approval authority.** The Operator shall approve a Submission only when
   it is that Task's reviewer. *Verify: automated test —
   `tests/integration/ui-server-actions.test.ts`, `web/components/tasks-view.test.tsx`.*
@@ -861,9 +866,10 @@ rather than restating them.
   confirmation before invoking `team stop`, `prune`, `clean`, or archiving an Agent (FR-U36): the
   browser shall present a modal that names the irreversible or hard-to-reverse effect, and the
   request shall carry a `confirm: true` flag the server verifies (absent or non-`true` is a USAGE
-  failure). A bare, unconfirmed POST shall never run a destructive action. Restoring an archived
-  Agent is deliberately NOT gated by this requirement — it is the reversible corrective action,
-  offered with no prompt. *Verify: automated test —
+  failure). A bare, unconfirmed POST shall never run a destructive action. Once the confirmed
+  action is in flight, Escape and backdrop clicks shall not dismiss its result surface. Restoring
+  an archived Agent is deliberately NOT gated by this requirement — it is the reversible
+  corrective action, offered with no prompt. *Verify: automated test —
   `tests/integration/ui-server-team.test.ts` (missing/non-true confirm rejected; team stop gated
   too), `web/components/confirm-dialog.test.tsx` (including the confirm-path focus restore
   falling back to a usable control when the trigger disables),
@@ -929,9 +935,12 @@ rather than restating them.
     (FR-U26–U29, FR-U35), the resumable clean-stop list (FR-U54) with resume (FR-U53), pane
     peek (FR-U24), workspace health, and the `prune`/`clean` maintenance actions gated by
     FR-U25.
+  The Message, create-Task, and destructive-confirm dialogs shall share one focus-trap and
+  focus-restore behavior. While the dialog's action is in flight, its controls shall be disabled
+  and Escape or a backdrop click shall not discard the draft or hide the eventual result.
   *Verify: automated test — `web/app.test.tsx` (navigation + per-view rendering),
   `web/view-model.test.ts`,
-  `web/components/{now-view,overview,agents,tasks-view,messages-view,operations,message-modal,create-task-modal}.test.tsx`.*
+  `web/components/{now-view,overview,agents,tasks-view,messages-view,operations,message-modal,create-task-modal,confirm-dialog,dialog-focus}.test.tsx`.*
 - **FR-U35 — Owned-session listing.** The Console shall list the crew-owned tmux Team sessions
   that are live now — and only those — reusing the same pane-map ownership proof as `team stop`
   (a validated pane-map whose ownership token matches the live session). A leftover pane-map

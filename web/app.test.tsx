@@ -362,6 +362,41 @@ describe('App actions', () => {
     unmount(host);
   });
 
+  it('offers only active Agents in Message and Task action selects', async () => {
+    stubFetch();
+    mocks.fetchSnapshot.mockResolvedValue({
+      ...snapshotOf([]),
+      agents: [
+        agent('manager-1'),
+        agent('archived-1', {
+          status: 'archived',
+          activity: 'archived',
+          archived_at: 3,
+        }),
+      ],
+    });
+    const host = mount();
+    await vi.waitFor(() => expect(host.textContent).toContain('manager-1'));
+
+    navigate(host, 'Messages');
+    await vi.waitFor(() => expect(host.querySelector('#compose-recipient')).not.toBeNull());
+    const messageValues = [
+      ...host.querySelectorAll<HTMLOptionElement>('#compose-recipient option'),
+    ].map((option) => option.value);
+    expect(messageValues).toEqual(['', 'manager-1']);
+
+    navigate(host, 'Tasks');
+    await vi.waitFor(() => expect(host.querySelector('.btn-new-task')).not.toBeNull());
+    (host.querySelector('.btn-new-task') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(host.querySelector('.create-task-modal')).not.toBeNull());
+    const taskValues = [
+      ...host.querySelectorAll<HTMLOptionElement>('#create-task-assignee option'),
+    ].map((option) => option.value);
+    expect(taskValues).toEqual(['', 'manager-1']);
+    expect(host.textContent).not.toContain('archived-1');
+    unmount(host);
+  });
+
   it('cancels the quick-message modal without sending', async () => {
     const posts = stubFetch();
     mocks.fetchSnapshot.mockResolvedValue(snapshotOf([]));

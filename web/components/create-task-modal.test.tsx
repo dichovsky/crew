@@ -71,6 +71,21 @@ afterEach(() => {
 });
 
 describe('CreateTaskModal', () => {
+  it('moves focus to the title and restores the opener when unmounted', async () => {
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    const host = mount();
+
+    await vi.waitFor(() =>
+      expect(document.activeElement).toBe(host.querySelector('#create-task-title')),
+    );
+    render(null, host);
+    await vi.waitFor(() => expect(document.activeElement).toBe(opener));
+    host.remove();
+    opener.remove();
+  });
+
   it('offers every roster agent as assignee and reviewer', () => {
     const host = mount();
     const values = (id: string): string[] =>
@@ -167,7 +182,7 @@ describe('CreateTaskModal', () => {
     host.remove();
   });
 
-  it('ignores Escape while a create is in flight so the draft and the answer survive', async () => {
+  it('ignores Escape and backdrop dismissal while a create is in flight', async () => {
     let settle: () => void = () => {};
     const onCreate = vi.fn(
       () =>
@@ -186,6 +201,7 @@ describe('CreateTaskModal', () => {
     await vi.waitFor(() => expect(host.textContent).toContain('Creating…'));
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    click(host.querySelector('.modal-backdrop'));
     expect(onClose).not.toHaveBeenCalled();
     expect(host.querySelector('.create-task-modal')).not.toBeNull();
 
@@ -194,7 +210,7 @@ describe('CreateTaskModal', () => {
     host.remove();
   });
 
-  it('cancels on Escape', async () => {
+  it('cancels on Escape and a backdrop click', async () => {
     const onClose = vi.fn();
     const host = mount({ onClose });
     // Re-dispatch inside waitFor: the keydown listener is registered by an
@@ -203,6 +219,8 @@ describe('CreateTaskModal', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       expect(onClose).toHaveBeenCalled();
     });
+    click(host.querySelector('.modal-backdrop'));
+    expect(onClose).toHaveBeenCalledTimes(2);
     host.remove();
   });
 });

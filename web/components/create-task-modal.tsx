@@ -11,7 +11,8 @@
  * local and the Tasks view mounts this component only while the modal is open,
  * so every opening starts from an empty form.
  */
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
+import { useDialogFocus } from './dialog-focus.js';
 import type { RecipientOption } from './tasks-view.js';
 
 /** The create-Task draft the App posts to `/api/tasks` (FR-U15). */
@@ -29,26 +30,9 @@ export interface CreateTaskModalProps {
   readonly onCreate: (input: CreateTaskInput) => Promise<void>;
 }
 
-/** Gather every focusable descendant for the focus-trap ring. */
-function focusableNodes(container: HTMLElement): HTMLElement[] {
-  const selectors =
-    'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
-  return [...container.querySelectorAll<HTMLElement>(selectors)].filter((el) => el.tabIndex !== -1);
-}
-
-/** Restore focus to the opener on close, falling back to the page's marked region. */
-function restoreFocus(prev: HTMLElement | null): void {
-  if (prev !== null && prev !== document.body && prev.isConnected) {
-    prev.focus();
-    if (document.activeElement === prev) return;
-  }
-  document.querySelector<HTMLElement>('[data-focus-fallback]')?.focus();
-}
-
 export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateTaskModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
-  const prevFocusRef = useRef<HTMLElement | null>(null);
   const [assignee, setAssignee] = useState('');
   const [reviewer, setReviewer] = useState('');
   const [title, setTitle] = useState('');
@@ -56,46 +40,13 @@ export function CreateTaskModal({ recipientOptions, onClose, onCreate }: CreateT
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    prevFocusRef.current = document.activeElement as HTMLElement | null;
-    titleRef.current?.focus();
-    return () => restoreFocus(prevFocusRef.current);
-  }, []);
-
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent): void {
-      const container = dialogRef.current;
-      if (!container) return;
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        // Ignored while a create is in flight. The buttons are already disabled, but
-        // closing here would discard the draft AND drop the server's answer on the
-        // floor: the caller only closes after the POST and the refetch both resolve,
-        // so a rejection would land on an unmounted modal and the Operator would see
-        // no error, no toast, and no Task — indistinguishable from success.
-        if (pending) return;
-        onClose();
-        return;
-      }
-      if (e.key !== 'Tab') return;
-      const nodes = focusableNodes(container);
-      if (nodes.length === 0) return;
-      const first = nodes[0]!;
-      const last = nodes[nodes.length - 1]!;
-      const active = document.activeElement;
-      if (e.shiftKey) {
-        if (active === first || active === null) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else if (active === last || active === null) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, pending]);
+  useDialogFocus({
+    open: true,
+    containerRef: dialogRef,
+    initialFocusRef: titleRef,
+    onDismiss: onClose,
+    dismissDisabled: pending,
+  });
 
   // Mirror only what keeps an obviously-invalid POST off the wire; every other
   // precondition (unknown or inactive Agent, self-review rules) stays server-side.

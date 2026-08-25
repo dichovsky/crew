@@ -35,6 +35,7 @@ function mount(overrides: Partial<ConfirmDialogProps> = {}): {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   document.body.innerHTML = '';
 });
 
@@ -90,6 +91,43 @@ describe('ConfirmDialog (one-click)', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       expect(onCancel).toHaveBeenCalled();
     });
+    host.remove();
+  });
+
+  it('ignores Escape and backdrop dismissal after pending becomes true', async () => {
+    const addEventListener = vi.spyOn(document, 'addEventListener');
+    const onCancel = vi.fn();
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const props: ConfirmDialogProps = {
+      open: true,
+      title: 't',
+      description: 'd',
+      confirmLabel: 'Go',
+      onConfirm: () => {},
+      onCancel,
+    };
+
+    render(<ConfirmDialog {...props} />, host);
+    await vi.waitFor(() => expect(document.activeElement).toBe(host.querySelector('.btn-confirm')));
+    const keydownRegistrations = addEventListener.mock.calls.filter(
+      ([eventName]) => eventName === 'keydown',
+    ).length;
+
+    render(<ConfirmDialog {...props} pending />, host);
+    await vi.waitFor(() => {
+      expect((host.querySelector('.btn-confirm') as HTMLButtonElement).disabled).toBe(true);
+      expect(
+        addEventListener.mock.calls.filter(([eventName]) => eventName === 'keydown').length,
+      ).toBeGreaterThan(keydownRegistrations);
+    });
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    host
+      .querySelector('.modal-backdrop')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onCancel).not.toHaveBeenCalled();
+    render(null, host);
     host.remove();
   });
 

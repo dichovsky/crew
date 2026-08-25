@@ -295,8 +295,9 @@ export function App() {
       setMsgModalText('');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Send failed';
-      // A toast survives the modal closing (Escape/backdrop/× are not
-      // gated by `pending`), so a failed send is never silently lost.
+      // Keep the persistent toast as a second failure surface. Pending
+      // dismissal is gated in MessageModal, so the draft and this inline error
+      // also remain available for a retry.
       pushToast('Message not sent', message, '#d15540');
       setMsgModalError(message);
     } finally {
@@ -417,7 +418,14 @@ export function App() {
   const queue = reviewQueue(snapshot.tasks);
   const unread = unreadCount(snapshot.messages);
   const worklist = nowWorklist(snapshot.tasks, snapshot.agents, snapshot.messages, now);
-  const recipientOptions = snapshot.agents.map((a) => ({ id: a.id, label: `${a.id} · ${a.role}` }));
+  // Message sends and Task assignment/reassignment all require active Agents.
+  // Keep archived rows in the snapshot for history and restore, but never offer
+  // them as Message or Task-participant candidates. The Console startup/recovery
+  // invariant ensures the plain active `operator` row exists, so this production
+  // list is non-empty.
+  const recipientOptions = snapshot.agents
+    .filter((agent) => agent.status === 'active')
+    .map((agent) => ({ id: agent.id, label: `${agent.id} · ${agent.role}` }));
   const roleOf = (id: string): string =>
     snapshot.agents.find((a) => a.id === id)?.role ?? (id === OPERATOR_ID ? 'operator' : 'worker');
   const [title, subtitle] = TITLES[view];

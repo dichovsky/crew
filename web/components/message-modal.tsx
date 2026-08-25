@@ -4,12 +4,13 @@
  * previous "jump to Messages tab" flow (FR-U14 authority unchanged; this is
  * presentation only). Accessibility mirrors confirm-dialog.tsx: focus moves
  * to the textarea on open and is trapped with Tab/Shift-Tab, Escape and a
- * backdrop click both cancel, and focus restores to the opener on close
+ * backdrop click both cancel unless a send is pending, and focus restores to the opener on close
  * (falling back to `[data-focus-fallback]` when the opener can no longer
  * take focus). Stored content (the Agent id) renders through Preact's
  * default text escaping.
  */
-import { useEffect, useRef } from 'preact/hooks';
+import { useRef } from 'preact/hooks';
+import { useDialogFocus } from './dialog-focus.js';
 
 export interface MessageModalProps {
   /** The addressed Agent id, or `null` when the modal is closed. */
@@ -24,22 +25,6 @@ export interface MessageModalProps {
   readonly onSend: () => void;
 }
 
-/** Gather every focusable descendant for the focus-trap ring. */
-function focusableNodes(container: HTMLElement): HTMLElement[] {
-  const selectors =
-    'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
-  return [...container.querySelectorAll<HTMLElement>(selectors)].filter((el) => el.tabIndex !== -1);
-}
-
-/** Restore focus to the opener on close, falling back to the page's marked region. */
-function restoreFocus(prev: HTMLElement | null): void {
-  if (prev !== null && prev !== document.body && prev.isConnected) {
-    prev.focus();
-    if (document.activeElement === prev) return;
-  }
-  document.querySelector<HTMLElement>('[data-focus-fallback]')?.focus();
-}
-
 export function MessageModal({
   to,
   text,
@@ -51,50 +36,15 @@ export function MessageModal({
 }: MessageModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const prevFocusRef = useRef<HTMLElement | null>(null);
   const open = to !== null;
 
-  useEffect(() => {
-    if (!open) {
-      if (prevFocusRef.current) {
-        restoreFocus(prevFocusRef.current);
-        prevFocusRef.current = null;
-      }
-      return;
-    }
-    prevFocusRef.current = document.activeElement as HTMLElement | null;
-    textareaRef.current?.focus();
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleKeyDown(e: KeyboardEvent): void {
-      const container = dialogRef.current;
-      if (!container) return;
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-        return;
-      }
-      if (e.key !== 'Tab') return;
-      const nodes = focusableNodes(container);
-      if (nodes.length === 0) return;
-      const first = nodes[0]!;
-      const last = nodes[nodes.length - 1]!;
-      const active = document.activeElement;
-      if (e.shiftKey) {
-        if (active === first || active === null) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else if (active === last || active === null) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open, onClose]);
+  useDialogFocus({
+    open,
+    containerRef: dialogRef,
+    initialFocusRef: textareaRef,
+    onDismiss: onClose,
+    dismissDisabled: pending,
+  });
 
   if (!open) return null;
 
@@ -102,6 +52,7 @@ export function MessageModal({
     <div
       class="modal-backdrop"
       onClick={(e) => {
+        if (pending) return;
         if (e.target === e.currentTarget) onClose();
       }}
     >

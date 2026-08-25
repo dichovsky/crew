@@ -36,6 +36,7 @@ function mount(overrides: Partial<MessageModalProps> = {}): {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   document.body.innerHTML = '';
 });
 
@@ -109,6 +110,43 @@ describe('MessageModal', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       expect(onClose).toHaveBeenCalled();
     });
+    host.remove();
+  });
+
+  it('ignores Escape and backdrop dismissal after pending becomes true', async () => {
+    const addEventListener = vi.spyOn(document, 'addEventListener');
+    const onClose = vi.fn();
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const props: MessageModalProps = {
+      to: 'grace',
+      text: 'unfinished draft',
+      onTextChange: () => {},
+      onClose,
+      onSend: () => {},
+    };
+
+    render(<MessageModal {...props} />, host);
+    await vi.waitFor(() => expect(document.activeElement).toBe(host.querySelector('textarea')));
+    const keydownRegistrations = addEventListener.mock.calls.filter(
+      ([eventName]) => eventName === 'keydown',
+    ).length;
+
+    render(<MessageModal {...props} pending />, host);
+    await vi.waitFor(() => {
+      expect((host.querySelector('textarea') as HTMLTextAreaElement).disabled).toBe(true);
+      expect(
+        addEventListener.mock.calls.filter(([eventName]) => eventName === 'keydown').length,
+      ).toBeGreaterThan(keydownRegistrations);
+    });
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    host
+      .querySelector('.modal-backdrop')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect((host.querySelector('textarea') as HTMLTextAreaElement).value).toBe('unfinished draft');
+    render(null, host);
     host.remove();
   });
 
