@@ -37,6 +37,15 @@ export const TABLE_DOCS: Record<string, { summary: string; invariants: readonly 
       'deleting a Task cascades to its Messages; a deleted reply target becomes NULL rather than dangling',
     ],
   },
+  messages_fts: {
+    summary:
+      'A derived FTS5 external-content index over Message content. It reads the authoritative text from messages instead of storing a second copy.',
+    invariants: [
+      'rowid is the stable messages.id INTEGER PRIMARY KEY',
+      'insert, id/content update, and delete triggers keep the index synchronized',
+      'the index can be rebuilt completely from messages and holds no fact of its own',
+    ],
+  },
   task_events: {
     summary:
       'The append-only history of Task transitions: which revision, what kind of transition, who acted, and the exact status it moved from and to.',
@@ -45,6 +54,15 @@ export const TABLE_DOCS: Record<string, { summary: string; invariants: readonly 
       'a CHECK matrix pins each event_type to its only legal from/to pair: approved is always submitted → completed, and nothing else can claim to be',
       'created is always revision 0, from NULL, to queued',
       'rows are never updated once written',
+    ],
+  },
+  task_events_fts: {
+    summary:
+      'A derived FTS5 external-content index over Task Event detail, ranked independently from Message search results.',
+    invariants: [
+      'rowid is the stable task_events.id INTEGER PRIMARY KEY',
+      'insert, id/detail update, and delete triggers keep the index synchronized',
+      'the index can be rebuilt completely from task_events and holds no fact of its own',
     ],
   },
   review_worktrees: {
@@ -70,16 +88,20 @@ export const TABLE_DOCS: Record<string, { summary: string; invariants: readonly 
 
 export function Schema() {
   const { version, tables } = facts.schema;
+  const virtualTables = tables.filter((table) => table.endsWith('_fts'));
+  const ordinaryTableCount = tables.length - virtualTables.length;
 
   return (
     <Section
       title="The State Store"
       lede={
         <>
-          Schema version <strong>{version}</strong>, <strong>{tables.length}</strong> tables, all
-          declared <code>STRICT</code>. The rules that must always hold are enforced by the database
-          itself through <code>CHECK</code> constraints — not merely by the code that writes to it.
-          Select a table to see what it guarantees.
+          Schema version <strong>{version}</strong>: <strong>{ordinaryTableCount}</strong>{' '}
+          authoritative ordinary tables declared <code>STRICT</code>, plus{' '}
+          <strong>{virtualTables.length}</strong> derived FTS5 virtual tables. Rules on
+          authoritative facts are enforced by the database itself through <code>CHECK</code>{' '}
+          constraints — not merely by the code that writes to it — while the search indexes can
+          always be rebuilt from those facts. Select a table to see what it guarantees.
         </>
       }
       sources={[

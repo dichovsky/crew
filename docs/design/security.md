@@ -150,12 +150,21 @@ cannot choose its location.
 
 ### SQLite injection, corruption, and denial
 
-All values are bound as parameters, never spliced into SQL text. STRICT tables and
-constraints (the database itself rejects invalid rows instead of trusting the code never to
+All values are bound as parameters, never spliced into SQL text. Authoritative ordinary
+`STRICT` tables and constraints (the database itself rejects invalid rows instead of trusting the code never to
 write them), foreign keys, defensive mode, refusal to load extensions, size limits,
 write-ahead logging, and explicit migrations reduce the risk of corruption and injection.
 Waiting on a busy database is bounded; contention returns an error instead of hanging.
 `doctor` runs integrity checks. The State Store is not supported on network filesystems.
+
+Search does not create an exception to that rule. Each command-line query argument is compiled
+into an FTS5 string literal and the resulting `MATCH` expression is bound as a parameter; raw
+FTS5 operators, column selectors, and syntax never pass through. The two FTS5 virtual tables and
+their engine-owned shadow tables are derived indexes, not authoritative fact tables: schema drift
+pins the virtual declarations and maintenance triggers, admits shadow objects only under their
+expected names and table-list type, and keeps the standing `STRICT` requirement on every
+authoritative ordinary table. Search returns bounded snippets rather than unbounded stored text
+and exposes no Message that the same local-user trust domain cannot retrieve through history.
 
 ### Destructive cleanup
 

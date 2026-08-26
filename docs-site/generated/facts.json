@@ -173,14 +173,16 @@
     ]
   },
   "schema": {
-    "version": 7,
+    "version": 8,
     "tables": [
       "agent_mutations",
       "agents",
       "messages",
+      "messages_fts",
       "observable_mutations",
       "review_worktrees",
       "task_events",
+      "task_events_fts",
       "tasks"
     ]
   },
@@ -257,6 +259,11 @@
     {
       "name": "roles",
       "description": "List available Roles (packaged and project overrides)",
+      "subcommands": []
+    },
+    {
+      "name": "search",
+      "description": "Search Message content and Task Event detail with lexical FTS5",
       "subcommands": []
     },
     {

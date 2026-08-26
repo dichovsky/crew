@@ -58,7 +58,7 @@ launched mode is not completely process-free.
 |---|---|---|
 | Program | `run(argv, io): Promise<number>` — one consistent entry point for argument parsing, output mode, and errors | builds the commander CLI and maps top-level exceptions to exit codes |
 | Workspace | find or initialize the `.crew/` paths and load validated project config | walks up the directory tree and follows a `workspace-pointer` when the `.crew/` it finds carries one, writes files safely, maintains the Git-ignore file, keeps every path inside the workspace |
-| Store | named operations for Agents, Messages, Tasks, history, prune, and health | the only module that imports SQLite; owns the schema, migrations, SQL, transactions, and retries |
+| Store | named operations for Agents, Messages, Tasks, history, lexical search/reindex, prune, and health | the only module that imports SQLite; owns the schema, migrations, SQL, transactions, and retries |
 | Roles | resolve/list/export a Role | packaged templates, with project files taking precedence over them |
 | Teams | resolve/list/render a Team | safe YAML parsing, schema validation, and expanding replicas (how many copies of a member to start) |
 | Platforms | look up a Setup Target and produce its generated files and start command | canonical paths, executable names, version probes, permission guidance |
@@ -119,8 +119,11 @@ src/
   io.ts                         the injected process-environment boundary
   errors.ts                     CrewError and the ErrorCode vocabulary
   format.ts                     human/NDJSON rendering; strips control sequences for humans
+  preview.ts                    shared 200-code-point bounded preview
   agents.ts                     thin command handlers: Agent lifecycle
   messages.ts                   thin command handlers: Messaging
+  search-query.ts               query-argument validation + safe FTS5 compilation
+  search.ts                     thin command handler: lexical search/reindex
   tasks.ts                      thin command handlers: reviewed Tasks
   init.ts                       thin command handler: workspace initialization
   roles.ts                      thin command handlers: Role resolve/list/export
@@ -150,6 +153,7 @@ src/
     schema.ts                   versioned schema and migrations
     agents.ts                   internal Agent queries
     messages.ts                 internal Message queries
+    search.ts                   internal FTS5 search/reindex queries
     tasks.ts                    internal Task queries/transitions
     review-worktrees.ts         internal review-Worktree queries
     change-signature.ts         read-only Console poll cursors
@@ -331,7 +335,24 @@ A Message lost this way can still be found through history queries. The default 
 transaction takes its write lock before reading anything it depends on, so what it
 checked cannot change underneath it.
 
-### 5.4 Task transitions
+### 5.4 Lexical search and index repair
+
+Schema version 8 adds two FTS5 external-content virtual tables: one indexes Message content and
+one indexes Task Event detail. The authoritative text stays in the ordinary `STRICT` tables;
+insert, relevant update, and delete triggers maintain the derived indexes. Search arguments are
+compiled into bound FTS5 literals in `src/search-query.ts`, so raw query syntax never reaches
+SQLite. `unicode61` performs case/diacritic folding and treats punctuation as token separators.
+
+An ordinary search may cause the same empty-store initialization or supported schema migration
+as any stateful command when the Store opens. After that, it performs no domain write. The Store
+runs both scopes inside one deferred read transaction, preserving a single snapshot while it
+returns the Message block and then the independently ranked Task Event block. `search --reindex`
+instead rebuilds both derived indexes inside one `BEGIN IMMEDIATE` transaction. `doctor` reads
+both source-row counts and both index-document counts in one SQL statement, hence one read
+snapshot; a mismatch is actionable, while equal counts do not prove that every indexed token is
+correct.
+
+### 5.5 Task transitions
 
 Every Task carries a whole-number `revision` counter. A transition is an update whose
 conditions check the Task id, the revision, the expected current status, the acting
@@ -545,7 +566,8 @@ are recorded as [DEC-7 and DEC-8](./decisions.md); the release gate itself is de
 - `doctor` only reads; it never changes anything. It checks tool versions, paths,
   whether exported built-in Roles or Teams have drifted from their packaged versions,
   State Store integrity, schema support, whether the filesystem looks local where that
-  can be detected, tmux and git readiness, and stale Leases.
+  can be detected, tmux and git readiness, stale Leases, and search-index count drift. A
+  `SEARCH_INDEX_STALE` finding points to `crew search --reindex`.
 - `prune` deletes old already-read Messages and old Tasks in a final state — completed
   ones judged by `completed_at`, abandoned ones by `abandoned_at` — together with their
   Task Events, keeping whatever the explicit retention flags say to keep. A Task of either

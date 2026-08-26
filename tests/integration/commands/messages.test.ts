@@ -288,4 +288,45 @@ describe('Message commands', () => {
     expect(await run(['receive', 'worker'], io)).toBe(0);
     expect(out).toEqual(['No messages.\n']);
   });
+
+  it('retrieves one exact full Message by id as JSON without previewing or consuming it', async () => {
+    const { io, out, err } = workspace();
+    await joinAgents(io, 'manager', 'worker');
+    const content = `${'😀'.repeat(201)}\u001b[31m\u0007\nlast`;
+    out.length = 0;
+    expect(await run(['send', 'manager', 'worker', content, '--json'], io)).toBe(0);
+    const sent = JSON.parse(out[0]!) as Record<string, unknown>;
+    out.length = 0;
+
+    expect(await run(['history', '--id', String(sent.id), '--json'], io)).toBe(0);
+    expect(err).toEqual([]);
+    expect(JSON.parse(out[0]!)).toEqual(sent);
+    expect((JSON.parse(out[0]!) as Record<string, unknown>).content).toBe(content);
+    expect((JSON.parse(out[0]!) as Record<string, unknown>).read_at).toBeNull();
+  });
+
+  it('validates exact-id mode and reports an absent Message as NOT_FOUND', async () => {
+    const { io, out, err } = workspace();
+    for (const argv of [
+      ['history', '--id', '1'],
+      ['history', '--id', '0', '--json'],
+      ['history', '--id', '1', '--agent', 'worker', '--json'],
+      ['history', '--id', '1', '--from', 'worker', '--json'],
+      ['history', '--id', '1', '--to', 'worker', '--json'],
+      ['history', '--id', '1', '--since', '0', '--json'],
+      ['history', '--id', '1', '--limit', '1', '--json'],
+    ]) {
+      expect(await run(argv, io)).toBe(2);
+      const last = err.pop()!;
+      if (argv.includes('--json')) {
+        expect(JSON.parse(last)).toMatchObject({ error: { code: 'USAGE' } });
+      } else {
+        expect(last).toContain('[USAGE]');
+      }
+    }
+    expect(out).toEqual([]);
+
+    expect(await run(['history', '--id', '1', '--json'], io)).toBe(1);
+    expect(JSON.parse(err.pop()!)).toMatchObject({ error: { code: 'NOT_FOUND' } });
+  });
 });

@@ -343,4 +343,21 @@ describe('Store Message receive and queries', () => {
     expectCode(() => store.listMessageHistory({ limit: 1_001 }), 'USAGE');
     store.close();
   });
+
+  it('selects one exact full Message without consuming it or touching activity', () => {
+    const { store } = create(() => 10);
+    addAgents(store, 'manager', 'worker');
+    const [sent] = store.sendMessages({
+      senderId: 'manager',
+      recipientId: 'worker',
+      content: `${'😀'.repeat(201)}\u001b[31m\u0007\nlast`,
+    });
+    const beforeAgents = store.listAgents({ includeArchived: true });
+    expect(store.getMessage(sent!.id)).toEqual(sent);
+    expect(store.getMessage(sent!.id)?.readAt).toBeNull();
+    expect(store.listAgents({ includeArchived: true })).toEqual(beforeAgents);
+    expect(store.getMessage(sent!.id + 1)).toBeNull();
+    expectCode(() => store.getMessage(0), 'USAGE');
+    store.close();
+  });
 });

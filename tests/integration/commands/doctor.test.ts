@@ -17,6 +17,7 @@ import { initWorkspace } from '../../../src/init.js';
 import { run } from '../../../src/run.js';
 import { captureIo } from '../../helpers/io.js';
 import type { Io } from '../../../src/io.js';
+import { CURRENT_SCHEMA_VERSION } from '../../../src/store/schema.js';
 
 const made: string[] = [];
 
@@ -188,6 +189,33 @@ describe('crew doctor', () => {
       severity: 'warn',
       code: 'STALE_LEASE',
       details: { task_id: id },
+    });
+  });
+
+  it('reports a stale search index as a repairable warning', async () => {
+    const { io, out } = workspace(() => 0, { PATH: fakeBin('tmux', 'git') });
+    await joinAgents(io, 'manager', 'worker');
+    out.length = 0;
+    expect(await run(['send', 'manager', 'worker', 'lease details', '--json'], io)).toBe(0);
+    const sent = records(out)[0] as { id: number; content: string };
+    out.length = 0;
+
+    const raw = new DatabaseSync(join(io.cwd, '.crew', 'state', 'crew.db'));
+    raw
+      .prepare(
+        `INSERT INTO messages_fts(messages_fts, rowid, content)
+         VALUES ('delete', ?, ?)`,
+      )
+      .run(sent.id, sent.content);
+    raw.close();
+
+    expect(await run(['doctor', '--json'], io)).toBe(0);
+    expect(records(out).find((record) => record.code === 'SEARCH_INDEX_STALE')).toMatchObject({
+      type: 'health_finding',
+      severity: 'warn',
+      code: 'SEARCH_INDEX_STALE',
+      message: 'Message search index is stale; run "crew search --reindex" to repair it',
+      details: { scope: 'messages', stored_count: 1, indexed_count: 0 },
     });
   });
 
@@ -389,13 +417,13 @@ describe('crew doctor', () => {
     await joinAgents(io, 'manager');
     out.length = 0;
     const raw = new DatabaseSync(join(io.cwd, '.crew', 'state', 'crew.db'));
-    raw.exec('PRAGMA user_version = 8');
+    raw.exec(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION + 1}`);
     raw.close();
 
     expect(await run(['doctor', '--json'], io)).toBe(1);
     expect(records(out).find((r) => r.code === 'UNSUPPORTED_SCHEMA')).toMatchObject({
       severity: 'error',
-      details: { version: 8 },
+      details: { version: CURRENT_SCHEMA_VERSION + 1 },
     });
     expect(JSON.parse(err.join(''))).toMatchObject({ error: { code: 'UNSUPPORTED_SCHEMA' } });
   });

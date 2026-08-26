@@ -35,7 +35,16 @@ import {
   type MessageRecord,
   pendingMessages,
   pendingSummary,
+  selectMessage,
 } from './messages.js';
+import {
+  rebuildSearchIndexes,
+  type ReindexResult,
+  type SearchInput,
+  type SearchResults,
+  searchMessages,
+  searchTaskEvents,
+} from './search.js';
 import {
   abandonTask,
   approveTask,
@@ -87,6 +96,14 @@ import {
 } from './connection.js';
 
 export type { InboxState, MessageKind, MessageRecord } from './messages.js';
+export type {
+  MessageSearchResult,
+  ReindexResult,
+  SearchInput,
+  SearchResults,
+  SearchScope,
+  TaskEventSearchResult,
+} from './search.js';
 export type {
   StaleLeaseTask,
   TaskEventRecord,
@@ -576,6 +593,71 @@ export class Store {
           limit,
         });
       });
+    } catch (err) {
+      mapUnexpectedSqlite(err);
+    }
+  }
+
+  /** Read one exact full Message without changing read/activity state. */
+  getMessage(id: number): MessageRecord | null {
+    this.assertLive();
+    if (!Number.isSafeInteger(id) || id < 1) {
+      throw new CrewError('USAGE', 'id must be a positive integer Message id');
+    }
+    try {
+      return this.retry(() => selectMessage(this.#db, id));
+    } catch (err) {
+      mapUnexpectedSqlite(err);
+    }
+  }
+
+  /**
+   * Search the selected indexes from one deferred read snapshot. With `all`,
+   * Messages and Task Events therefore cannot come from two different commits.
+   */
+  search(input: SearchInput): SearchResults {
+    this.assertLive();
+    const limit = input.limit ?? 50;
+    assertLimit(limit, 500);
+    if (input.scope !== 'messages' && input.scope !== 'task-events' && input.scope !== 'all') {
+      throw new CrewError('USAGE', 'scope must be messages, task-events, or all');
+    }
+    if (input.agentId !== undefined) assertAgentId(input.agentId);
+    if (input.since !== undefined && !Number.isSafeInteger(input.since)) {
+      throw new CrewError('USAGE', 'since must resolve to safe integer epoch seconds');
+    }
+
+    try {
+      return this.retry(() => {
+        this.#db.exec('BEGIN DEFERRED');
+        try {
+          if (input.agentId !== undefined) assertAgentExists(this.#db, input.agentId);
+          const filter = {
+            ...(input.agentId !== undefined ? { agentId: input.agentId } : {}),
+            ...(input.since !== undefined ? { since: input.since } : {}),
+            limit,
+          };
+          const messages =
+            input.scope === 'task-events' ? [] : searchMessages(this.#db, input.query, filter);
+          if (input.scope === 'all') this.#onStep?.('search:after-messages');
+          const taskEvents =
+            input.scope === 'messages' ? [] : searchTaskEvents(this.#db, input.query, filter);
+          this.#db.exec('COMMIT');
+          return { messages, taskEvents };
+        } catch (err) {
+          this.#safeRollback();
+          throw err;
+        }
+      });
+    } catch (err) {
+      mapUnexpectedSqlite(err);
+    }
+  }
+
+  /** Rebuild both derived FTS indexes atomically under one immediate write lock. */
+  reindexSearch(): ReindexResult {
+    try {
+      return this.transaction('IMMEDIATE', () => rebuildSearchIndexes(this.#db, this.#onStep));
     } catch (err) {
       mapUnexpectedSqlite(err);
     }

@@ -21,6 +21,14 @@ export interface StoreFacts {
   readonly schemaDriftReason: string | null;
   readonly staleLeases: readonly string[];
   readonly archivedOwners: readonly { taskId: string; agentId: string }[];
+  readonly searchIndexCounts: readonly SearchIndexCount[];
+}
+
+/** Read-only row/index counts used by doctor's cheap FTS staleness check. */
+export interface SearchIndexCount {
+  readonly scope: 'messages' | 'task-events';
+  readonly storedCount: number;
+  readonly indexedCount: number;
 }
 
 export interface PruneCutoffs {
@@ -91,6 +99,40 @@ function selectArchivedOwners(db: DatabaseSync): { taskId: string; agentId: stri
   return rows.map((row) => ({ taskId: row.taskId, agentId: row.agentId }));
 }
 
+/**
+ * Read all four FTS counts in one statement. SQLite gives a statement one read
+ * snapshot, so concurrent Message/Event writes cannot manufacture a false
+ * mismatch between separately observed stored and indexed counts.
+ */
+function selectSearchIndexCounts(db: DatabaseSync): SearchIndexCount[] {
+  const row = db
+    .prepare(
+      `SELECT
+         (SELECT count(*) FROM messages) AS messagesStored,
+         (SELECT count(*) FROM messages_fts_docsize) AS messagesIndexed,
+         (SELECT count(*) FROM task_events) AS taskEventsStored,
+         (SELECT count(*) FROM task_events_fts_docsize) AS taskEventsIndexed`,
+    )
+    .get() as unknown as {
+    messagesStored: number;
+    messagesIndexed: number;
+    taskEventsStored: number;
+    taskEventsIndexed: number;
+  };
+  return [
+    {
+      scope: 'messages',
+      storedCount: Number(row.messagesStored),
+      indexedCount: Number(row.messagesIndexed),
+    },
+    {
+      scope: 'task-events',
+      storedCount: Number(row.taskEventsStored),
+      indexedCount: Number(row.taskEventsIndexed),
+    },
+  ];
+}
+
 /** Collect diagnostic facts from an already-open read-only connection. */
 function collectStoreFacts(db: DatabaseSync, now: number): StoreFacts {
   const state = schemaState(db);
@@ -100,17 +142,19 @@ function collectStoreFacts(db: DatabaseSync, now: number): StoreFacts {
   const quick = quickCheckOk(db);
   const foreign = foreignKeyOk(db);
 
-  // Structure and content checks only make sense for an exact v1 schema. A newer
+  // Structure and content checks only make sense for the exact current schema. A newer
   // or non-empty v0 store is reported via newer/nonEmptyV0; its tables may not
   // exist, so the per-row queries are skipped.
   let schemaDriftReason: string | null = null;
   let staleLeases: string[] = [];
   let archivedOwners: { taskId: string; agentId: string }[] = [];
+  let searchIndexCounts: SearchIndexCount[] = [];
   if (version === CURRENT_SCHEMA_VERSION) {
     schemaDriftReason = findSchemaDrift(db);
     if (schemaDriftReason === null) {
       staleLeases = selectStaleLeases(db, now);
       archivedOwners = selectArchivedOwners(db);
+      searchIndexCounts = selectSearchIndexCounts(db);
     }
   }
 
@@ -123,6 +167,7 @@ function collectStoreFacts(db: DatabaseSync, now: number): StoreFacts {
     schemaDriftReason,
     staleLeases,
     archivedOwners,
+    searchIndexCounts,
   };
 }
 

@@ -96,6 +96,24 @@ crew task approve inspector <task-id>                 # only a Review completes 
 crew task list
 ```
 
+## Searching history
+
+`crew search` finds words in durable Message content and Task Event detail without running a
+model or reaching the network:
+
+```sh
+crew search lease inspector                     # both clauses must match
+crew search "lease inspector" --scope messages  # one phrase: the shell passes one argument
+crew search 'leas*' --agent worker --since 2026-08-01T00:00:00Z --json
+```
+
+Results contain a bounded excerpt rather than the full stored text. For a Message hit, retrieve
+the exact Message with `crew history --id <message-id> --json`; for a Task Event, use its
+`task_id` with `crew task show <task-id> --events`. Search is lexical: matching ignores case and
+diacritics, punctuation separates tokens, and Message scores are never compared with Task Event
+scores. `crew search --reindex` explicitly rebuilds both derived indexes if `crew doctor` reports
+them stale.
+
 ## Launching a team
 
 Beyond one-off messages, crew can start a whole Team of agents at once, each in its own tmux
@@ -215,11 +233,11 @@ flowchart TB
         UI["Console<br/>crew ui"]
     end
 
-    DB[("State Store<br/>.crew/state/crew.db<br/>SQLite - WAL - STRICT")]
+    DB[("State Store<br/>.crew/state/crew.db<br/>SQLite - WAL - schema v8")]
     TMUX["tmux session<br/>one pane per Agent + Relay window"]
     BROWSER["Browser dashboard<br/>127.0.0.1 - token-auth - SSE"]
 
-    A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 -- "crew join / send / receive / task ..." --> BIN
+    A1 & A2 & A3 & A4 & A5 & A6 & A7 & A8 -- "crew join / send / search / task ..." --> BIN
     BIN --> RUN --> CMD
     CMD --> FMT
     CMD --> WS
